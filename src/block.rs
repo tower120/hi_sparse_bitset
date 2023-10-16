@@ -4,15 +4,6 @@ use crate::bitblock::BitBlock;
 
 use num_traits::PrimInt;
 
-//use crate::utils::bit_op;
-//use crate::utils::primitive_traits::Primitive;
-//use crate::utils::simd_op::SimdOp;
-
-/*// TODO: seal
-pub trait IBlock{
-    const SIZE_POT_EXPONENT: usize;
-}*/
-
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndex, BlockIndices>
 where
@@ -80,8 +71,6 @@ where
     #[inline]
     pub unsafe fn insert_mask_unchecked(&mut self, index: usize) -> bool {
         self.mask.set_bit::<true>(index)
-        /*let bytes_block = &mut self.mask as *mut _ as *mut u8;
-        bit_op::set_raw_array_bit::<true>(bytes_block, index)*/
     }
 
     /// Return previous mask bit
@@ -92,11 +81,7 @@ where
     #[inline]
     pub unsafe fn remove(&mut self, index: usize) -> bool {
         // mask
-        {
-            self.mask.set_bit::<false>(index)
-            /*let bytes_block = &mut self.mask as *mut _ as *mut u8;
-            bit_op::set_raw_array_bit::<false>(bytes_block, index)*/
-        }
+        self.mask.set_bit::<false>(index)
         // don't touch block_index - it state is irrelevant
     }
 
@@ -109,8 +94,7 @@ where
         if !exists{
             None
         } else {
-            let block_indices = self.block_indices.as_ref();
-            Some(*block_indices.get_unchecked(index))
+            Some(self.get_unchecked(index))
         }
     }
 
@@ -130,8 +114,6 @@ where
     #[inline]
     pub unsafe fn contains(&self, index: usize) -> bool {
         self.mask.get_bit(index)
-        /*let bytes_block = &self.mask as *const _ as *const u8;
-        bit_op::get_raw_array_bit(bytes_block, index)*/
     }
 
     #[inline]

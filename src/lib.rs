@@ -3,17 +3,15 @@ mod block;
 mod level;
 mod bitblock;
 mod bit_op;
+pub mod configs;
 
-use std::{ops::ControlFlow};
+use std::{ops, ops::ControlFlow};
 use num_traits::{AsPrimitive, PrimInt};
-//use crate::utils::{simd_op::{SimdOp, SimdVec128}, bit_op, primitive_traits::{Primitive, AsPrimitive}};
 
 use block::Block;
 use level::Level;
 use crate::bitblock::BitBlock;
-/*use crate::block::IBlock;
-use crate::level::ILevel;
-*/
+
 /// 0 level mask should have size <= 256
 /*type Level0Mask = SimdVec128;
 type Level1Mask = SimdVec128;
@@ -34,26 +32,30 @@ type Level0    = Level0Block;
 type Level1    = Level<Level1Block, Level1BlockIndex>;
 type LevelData = Level<LevelDataBlock, DataBlockIndex>;*/
 
-pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + Default + 'static
-/*where
-    Self: 'static,
-    usize: AsPrimitive<Self>*/
-{}
+pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + Default + 'static {}
+impl<T: PrimInt + AsPrimitive<usize> + Default + 'static> MyPrimitive for T{}
 
-pub trait IConfig: Default {
+pub trait IConfig {
     type Level0BitBlock: BitBlock + Default;
-    type Level0BlockIndices: AsRef<[Self::Level1BlockIndex]> + AsMut<[Self::Level1BlockIndex]> + Default;
+    /// Must be big enough to accommodate at least Level0BitBlock::SIZE
+    /// Must be [Self::Level1BlockIndex; 1 << Level0BitBlock::SIZE_POT_EXPONENT]
+    type Level0BlockIndices: AsRef<[Self::Level1BlockIndex]> + AsMut<[Self::Level1BlockIndex]>;
 
     type Level1BitBlock: BitBlock + Default;
     type Level1BlockIndex: MyPrimitive;
-    type Level1BlockIndices: AsRef<[Self::DataBlockIndex]> + AsMut<[Self::DataBlockIndex]> + Default;
+    /// Must be big enough to accommodate at least Level1BitBlock::SIZE.
+    /// Must be [Self::DataBlockIndex; 1 << Level1BitBlock::SIZE_POT_EXPONENT]
+    type Level1BlockIndices: AsRef<[Self::DataBlockIndex]> + AsMut<[Self::DataBlockIndex]>;
 
     type DataBitBlock: BitBlock + Default;
+    /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
     type DataBlockIndex: MyPrimitive;
+}
 
-/*    type Level0    : IBlock + Default;
-    type Level1    : ILevel + Default;
-    type LevelData : ILevel + Default;*/
+pub const fn max_range<Config: IConfig>() -> usize {
+    (1 << Config::Level0BitBlock::SIZE_POT_EXPONENT)
+    * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
+    * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT)
 }
 
 /// Hierarchical sparse bitset. Tri-level hierarchy. Highest uint it can hold is Level0Mask * Level1Mask * DenseBlock.
@@ -61,7 +63,7 @@ pub trait IConfig: Default {
 /// Only last level contains blocks of actual data. Empty(skipped) data blocks are not allocated.
 /// 
 /// Structure optimized for intersection speed. Insert/remove/contains is fast O(1) too.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct HiSparseBitset<Config: IConfig>{
     level0: Block<Config::Level0BitBlock, Config::Level1BlockIndex, Config::Level0BlockIndices>,
     level1: Level<
@@ -72,17 +74,28 @@ pub struct HiSparseBitset<Config: IConfig>{
                 Block<Config::DataBitBlock, usize, [usize;0]>,
                 Config::DataBlockIndex,
             >,
-/*    level0: Config::Level0,
-    level1: Config::Level1,
-    data  : Config::LevelData*/
+}
+
+impl<Config: IConfig> Default for HiSparseBitset<Config>
+// TODO: consider changing this somehow
+where
+    usize: AsPrimitive<Config::Level1BlockIndex>,
+    usize: AsPrimitive<Config::DataBlockIndex>,
+{
+    #[inline]
+    fn default() -> Self{
+        Self{
+            level0: Default::default(),
+            level1: Default::default(),
+            data: Default::default(),
+        }
+    }
 }
 
 impl<Config: IConfig> HiSparseBitset<Config>
+// TODO: consider changing this somehow
 where
-    //Config::Level1BlockIndex: AsPrimitive<usize>,
     usize: AsPrimitive<Config::Level1BlockIndex>,
-
-    //Config::DataBlockIndex: AsPrimitive<usize>,
     usize: AsPrimitive<Config::DataBlockIndex>,
 {
     #[inline]
@@ -91,21 +104,22 @@ where
     }
 
     #[inline]
+    fn is_in_range(index: usize) -> bool{
+        index < max_range::<Config>()
+    }
+
+    #[inline]
     fn level_indices(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
         // this should be const and act as const.
-        let DATA_BLOCK_SIZE_POT_EXP  : usize = <<Config as IConfig>::DataBitBlock as BitBlock>::SIZE_POT_EXPONENT;
-        //let DATA_BLOCK_SIZE_POT_EXP  : usize = <<<Config as IConfig>::LevelData as ILevel>::Block as IBlock>::SIZE_POT_EXPONENT;
-        //let DATA_BLOCK_SIZE_POT_EXP  : usize = <<<Config as IConfig>::LevelData as ILevel>::Block as IBlock>::SIZE_POT_EXPONENT;
-        //let LEVEL1_BLOCK_SIZE_POT_EXP: usize = <<<Config as IConfig>::Level1    as ILevel>::Block as IBlock>::SIZE_POT_EXPONENT;
-        let LEVEL1_BLOCK_SIZE_POT_EXP: usize = <<Config as IConfig>::Level1BitBlock as BitBlock>::SIZE_POT_EXPONENT;
-
         // const DATA_BLOCK_SIZE:  usize = 1 << DenseBlock::SIZE_POT_EXPONENT;
-        let DATA_BLOCK_CAPACITY_POT_EXP:  usize = DATA_BLOCK_SIZE_POT_EXP;
+        let DATA_BLOCK_CAPACITY_POT_EXP:  usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
         // const LEVEL1_BLOCK_SIZE: usize = (1 << Level1Mask::SIZE_POT_EXPONENT) * DATA_BLOCK_SIZE;
-        let LEVEL1_BLOCK_CAPACITY_POT_EXP: usize = LEVEL1_BLOCK_SIZE_POT_EXP + DATA_BLOCK_SIZE_POT_EXP;
+        let LEVEL1_BLOCK_CAPACITY_POT_EXP: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
+                                                 + Config::DataBitBlock::SIZE_POT_EXPONENT;
 
         // index / LEVEL1_BLOCK_SIZE
         let level0 = index >> LEVEL1_BLOCK_CAPACITY_POT_EXP;
+        // TODO: use remainder % trick here
         // index - (level0 * LEVEL1_BLOCK_SIZE)
         let level0_remainder = index - (level0 << LEVEL1_BLOCK_CAPACITY_POT_EXP);
 
@@ -137,7 +151,12 @@ where
         Some((level1_block_index, data_block_index))
     }
 
+    /// # Safety
+    ///
+    /// Will panic, if `index` is out of range.
     pub fn insert(&mut self, index: usize){
+        assert!(Self::is_in_range(index), "index out of range!");
+
         // That's indices to next level
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
 
@@ -161,6 +180,10 @@ where
 
     /// Returns false if index is invalid/was not in bitset
     pub fn remove(&mut self, index: usize) -> bool {
+        if !Self::is_in_range(index){
+            return false;
+        }
+
         // 1. Resolve indices
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
         let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
@@ -223,7 +246,11 @@ where
     }
 }
 
-/*impl FromIterator<usize> for HiSparseBitset{
+impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config>
+where
+    usize: AsPrimitive<Config::Level1BlockIndex>,
+    usize: AsPrimitive<Config::DataBlockIndex>,
+{
     fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
         let mut this = Self::default();
         for i in iter{
@@ -239,11 +266,14 @@ where
 // On each level We first calculate intersection mask between all sets, 
 // then depth traverse only intersected elements/indices/blocks.
 /// `sets` iterator will be cloned multiple times.
-pub fn intersection_blocks_traverse<'a, S, F>(sets: S, mut foreach_block: F)
+pub fn intersection_blocks_traverse<'a, S, F, Config: IConfig + 'a>(sets: S, mut foreach_block: F)
 where
-    S: IntoIterator<Item = &'a HiSparseBitset>,
+    S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
     S::IntoIter: Clone,
-    F: FnMut(usize/*block_start_index*/, DataBlock)
+    F: FnMut(usize/*block_start_index*/, Config::DataBitBlock),
+
+    usize: AsPrimitive<Config::Level1BlockIndex>,
+    usize: AsPrimitive<Config::DataBlockIndex>,
 {
     use ControlFlow::*;
     let sets = sets.into_iter();
@@ -252,41 +282,43 @@ where
     let level0_intersection = 
         sets.clone()
         .map(|set| *set.level0.mask())
-        .reduce(SimdOp::and);
+        .reduce(ops::BitAnd::bitand);
 
     let level0_intersection = match level0_intersection{
         Some(intersection) => intersection,
         None => return,
     };
-    if SimdOp::is_zero(level0_intersection){
+    if level0_intersection.is_zero(){
         return;
     }
-    
-    SimdOp::traverse_one_indices(
-        level0_intersection, 
+
+    level0_intersection.traverse_bits(
         |level0_index| level1_intersection_traverse(sets.clone(), level0_index, &mut foreach_block)
     );
 
     // Level1
     #[inline]
-    fn level1_intersection_traverse<'a>(
-        sets: impl Iterator<Item = &'a HiSparseBitset> + Clone,
+    fn level1_intersection_traverse<'a, Config: IConfig + 'a>(
+        sets: impl Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
         level0_index: usize, 
-        foreach_block: &mut impl FnMut(usize/*block_start_index*/, DataBlock)
-    ) -> ControlFlow<()> {
+        foreach_block: &mut impl FnMut(usize/*block_start_index*/, Config::DataBitBlock)
+    ) -> ControlFlow<()>
+    where
+        usize: AsPrimitive<Config::Level1BlockIndex>,
+        usize: AsPrimitive<Config::DataBlockIndex>,
+    {
         let level1_intersection = unsafe{
             sets.clone()
             .map(|set| {
                 let level1_block_index = set.level0.get_unchecked(level0_index);
-                let level1_block = set.level1.blocks().get_unchecked(level1_block_index as usize);
+                let level1_block = set.level1.blocks().get_unchecked(level1_block_index.as_());
                 *level1_block.mask()
             })
-            .reduce(SimdOp::and)
+            .reduce(ops::BitAnd::bitand)
             .unwrap_unchecked()
         };
 
-        SimdOp::traverse_one_indices(
-            level1_intersection, 
+        level1_intersection.traverse_bits(
             |level1_index| data_intersection_traverse(sets.clone(), level0_index, level1_index, foreach_block)
         );
 
@@ -295,12 +327,16 @@ where
 
     // Data
     #[inline]
-    fn data_intersection_traverse<'a>(
-        sets: impl Iterator<Item = &'a HiSparseBitset>,
+    fn data_intersection_traverse<'a, Config: IConfig + 'a>(
+        sets: impl Iterator<Item = &'a HiSparseBitset<Config>>,
         level0_index: usize, 
         level1_index: usize,
-        foreach_block: &mut impl FnMut(usize/*block_start_index*/, DataBlock)
-    ) -> ControlFlow<()>{
+        foreach_block: &mut impl FnMut(usize/*block_start_index*/, Config::DataBitBlock)
+    ) -> ControlFlow<()>
+    where
+        usize: AsPrimitive<Config::Level1BlockIndex>,
+        usize: AsPrimitive<Config::DataBlockIndex>,
+    {
         let data_intersection = unsafe{
             sets
             .map(|set| {
@@ -308,17 +344,17 @@ where
                 // but benchmarks showed that does not have measurable performance benefits.
 
                 let level1_block_index = set.level0.get_unchecked(level0_index);
-                let level1_block       = set.level1.blocks().get_unchecked(level1_block_index as usize);
+                let level1_block       = set.level1.blocks().get_unchecked(level1_block_index.as_());
 
                 let data_block_index   = level1_block.get_unchecked(level1_index);
-                *set.data.blocks().get_unchecked(data_block_index as usize).mask()
+                *set.data.blocks().get_unchecked(data_block_index.as_()).mask()
             })
-            .reduce(SimdOp::and)
+            .reduce(ops::BitAnd::bitand)
             .unwrap_unchecked()
         };
 
-        let block_start_index = (level0_index << (DataBlock::SIZE_POT_EXPONENT + Level1Mask::SIZE_POT_EXPONENT))
-                              + (level1_index << (DataBlock::SIZE_POT_EXPONENT));
+        let block_start_index = (level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT))
+                              + (level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT));
 
         (foreach_block)(block_start_index, data_intersection);
 
@@ -326,6 +362,7 @@ where
     }
 }
 
+/*
 /// Same as [intersection_blocks_traverse], but iterator, and a tiny bit slower.
 /// 
 /// `sets` iterator will be cloned and iterated multiple times.
@@ -337,15 +374,19 @@ where
     S::IntoIter: Clone,
 {
     intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
-}
+}*/
 
 /// For Debug purposes.
-pub fn collect_intersection(sets: &[HiSparseBitset]) -> Vec<usize>{
+pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) -> Vec<usize>
+where
+    usize: AsPrimitive<Config::Level1BlockIndex>,
+    usize: AsPrimitive<Config::DataBlockIndex>,
+{
     use ControlFlow::*;
     let mut indices = Vec::new();
     intersection_blocks_traverse(sets, 
         |start_index, block|{
-            SimdOp::traverse_one_indices(block, 
+            block.traverse_bits(
                 |index|{
                     indices.push(start_index+index);
                     Continue(())
@@ -355,9 +396,9 @@ pub fn collect_intersection(sets: &[HiSparseBitset]) -> Vec<usize>{
     );
     indices
 }
-*/
 
-/*#[cfg(test)]
+
+#[cfg(test)]
 mod test{
     use std::{collections::HashSet, hash::Hash};
     use std::iter::zip;
@@ -365,13 +406,16 @@ mod test{
     use itertools::assert_equal;
     use rand::Rng;
 
-    use crate::archetype::hi_spares_bitset::intersection_blocks_resumable::{IntersectionBlocksState, IntersectionBlocks};
-
     use super::*;
+
+    type Config = configs::u64s;
+    type HiSparseBitset = super::HiSparseBitset<Config>;
 
     #[test]
     fn level_indices_test(){
         // assuming all levels with 128bit blocks
+        type HiSparseBitset = super::HiSparseBitset<configs::simd_128>;
+
         let levels = HiSparseBitset::level_indices(0);
         assert_eq!(levels, (0,0,0));
 
@@ -407,9 +451,18 @@ mod test{
     }
 
     #[test]
+    fn insert_regression_test(){
+        // DataBlockIndex was not large enough to address all DataBlocks.
+        let insert = vec![81648, 70040, 69881, 4369, 31979, 56135, 87035, 27405, 94536, 14584, 69382, 49738, 33614, 19792, 66045, 29454, 59890, 1090, 80621, 53565, 14159, 2074, 76781, 6738, 83682, 20911, 94984, 80623, 50653, 26040, 79167, 50392, 31127, 28651, 59950, 73948, 12481, 13289, 16253, 77853, 42874, 86002, 63915, 7955, 52174, 33139, 77502, 16557, 97431, 9890, 19461, 82497, 87773, 85552, 88794, 5638, 53958, 37342, 57421, 79867, 96855, 83728, 1474, 6109, 6257, 91164, 76875, 19594, 44621, 57130, 53782, 75442, 50704, 40294, 16568, 9678, 75137, 29432, 80030, 6055, 43712, 79514, 19474, 61466, 46711, 87950, 94863, 1003, 46131, 61479, 87580, 4921, 49036, 71276, 67886, 8474, 58231, 60423, 99815, 49265, 82376, 62220, 30612, 26212, 29064, 75311, 60434, 14591, 8479, 63516, 79371, 98992, 34600, 3073, 15808, 71479, 80278, 28596, 27844, 42506, 17133, 59812, 89721, 92112, 23382, 70895, 23044, 96229, 74413, 12051, 94022, 4830, 30606, 64922, 89663, 59286, 98662, 16009, 42336, 29433, 60748, 41762, 23098, 62999, 24522, 75963, 18002, 37599, 79931, 43878, 25758, 75672, 33099, 54768, 57160, 73527, 46764, 75596, 81567, 5953, 69160, 70799, 20319, 8023, 24639, 5526, 4068, 7248, 14628, 97735, 42080, 25881, 91583, 40605, 44134, 22706, 34547, 53265, 1424, 80496, 9894, 19324, 35624, 10335, 97325, 12085, 57335, 89242, 52991, 74868, 75155, 78683, 68180, 55659, 159, 82153, 21802, 62499, 13865, 86661, 63992, 56095, 46342, 9339, 29598, 57330, 40593, 50058, 11451, 79062, 76579, 97251, 2045, 69331, 44047, 51070, 52200, 29900, 18500, 26570, 69129, 841, 88289, 78380, 23277, 27252, 80342, 98361, 41967, 76318, 46160, 49982, 42613, 44331, 54163, 32182, 46394, 63567, 25258, 84565, 18447, 16327, 68024, 95023, 55068, 59260, 24933, 4065, 5060, 81498, 89619, 7464, 60886, 22123, 87004, 25864, 17141, 34239, 10916, 5989, 91695, 24318, 82378, 32613, 16399, 50519, 54776, 87956, 84821, 74634, 7997, 86768, 34603, 69863, 94967, 50891, 70401, 83942, 85139, 8364, 8258, 99866, 21950, 63876, 32750, 5189, 75194, 34563, 78447, 14877, 83526, 26214, 1948, 68727, 49824, 55674, 4734, 48862, 26280, 75557, 96939, 30784, 66303, 69583, 44598, 82073, 54225, 81280, 8735, 32231, 60384, 2399, 5950, 96235, 42523, 20806, 26941, 73590, 32468, 4430, 76240, 34904, 24908, 31811, 71084, 99476, 48439, 13982, 24755, 38280, 81421, 66048, 72804, 5676, 22421, 88208, 43076, 3825, 45046, 17674, 52393, 70823, 82194, 25426, 53426, 34225, 68279, 98832, 29892, 38107, 64503, 24810, 99691, 82755, 56292, 21381, 96569, 33870, 50740, 10775, 43463, 10361, 79284, 21914, 33337, 93280, 27701, 12272, 35920, 35046, 82052, 75639, 1265, 90897, 99721, 27096, 75006, 92116, 12568, 11396, 64228, 85758, 8041, 30803, 37449, 83983, 33759, 75077, 22202, 90770, 29504, 40942, 134, 1661, 63615, 2465, 96964, 62333, 41605, 18746, 97835, 41262, 77397, 37877, 11084, 51122, 74987, 28024, 78981, 67489, 58293, 38546, 5753, 35035, 81375, 46964, 12780, 85476, 9278, 79564, 71250, 73450, 54928, 60383, 8784, 78604, 82215, 76524, 68112, 81080, 60635, 3313, 70818, 11515, 15039, 16401, 42245, 48242, 87192, 27965, 72971, 11937, 75718, 53388, 59647, 69358, 42201, 66701, 51628, 34994, 39815, 63946, 10996, 11503, 85880, 58792, 94111, 6673, 99802, 7823, 29570, 81137, 27800, 93920, 78610, 84695, 96901, 68661, 80431, 66087, 50296, 45463, 63353, 44284, 84585, 76471, 38385, 31463, 91744, 55237, 44637, 15091, 62018, 23315, 36266, 94985, 95107, 63600, 46176, 94696, 69953, 99624, 91338, 11665, 33243, 22048, 77125, 46785, 12688, 61284, 87989, 85715, 65754, 86959, 61316, 95721, 27272, 39746, 53254, 78023, 49197, 51300, 15061, 92589, 70761, 29260, 9711, 21532, 43802, 38809, 45438, 10105, 14774, 60125, 51371, 27479, 35448, 9152, 41521, 61589, 82456, 87647, 10689, 68592, 23324, 66377, 91867, 7881, 23242, 5566, 1650, 447, 56480, 29996, 33382, 9913, 10669, 7657, 49606, 8707, 64984, 71762, 97917, 81242, 58586, 30410, 19232, 84153, 84033, 94535, 71307, 34988, 73823, 53717, 9757, 25540, 43769, 38933, 24864, 3490, 54100, 74574, 45607, 64771, 20570, 51752, 51354, 934, 61460, 66962, 90202, 39095, 13054, 60517, 85046, 38155, 17786, 12018, 73068, 5961, 16816, 73953, 80046, 71998, 99611, 52521, 14382, 58105, 86941, 17770, 67849, 67536, 1911, 59935, 17209, 37967, 29073, 27130, 74980, 97600, 41566, 79834, 20446, 99223, 48978, 66506, 59855, 18264, 9047, 13150, 92839, 26830, 74781, 27987, 75994, 60438, 8940, 48668, 84280, 71786, 1803, 71381, 41078, 10382, 84257, 95683, 4587, 33126, 92651, 78140, 61236, 96100, 93009, 61924, 56318, 34929, 78248, 55956, 3299, 73724, 45611, 25372, 62847, 14959, 63943, 46100, 66310, 84733, 39094, 22378, 36605, 66795, 44425, 13795, 14831, 63404, 90275, 26253, 65048, 65796, 19194, 6974, 71510, 95671, 72101, 81604, 9421, 38217, 40571, 11897, 653, 73418, 78287, 12134, 41718, 95256, 50881, 38983, 31079, 34469, 20615, 56502, 18022, 34186, 82119, 61533, 89187, 79094, 88514, 98011, 50228, 28780, 23755, 18383, 17406, 36655, 15121, 39548, 95978, 95355, 5141, 20769, 49183, 16338, 11419, 19076, 64557, 62532, 74389, 62598, 14643, 69516, 32262, 20264, 78275, 8679, 90212, 53704, 90341, 41178, 99161, 32231, 40456, 17388, 81135, 88476, 12577, 21064, 51932, 31816, 97568, 90908, 58263, 28436, 47779, 49437, 99197, 4320, 72970, 67943, 85990, 60832, 71006, 42225, 22618, 3382, 5303, 327, 28724, 37180, 15129, 83399, 24183, 56464, 87398, 29180, 16049, 15357, 58042, 31234, 42819, 67983, 51088, 5282, 61580, 84463, 10900, 70287, 62423, 85788, 28859, 26614, 94292, 54912, 36618, 81500, 85987, 92179, 86629, 13646, 37609, 64161, 34435, 53043, 54794, 74341, 15869, 44322, 74946, 64581, 39531];
+        let hi_set = HiSparseBitset::from_iter(insert.iter().copied());
+        let c = hi_set.contains(76790);
+        assert!(!c);
+    }
+
+    #[test]
     fn fuzzy_test(){
         const MAX_SIZE : usize = 10000;
-        const MAX_RANGE: usize = 1000000;
+        const MAX_RANGE: usize = 100000;
         const CONTAINS_PROBES: usize = 1000;
 
         let mut rng = rand::thread_rng();
@@ -463,7 +516,7 @@ mod test{
         }
     }
 
-    #[test]
+/*    #[test]
     fn fuzzy_intersection_test(){
         const MAX_SETS : usize = 10;
         const MAX_INSERTS: usize = 10000;
@@ -726,6 +779,5 @@ mod test{
 
         let c= hi_set.contains(10000);
         assert!(c);
-    }
+    }*/
 }
-*/

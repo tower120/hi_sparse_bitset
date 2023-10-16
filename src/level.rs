@@ -1,14 +1,5 @@
-//use crate::utils::primitive_traits::{AsPrimitive, Primitive};
-
 use num_traits::{AsPrimitive, PrimInt};
-//use crate::bitblock::BitBlock;
-/*use crate::block::IBlock;
 
-pub trait ILevel{
-    type Block: IBlock;
-    type BlockIndex;
-}
-*/
 #[derive(Default, Clone)]
 pub struct Level<LevelBlock, LevelBlockIndex>{
     blocks: Vec<LevelBlock>,
