@@ -10,8 +10,8 @@ simd = ["dep:wide"]
 
 [dependencies]
 num-traits = "0.2"
-#wide = { version = "0.7", optional = true }
-wide = { git = "https://github.com/tower120/wide.git", branch = "as_array_mut", optional = true }
+#replace_with = "0.1"
+wide = { version = "0.7.13", optional = true }
 
 [dev-dependencies]
 rand = "0.8"

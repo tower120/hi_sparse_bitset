@@ -1,13 +1,14 @@
+use std::mem;
 use std::ops::{BitAnd, ControlFlow};
 use std::ops::ControlFlow::*;
 use crate::bit_op;
+use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 
 // TODO: consider removing copy/clone
 pub trait BitBlock: BitAnd<Output = Self> + Sized + Copy + Clone{
     const SIZE_POT_EXPONENT: usize;
 
     fn zero() -> Self;
-    // TODO: is_empty?
     fn is_zero(&self) -> bool;
 
     /// Returns previous bit
@@ -19,6 +20,14 @@ pub trait BitBlock: BitAnd<Output = Self> + Sized + Copy + Clone{
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;
+
+    type BitsIter: BitQueue;
+    fn bits_iter(self) -> Self::BitsIter;
+
+    // TODO: as_queue_mask?
+    //fn as_mask(&self) -> <Self::BitsIter as BitQueue>::Mask{ todo!() }
+
+    fn as_array_u64(&self) -> &[u64];
 }
 
 impl BitBlock for u64{
@@ -50,6 +59,19 @@ impl BitBlock for u64{
         F: FnMut(usize) -> ControlFlow<()>
     {
         bit_op::traverse_one_bits(*self, f)
+    }
+
+    type BitsIter = PrimitiveBitQueue;
+    #[inline]
+    fn bits_iter(self) -> Self::BitsIter {
+        PrimitiveBitQueue::new(self)
+    }
+
+    #[inline]
+    fn as_array_u64(&self) -> &[u64] {
+        unsafe {
+            mem::transmute::<&u64, &[u64; 1]>(self)
+        }
     }
 }
 
@@ -87,5 +109,16 @@ impl BitBlock for wide::u64x2{
     {
         let array = self.as_array_ref();
         bit_op::traverse_array_one_bits(array, f)
+    }
+
+    type BitsIter = ArrayBitQueue<2>;
+    #[inline]
+    fn bits_iter(self) -> Self::BitsIter {
+        ArrayBitQueue::new(self.to_array())
+    }
+
+    #[inline]
+    fn as_array_u64(&self) -> &[u64] {
+        self.as_array_ref()
     }
 }

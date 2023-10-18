@@ -101,3 +101,43 @@ where
     }
     ControlFlow::Continue(())
 }
+
+/// This is 15% slower then "traverse" version
+#[inline]
+pub fn one_bits_iter<P>(element: P) -> OneBitsIter<P> {
+    OneBitsIter {element}
+}
+
+/// Can be safely casted to its original bit block type.
+///
+/// "Consumed"/iterated one bits replaced with zero.
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct OneBitsIter<P: Sized>{
+    element: P
+}
+impl<P> Iterator for OneBitsIter<P>
+where
+    P: PrimInt + BitXorAssign + WrappingNeg,
+{
+    type Item = usize;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
+        // https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2018/03/07/simdbitmapdecode.c#L45
+        if !self.element.is_zero() {
+            let index = self.element.trailing_zeros() as usize;
+
+            // Returns an integer having just the least significant bit of
+            // bitset turned on, all other bits are off.
+            let t: P = self.element & self.element.wrapping_neg();
+            self.element ^= t;
+
+            Some(index)
+        } else {
+            None
+        }
+    }
+}
+

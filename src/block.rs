@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use crate::bitblock::BitBlock;
+use crate::bit_block::BitBlock;
 
 use num_traits::PrimInt;
 
@@ -8,7 +8,7 @@ use num_traits::PrimInt;
 pub struct Block<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]>
+    BlockIndices: AsRef<[BlockIndex]> + Clone
 {
     mask: Mask,
     /// Next level block indices
@@ -19,7 +19,7 @@ where
 impl<Mask, BlockIndex, BlockIndices> Default for Block<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]>
+    BlockIndices: AsRef<[BlockIndex]> + Clone
 {
     #[inline]
     fn default() -> Self {
@@ -35,7 +35,7 @@ impl<Mask, BlockIndex, BlockIndices> Block<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
     BlockIndex: PrimInt,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]>
+    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
 {
     /// # Safety
     ///
