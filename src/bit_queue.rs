@@ -12,6 +12,8 @@ pub trait BitQueue: Iterator<Item = usize>{
     /// All bits 1.
     fn filled() -> Self;
 
+    type Mask;
+
     /// Lower bits with 0 in mask.
     ///
     /// N.B. Bits with 1 in mask will **NOT** be raised.
@@ -19,7 +21,7 @@ pub trait BitQueue: Iterator<Item = usize>{
     /// # Safety
     ///
     /// Panics, if mask size does not match BitQueue.
-    fn mask_out(&mut self, mask: &[u64]);
+    fn mask_out(&mut self, mask: &Self::Mask);
 }
 
 // Rename to U64BitQueue
@@ -47,10 +49,10 @@ impl BitQueue for PrimitiveBitQueue{
         Self::new(u64::MAX)
     }
 
+    type Mask = [u64; 1];
+
     #[inline]
-    fn mask_out(&mut self, mask: &[u64]) {
-        // should act as compile-time check
-        assert!(mask.len() == 1);
+    fn mask_out(&mut self, mask: &[u64; 1]) {
         let mask = mask[0];
         let block: &mut u64 = unsafe{
             mem::transmute(&mut self.bit_block_iter)
@@ -103,10 +105,10 @@ impl<const N: usize> BitQueue for ArrayBitQueue<N> {
         Self::new([u64::MAX; N])
     }
 
+    type Mask = [u64; N];
+
     #[inline]
-    fn mask_out(&mut self, mask: &[u64]) {
-        // should act as compile-time check
-        assert!(mask.len() == N);
+    fn mask_out(&mut self, mask: &[u64; N]) {
         // compile-time loop
         for i in 0..N{
             let bit_block_iter = &mut self.bit_block_iters[i];

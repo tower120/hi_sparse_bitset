@@ -21,13 +21,14 @@ pub trait BitBlock: BitAnd<Output = Self> + Sized + Copy + Clone{
     where
         F: FnMut(usize) -> ControlFlow<()>;
 
-    type BitsIter: BitQueue;
+    type BitsIter: BitQueue<Mask = Self::AsArray>;
     fn bits_iter(self) -> Self::BitsIter;
 
     // TODO: as_queue_mask?
     //fn as_mask(&self) -> <Self::BitsIter as BitQueue>::Mask{ todo!() }
 
-    fn as_array_u64(&self) -> &[u64];
+    type AsArray: AsRef<[u64]>;
+    fn as_array_u64(&self) -> &Self::AsArray;
 }
 
 impl BitBlock for u64{
@@ -67,8 +68,10 @@ impl BitBlock for u64{
         PrimitiveBitQueue::new(self)
     }
 
+    type AsArray = [u64; 1];
+
     #[inline]
-    fn as_array_u64(&self) -> &[u64] {
+    fn as_array_u64(&self) -> &Self::AsArray {
         unsafe {
             mem::transmute::<&u64, &[u64; 1]>(self)
         }
@@ -117,8 +120,10 @@ impl BitBlock for wide::u64x2{
         ArrayBitQueue::new(self.to_array())
     }
 
+    type AsArray = [u64; 2];
+
     #[inline]
-    fn as_array_u64(&self) -> &[u64] {
+    fn as_array_u64(&self) -> &[u64; 2] {
         self.as_array_ref()
     }
 }
