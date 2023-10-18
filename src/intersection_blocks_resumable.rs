@@ -7,8 +7,6 @@
 
 use std::ops;
 use num_traits::AsPrimitive;
-// TODO: consider removing replace_with
-//use replace_with::{replace_with, replace_with_or_abort};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 
@@ -117,49 +115,18 @@ where
                 return;
             },
         };
-        /*let level0_intersection = level0_intersection.as_array_i64();
-        let level0_index_valid = unsafe{ get_raw_array_bit(level0_intersection.as_ptr() as *const _, state.level0_index) };
-        update_iter(&mut state.level0_iter, level0_intersection);*/
-
         let level0_index_valid = level0_intersection.get_bit(state.level0_index);
         state.level0_iter.mask_out(level0_intersection.as_array_u64());
-
-        /*let level0_intersection = level0_intersection.as_array_u64();
-        let level0_index_valid = bit_op::get_array_bit(level0_intersection, state.level0_index);
-        state.level0_iter.mask_out(level0_intersection);*/
 
         // Level1
         if level0_index_valid{
             let level1_intersection = Self::level1_intersection(sets.clone(), state.level0_index);
-            //update_iter(&mut state.level1_iter, level1_intersection.as_array_i64());
             state.level1_iter.mask_out(level1_intersection.as_array_u64());
         } else {
             // We already update level0_iter - we do not
             // update level0_index too, since it will be updated in iterator.
             state.level1_iter  = BitQueue::empty();
         }
-
-/*        #[inline]
-        fn update_iter<Iter: OneIndicesIterator>(iter: &mut Iter, intersection: &[i64]){
-            // OneIndicesIterator zeroing passed bits, so `iter` block will
-            // act as mask for passed indices, and also will mask-out indices
-            // that was not in original intersection. 
-
-            replace_with(
-                iter, 
-                ||unsafe{
-                    // We know that we don't panic here
-                    std::hint::unreachable_unchecked()
-                },
-                |iter|{
-                    let (mut blocks, block_index) = iter.into_raw();    
-                    for i in 0..intersection.len(){   // compiletime unwinded loop
-                        blocks[i] &= intersection[i];
-                    }
-                    Iter::from_raw(blocks, block_index)
-                }
-            );
-        }*/
     }
 
     #[inline]
@@ -193,7 +160,7 @@ where
     usize: AsPrimitive<Config::Level1BlockIndex>,
     usize: AsPrimitive<Config::DataBlockIndex>,
 {
-    type Item = (usize, Config::DataBitBlock);
+    type Item = DataBlock<Config::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -233,12 +200,9 @@ where
             .unwrap_unchecked()
         };
 
-        /*let block_start_index = (state.level0_index << (DataBlock::SIZE_POT_EXPONENT + Level1Mask::SIZE_POT_EXPONENT))
-                              + (level1_index << (DataBlock::SIZE_POT_EXPONENT));*/
         let block_start_index = (state.level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT))
                               + (level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT));
 
-
-        Some((block_start_index, data_intersection))
+        Some(DataBlock{ start_index: block_start_index, bit_block: data_intersection })
     }
 }

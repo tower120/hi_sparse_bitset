@@ -17,26 +17,6 @@ use block::Block;
 use level::Level;
 use crate::bit_block::BitBlock;
 
-/// 0 level mask should have size <= 256
-/*type Level0Mask = SimdVec128;
-type Level1Mask = SimdVec128;
-pub type DataBlock  = SimdVec128;
-
-type Level1BlockIndex = u8;
-type DataBlockIndex   = u16;
-
-type Level0BlockIndices = [Level1BlockIndex; 1<< Level0Mask::SIZE_POT_EXPONENT];
-type Level1BlockIndices = [DataBlockIndex  ; 1<< Level1Mask::SIZE_POT_EXPONENT];
-type NoBlockIndices     = [usize;0];
-
-type Level0Block    = Block<Level0Mask, Level1BlockIndex, Level0BlockIndices>;
-type Level1Block    = Block<Level1Mask, DataBlockIndex,   Level1BlockIndices>;
-type LevelDataBlock = Block<DataBlock,  usize,            NoBlockIndices>;
-
-type Level0    = Level0Block;
-type Level1    = Level<Level1Block, Level1BlockIndex>;
-type LevelData = Level<LevelDataBlock, DataBlockIndex>;*/
-
 pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> MyPrimitive for T{}
 
@@ -279,8 +259,8 @@ where
     }
 }
 
-// TODO: use it
-pub struct DataBlock<Block: BitBlock>{
+#[derive(Clone, Debug)]
+pub struct DataBlock<Block>{
     pub start_index: usize,
     pub bit_block: Block
 }
@@ -292,7 +272,41 @@ impl<Block: BitBlock> DataBlock<Block>{
     {
         self.bit_block.traverse_bits(|index| f(self.start_index + index))
     }
+
+    #[inline]
+    pub fn iter(&self) -> DataBlockIter<Block>{
+        DataBlockIter{
+            start_index: self.start_index,
+            bit_block_iter: self.bit_block.clone().bits_iter()
+        }
+    }
 }
+impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
+    type Item = usize;
+    type IntoIter = DataBlockIter<Block>;
+
+    /// This is actually no-op fast.
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        DataBlockIter{
+            start_index: self.start_index,
+            bit_block_iter: self.bit_block.bits_iter()
+        }
+    }
+}
+pub struct DataBlockIter<Block: BitBlock>{
+    start_index: usize,
+    bit_block_iter: Block::BitsIter
+}
+impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
+    type Item = usize;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.bit_block_iter.next().map(|index|self.start_index + index)
+    }
+}
+
 
 // TODO: Consider using &IntoIterator instead of cloning iterator?
 // See doc/HiSparseBitset.png for illustration.
@@ -304,7 +318,7 @@ pub fn intersection_blocks_traverse<'a, S, F, Config: IConfig + 'a>(sets: S, mut
 where
     S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
     S::IntoIter: Clone,
-    F: FnMut(usize/*block_start_index*/, Config::DataBitBlock),
+    F: FnMut(DataBlock<Config::DataBitBlock>),
 
     usize: AsPrimitive<Config::Level1BlockIndex>,
     usize: AsPrimitive<Config::DataBlockIndex>,
@@ -335,7 +349,7 @@ where
     fn level1_intersection_traverse<'a, Config: IConfig + 'a>(
         sets: impl Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
         level0_index: usize, 
-        foreach_block: &mut impl FnMut(usize/*block_start_index*/, Config::DataBitBlock)
+        foreach_block: &mut impl FnMut(DataBlock<Config::DataBitBlock>)
     ) -> ControlFlow<()>
     where
         usize: AsPrimitive<Config::Level1BlockIndex>,
@@ -365,7 +379,7 @@ where
         sets: impl Iterator<Item = &'a HiSparseBitset<Config>>,
         level0_index: usize, 
         level1_index: usize,
-        foreach_block: &mut impl FnMut(usize/*block_start_index*/, Config::DataBitBlock)
+        foreach_block: &mut impl FnMut(DataBlock<Config::DataBitBlock>)
     ) -> ControlFlow<()>
     where
         usize: AsPrimitive<Config::Level1BlockIndex>,
@@ -390,10 +404,31 @@ where
         let block_start_index = (level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT))
                               + (level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT));
 
-        (foreach_block)(block_start_index, data_intersection);
+        (foreach_block)(DataBlock{start_index: block_start_index, bit_block: data_intersection});
 
         Continue(())
     }
+}
+
+/// For Debug purposes.
+pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) -> Vec<usize>
+where
+    usize: AsPrimitive<Config::Level1BlockIndex>,
+    usize: AsPrimitive<Config::DataBlockIndex>,
+{
+    use ControlFlow::*;
+    let mut indices = Vec::new();
+    intersection_blocks_traverse(sets,
+        |block|{
+            block.traverse(
+                |index|{
+                    indices.push(index);
+                    Continue(())
+                }
+            );
+        }
+    );
+    indices
 }
 
 /// Same as [intersection_blocks_traverse], but iterator, and a tiny bit slower.
@@ -411,25 +446,4 @@ where
     usize: AsPrimitive<Config::DataBlockIndex>,
 {
     intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
-}
-
-/// For Debug purposes.
-pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) -> Vec<usize>
-where
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
-{
-    use ControlFlow::*;
-    let mut indices = Vec::new();
-    intersection_blocks_traverse(sets, 
-        |start_index, block|{
-            block.traverse_bits(
-                |index|{
-                    indices.push(start_index+index);
-                    Continue(())
-                }
-            );
-        }
-    );
-    indices
 }

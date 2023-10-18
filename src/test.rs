@@ -214,10 +214,9 @@ fn fuzzy_intersection_test(){
                     }
                     blocks_to_consume -= 1;
 
-                    if let Some((start_index, block)) = intersection.next(){
-                        block.traverse_bits(
+                    if let Some(block) = intersection.next(){
+                        block.traverse(
                             |index|{
-                                let index = start_index + index;
                                 assert!(hashsets_intersection.contains(&index));
                                 initial_hashsets_intersection.remove(&index);
                                 ControlFlow::Continue(())
@@ -238,10 +237,10 @@ fn fuzzy_intersection_test(){
                 // check that intersection_blocks = intersection_blocks_traverse
                 {
                     let mut indices2 = Vec::new();
-                    for (start_index, block) in intersection_blocks(&hi_sets){
-                        block.traverse_bits(
+                    for block in intersection_blocks(&hi_sets){
+                        block.traverse(
                             |index|{
-                                indices2.push(start_index+index);
+                                indices2.push(index);
                                 ControlFlow::Continue(())
                             }
                         );
@@ -252,10 +251,10 @@ fn fuzzy_intersection_test(){
                 {
                     let mut indices2 = Vec::new();
                     let state = IntersectionBlocksState::default();
-                    for (start_index, block) in state.resume(hi_sets.iter()){
-                        block.traverse_bits(
+                    for block in state.resume(hi_sets.iter()){
+                        block.traverse(
                             |index|{
-                                indices2.push(start_index+index);
+                                indices2.push(index);
                                 ControlFlow::Continue(())
                             }
                         );
@@ -278,10 +277,9 @@ fn fuzzy_intersection_test(){
         // consume resumable intersection leftovers
         {
             let intersection = intersection_state.resume(hi_sets.iter());
-            for (start_index, block) in intersection{
-                block.traverse_bits(
+            for block in intersection{
+                block.traverse(
                     |index|{
-                        let index = start_index + index;
                         initial_hashsets_intersection.remove(&index);
                         ControlFlow::Continue(())
                     }
@@ -313,10 +311,10 @@ fn one_intersection_test(){
     let mut iter = state.resume([&hi_set].into_iter());
 
     let mut intersection = Vec::new();
-    for (start_index, block) in iter{
-        block.traverse_bits(
+    for block in iter{
+        block.traverse(
             |index|{
-                intersection.push(start_index+index);
+                intersection.push(index);
                 ControlFlow::Continue(())
             }
         );
@@ -352,14 +350,13 @@ fn regression_test1() {
     println!("etalon: {:?}", etalon_intersection);
 
     {
-
         let mut indices2 = Vec::new();
         let state = IntersectionBlocksState::default();
         let iter = state.resume(hi_sets.iter());
-        for (start_index, block) in iter{
-            block.traverse_bits(
+        for block in iter{
+            block.traverse(
                 |index|{
-                    indices2.push(start_index+index);
+                    indices2.push(index);
                     ControlFlow::Continue(())
                 }
             );
