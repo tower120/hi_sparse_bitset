@@ -24,9 +24,6 @@ pub trait BitBlock: BitAnd<Output = Self> + Sized + Copy + Clone{
     type BitsIter: BitQueue<Mask = Self::AsArray>;
     fn bits_iter(self) -> Self::BitsIter;
 
-    // TODO: as_queue_mask?
-    //fn as_mask(&self) -> <Self::BitsIter as BitQueue>::Mask{ todo!() }
-
     type AsArray: AsRef<[u64]>;
     fn as_array_u64(&self) -> &Self::AsArray;
 }
@@ -62,7 +59,7 @@ impl BitBlock for u64{
         bit_op::traverse_one_bits(*self, f)
     }
 
-    type BitsIter = PrimitiveBitQueue;
+    type BitsIter = PrimitiveBitQueue<u64>;
     #[inline]
     fn bits_iter(self) -> Self::BitsIter {
         PrimitiveBitQueue::new(self)
@@ -114,7 +111,7 @@ impl BitBlock for wide::u64x2{
         bit_op::traverse_array_one_bits(array, f)
     }
 
-    type BitsIter = ArrayBitQueue<2>;
+    type BitsIter = ArrayBitQueue<u64, 2>;
     #[inline]
     fn bits_iter(self) -> Self::BitsIter {
         ArrayBitQueue::new(self.to_array())

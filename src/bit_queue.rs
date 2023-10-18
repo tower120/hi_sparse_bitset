@@ -1,5 +1,7 @@
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
+use std::ops::{BitAndAssign, BitXorAssign};
+use num_traits::{PrimInt, WrappingNeg};
 use crate::bit_block::BitBlock;
 use crate::bit_op::{one_bits_iter, OneBitsIter};
 use crate::MyPrimitive;
@@ -25,36 +27,39 @@ pub trait BitQueue: Iterator<Item = usize>{
 }
 
 // Rename to U64BitQueue
-pub struct PrimitiveBitQueue{
-    bit_block_iter: OneBitsIter<u64>
+pub struct PrimitiveBitQueue<P>{
+    bit_block_iter: OneBitsIter<P>
 }
 
-impl PrimitiveBitQueue{
+impl<P> PrimitiveBitQueue<P>{
     #[inline]
-    pub fn new(value: u64) -> Self {
+    pub fn new(value: P) -> Self {
         Self{
             bit_block_iter: one_bits_iter(value)
         }
     }
 }
 
-impl BitQueue for PrimitiveBitQueue{
+impl<P> BitQueue for PrimitiveBitQueue<P>
+where
+    P: MyPrimitive
+{
     #[inline]
     fn empty() -> Self {
-        Self::new(0)
+        Self::new(P::zero())
     }
 
     #[inline]
     fn filled() -> Self {
-        Self::new(u64::MAX)
+        Self::new(P::max_value())
     }
 
-    type Mask = [u64; 1];
+    type Mask = [P; 1];
 
     #[inline]
-    fn mask_out(&mut self, mask: &[u64; 1]) {
+    fn mask_out(&mut self, mask: &[P; 1]) {
         let mask = mask[0];
-        let block: &mut u64 = unsafe{
+        let block: &mut P = unsafe{
             mem::transmute(&mut self.bit_block_iter)
         };
         *block &= mask;
@@ -62,7 +67,10 @@ impl BitQueue for PrimitiveBitQueue{
 }
 
 
-impl Iterator for PrimitiveBitQueue {
+impl<P> Iterator for PrimitiveBitQueue<P>
+where
+    P: MyPrimitive
+{
     type Item = usize;
 
     #[inline]
@@ -71,15 +79,15 @@ impl Iterator for PrimitiveBitQueue {
     }
 }
 
-pub struct ArrayBitQueue<const N: usize>{
-    bit_block_iters: [OneBitsIter<u64>; N],
+pub struct ArrayBitQueue<P, const N: usize>{
+    bit_block_iters: [OneBitsIter<P>; N],
     // TODO: try and bench precomputed u32/usize block_start_index
     bit_block_index: usize,
 }
 
-impl<const N: usize> ArrayBitQueue< N> {
+impl<P, const N: usize> ArrayBitQueue<P, N> {
     #[inline]
-    pub fn new(array: [u64;N]) -> Self{
+    pub fn new(array: [P;N]) -> Self{
         Self{
             bit_block_iters: unsafe{
                 // transmute is safe since OneBitsIter<P> transparent to P.
@@ -91,28 +99,31 @@ impl<const N: usize> ArrayBitQueue< N> {
     }
 }
 
-impl<const N: usize> BitQueue for ArrayBitQueue<N> {
+impl<P, const N: usize> BitQueue for ArrayBitQueue<P, N>
+where
+    P: MyPrimitive
+{
     #[inline]
     fn empty() -> Self {
         Self{
-            bit_block_iters: [one_bits_iter(0); N],
+            bit_block_iters: [one_bits_iter(P::zero()); N],
             bit_block_index: N-1,
         }
     }
 
     #[inline]
     fn filled() -> Self {
-        Self::new([u64::MAX; N])
+        Self::new([P::max_value(); N])
     }
 
-    type Mask = [u64; N];
+    type Mask = [P; N];
 
     #[inline]
-    fn mask_out(&mut self, mask: &[u64; N]) {
+    fn mask_out(&mut self, mask: &[P; N]) {
         // compile-time loop
         for i in 0..N{
             let bit_block_iter = &mut self.bit_block_iters[i];
-            let bit_block: &mut u64 = unsafe{
+            let bit_block: &mut P = unsafe{
                 mem::transmute(bit_block_iter)
             };
             *bit_block &= mask[i];
@@ -120,7 +131,10 @@ impl<const N: usize> BitQueue for ArrayBitQueue<N> {
     }
 }
 
-impl<const N: usize> Iterator for ArrayBitQueue<N> {
+impl<P, const N: usize> Iterator for ArrayBitQueue<P, N>
+where
+    P: MyPrimitive
+{
     type Item = usize;
 
     #[inline]
@@ -131,7 +145,7 @@ impl<const N: usize> Iterator for ArrayBitQueue<N> {
             };
 
             if let Some(index) = bit_block_iter.next() {
-                return Some(self.bit_block_index * size_of::<u64>() + index);
+                return Some(self.bit_block_index * size_of::<P>() + index);
             }
 
             if self.bit_block_index == N {

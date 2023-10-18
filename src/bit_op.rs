@@ -113,7 +113,7 @@ pub fn one_bits_iter<P>(element: P) -> OneBitsIter<P> {
 /// "Consumed"/iterated one bits replaced with zero.
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct OneBitsIter<P: Sized>{
+pub struct OneBitsIter<P>{
     element: P
 }
 impl<P> Iterator for OneBitsIter<P>
