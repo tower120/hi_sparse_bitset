@@ -28,10 +28,7 @@ impl<Config: IConfig> Default for IntersectionBlocksState<Config>{
         }
     }
 }
-impl<Config: IConfig> IntersectionBlocksState<Config>
-where
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-{
+impl<Config: IConfig> IntersectionBlocksState<Config> {
     /// Every time you call `resume`, `sets` must point to the same [HiSparseBitset]s for each `state`.
     /// Otherwise - it is safe, but you'll get garbage out.
     /// 
@@ -66,8 +63,6 @@ impl<'a, Config, S> IntersectionBlocks<'a, Config, S>
 where
     Config: IConfig,
     S: Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
-
-    usize: AsPrimitive<Config::Level1BlockIndex>,
 {
     #[inline]
     pub(super) fn new(sets: S) -> Self {
@@ -156,9 +151,6 @@ impl<'a, Config, S> Iterator for IntersectionBlocks<'a, Config, S>
 where
     Config: IConfig,
     S: Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
-
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
 {
     type Item = DataBlock<Config::DataBitBlock>;
 

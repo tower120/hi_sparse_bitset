@@ -5,10 +5,7 @@ pub struct Level<LevelBlock, LevelBlockIndex>{
     blocks: Vec<LevelBlock>,
     free_block_indices: Vec<LevelBlockIndex>,
 }
-impl<LevelBlock: Default, LevelBlockIndex: PrimInt + 'static> Level<LevelBlock, LevelBlockIndex>
-where
-    usize: AsPrimitive<LevelBlockIndex>,
-{
+impl<LevelBlock: Default, LevelBlockIndex: PrimInt + 'static> Level<LevelBlock, LevelBlockIndex> {
     #[inline]
     pub fn blocks(&self) -> &[LevelBlock]{
         self.blocks.as_slice()
@@ -26,9 +23,10 @@ where
         } else {
             let index = self.blocks.len();
             self.blocks.push(Default::default());
-
-            index.as_()
-            //index.as_primitive()
+            unsafe {
+                // index as LevelBlockIndex
+                LevelBlockIndex::from(index).unwrap_unchecked()
+            }
         }
     }
 

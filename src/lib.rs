@@ -60,12 +60,7 @@ pub struct HiSparseBitset<Config: IConfig>{
             >,
 }
 
-impl<Config: IConfig> Default for HiSparseBitset<Config>
-// TODO: consider changing this somehow
-where
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
-{
+impl<Config: IConfig> Default for HiSparseBitset<Config> {
     #[inline]
     fn default() -> Self{
         Self{
@@ -76,12 +71,7 @@ where
     }
 }
 
-impl<Config: IConfig> Clone for HiSparseBitset<Config>
-// TODO: consider changing this somehow
-    where
-        usize: AsPrimitive<Config::Level1BlockIndex>,
-        usize: AsPrimitive<Config::DataBlockIndex>,
-{
+impl<Config: IConfig> Clone for HiSparseBitset<Config> {
     fn clone(&self) -> Self {
         Self{
             level0: self.level0.clone(),
@@ -91,12 +81,7 @@ impl<Config: IConfig> Clone for HiSparseBitset<Config>
     }
 }
 
-impl<Config: IConfig> HiSparseBitset<Config>
-// TODO: consider changing this somehow
-where
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
-{
+impl<Config: IConfig> HiSparseBitset<Config> {
     #[inline]
     pub fn new() -> Self{
         Self::default()
@@ -245,11 +230,7 @@ where
     }
 }
 
-impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config>
-where
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
-{
+impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
     fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
         let mut this = Self::default();
         for i in iter{
@@ -318,10 +299,7 @@ pub fn intersection_blocks_traverse<'a, S, F, Config: IConfig + 'a>(sets: S, mut
 where
     S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
     S::IntoIter: Clone,
-    F: FnMut(DataBlock<Config::DataBitBlock>),
-
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
+    F: FnMut(DataBlock<Config::DataBitBlock>)
 {
     use ControlFlow::*;
     let sets = sets.into_iter();
@@ -350,11 +328,7 @@ where
         sets: impl Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
         level0_index: usize, 
         foreach_block: &mut impl FnMut(DataBlock<Config::DataBitBlock>)
-    ) -> ControlFlow<()>
-    where
-        usize: AsPrimitive<Config::Level1BlockIndex>,
-        usize: AsPrimitive<Config::DataBlockIndex>,
-    {
+    ) -> ControlFlow<()> {
         let level1_intersection = unsafe{
             sets.clone()
             .map(|set| {
@@ -380,11 +354,7 @@ where
         level0_index: usize, 
         level1_index: usize,
         foreach_block: &mut impl FnMut(DataBlock<Config::DataBitBlock>)
-    ) -> ControlFlow<()>
-    where
-        usize: AsPrimitive<Config::Level1BlockIndex>,
-        usize: AsPrimitive<Config::DataBlockIndex>,
-    {
+    ) -> ControlFlow<()> {
         let data_intersection = unsafe{
             sets
             .map(|set| {
@@ -411,11 +381,7 @@ where
 }
 
 /// For Debug purposes.
-pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) -> Vec<usize>
-where
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
-{
+pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) -> Vec<usize> {
     use ControlFlow::*;
     let mut indices = Vec::new();
     intersection_blocks_traverse(sets,
@@ -441,9 +407,6 @@ where
     Config: IConfig,
     S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
     S::IntoIter: Clone,
-
-    usize: AsPrimitive<Config::Level1BlockIndex>,
-    usize: AsPrimitive<Config::DataBlockIndex>,
 {
     intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
 }

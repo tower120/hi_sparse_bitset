@@ -6,12 +6,12 @@ use num_traits::WrappingNeg;
 /// Block ordering undefined. But same as [get_array_bit].
 #[inline]
 pub fn set_array_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &mut [T], index: usize) -> bool {
-    let size: usize = size_of::<T>();
-    let block_index = index / size;
+    let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
+    let block_index = index / bits_size;
 
     // index % size
     // From https://stackoverflow.com/a/27589182
-    let bit_index = index & (size-1);
+    let bit_index = index & (bits_size -1);
 
     set_bit::<FLAG, T>(&mut blocks[block_index], bit_index)
 }
@@ -35,12 +35,12 @@ pub fn set_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(block:
 /// Block ordering undefined. But same as [set_array_bit].
 #[inline]
 pub fn get_array_bit<T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &[T], index: usize) -> bool {
-    let size: usize = size_of::<T>();
-    let block_index = index / size;
+    let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
+    let block_index = index / bits_size;
 
     // index % size
     // From https://stackoverflow.com/a/27589182
-    let bit_index = index & (size -1);
+    let bit_index = index & (bits_size -1);
 
     get_bit(blocks[block_index], bit_index)
 }
@@ -66,7 +66,7 @@ where
         let control = traverse_one_bits(
             element,
             |r|{
-                let index = i * size_of::<P>() + r;
+                let index = i*size_of::<P>()*8 + r;
                 f(index)
             }
         );

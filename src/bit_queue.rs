@@ -26,7 +26,6 @@ pub trait BitQueue: Iterator<Item = usize>{
     fn mask_out(&mut self, mask: &Self::Mask);
 }
 
-// Rename to U64BitQueue
 pub struct PrimitiveBitQueue<P>{
     bit_block_iter: OneBitsIter<P>
 }
@@ -145,10 +144,10 @@ where
             };
 
             if let Some(index) = bit_block_iter.next() {
-                return Some(self.bit_block_index * size_of::<P>() + index);
+                return Some(self.bit_block_index * size_of::<P>() * 8 + index);
             }
 
-            if self.bit_block_index == N {
+            if self.bit_block_index == N-1 {
                 return None;
             }
             self.bit_block_index += 1;
