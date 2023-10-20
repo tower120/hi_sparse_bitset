@@ -15,6 +15,7 @@ wide = { version = "0.7.13", optional = true }
 rand = "0.8"
 itertools = "0.11"
 criterion = "0.5.1"
+cfg-if = "1"
 # for benchmarks
 hibitset = "0.6.4"
 

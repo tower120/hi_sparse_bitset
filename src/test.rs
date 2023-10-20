@@ -6,7 +6,16 @@ use rand::Rng;
 
 use super::*;
 
-type Config = configs::u64s;
+cfg_if::cfg_if! {
+    if #[cfg(hisparsebitset_test_64)] {
+        type Config = configs::u64s;
+    } else if #[cfg(hisparsebitset_test_128)] {
+        type Config = configs::simd_128;
+    } else {
+        type Config = configs::simd_128;
+    }
+}
+
 type HiSparseBitset = super::HiSparseBitset<Config>;
 type IntersectionBlocksState = super::intersection_blocks_resumable::IntersectionBlocksState<Config>;
 
