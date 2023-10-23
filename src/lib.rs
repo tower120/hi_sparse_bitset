@@ -8,6 +8,8 @@ pub mod configs;
 
 #[cfg(test)]
 mod test;
+mod reduce;
+//mod reduce2;
 
 use std::{ops, ops::ControlFlow};
 use std::ops::{BitAndAssign, BitXorAssign};
@@ -42,6 +44,36 @@ pub const fn max_range<Config: IConfig>() -> usize {
     * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
     * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT)
 }
+
+pub trait LevelMasks<Config: IConfig>{
+    fn level0_mask(&self) -> Config::Level0BitBlock;
+
+    /// # Safety
+    ///
+    /// index is not checked
+    unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock;
+
+    /// # Safety
+    ///
+    /// indices are not checked
+    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock;
+}
+
+pub trait LevelMasksExt<Config: IConfig>: LevelMasks<Config>{
+    type Level1Blocks;
+    /// # Safety
+    ///
+    /// index is not checked
+    unsafe fn level1_blocks(&self, level0_index: usize) -> Self::Level1Blocks;
+
+    /// # Safety
+    ///
+    /// indices are not checked
+    unsafe fn data_mask_from_blocks(
+        &self, level1_blocks: Self::Level1Blocks, level1_index: usize
+    ) -> Config::DataBitBlock;
+}
+
 
 /// Hierarchical sparse bitset. Tri-level hierarchy. Highest uint it can hold is Level0Mask * Level1Mask * DenseBlock.
 /// 
@@ -240,6 +272,45 @@ impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
     }
 }
 
+impl<Config: IConfig> LevelMasks<Config> for HiSparseBitset<Config>{
+    #[inline]
+    fn level0_mask(&self) -> Config::Level0BitBlock {
+        *self.level0.mask()
+    }
+
+    #[inline]
+    unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_block.mask()
+    }
+
+    #[inline]
+    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
+        *data_block.mask()
+    }
+
+/*    #[inline]
+    unsafe fn level1_blocks(&self, level0_index: usize) -> Iterator<Item = Config::Level1Block> {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_block.mask()
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks(&self, level1_blocks: Iterator<Item = Config::Level1Block>, level1_index: usize) -> Config::DataBitBlock {
+        let level1_block = level1_blocks.next().unwrap_unchecked();
+
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
+        *data_block.mask()
+    }*/
+}
+
 #[derive(Clone, Debug)]
 pub struct DataBlock<Block>{
     pub start_index: usize,
@@ -407,6 +478,8 @@ where
     Config: IConfig,
     S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
     S::IntoIter: Clone,
+
+    <S as IntoIterator>::IntoIter: ExactSizeIterator,
 {
     intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
 }
