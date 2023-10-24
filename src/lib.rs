@@ -42,28 +42,39 @@ pub trait IConfig: 'static {
     type DataBlockIndex: MyPrimitive;
 }
 
+// TODO: move somewhere more appropriate
+#[inline]
+fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: usize) -> usize{
+    let level0_offset = level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT);
+    let level1_offset = level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT);
+    level0_offset + level1_offset
+}
+
 pub const fn max_range<Config: IConfig>() -> usize {
     (1 << Config::Level0BitBlock::SIZE_POT_EXPONENT)
     * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
     * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT)
 }
 
-pub trait LevelMasks<Config: IConfig>{
-    fn level0_mask(&self) -> Config::Level0BitBlock;
+pub trait LevelMasks{
+    type Config: IConfig;
+
+    fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock;
 
     /// # Safety
     ///
     /// index is not checked
-    unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock;
+    unsafe fn level1_mask(&self, level0_index: usize)
+        -> <Self::Config as IConfig>::Level1BitBlock;
 
     /// # Safety
     ///
     /// indices are not checked
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize)
-        -> Config::DataBitBlock;
+        -> <Self::Config as IConfig>::DataBitBlock;
 }
 
-pub trait LevelMasksExt<Config: IConfig>: LevelMasks<Config>{
+pub trait LevelMasksExt: LevelMasks{
     /// Container/value/owned data
     type Level1Blocks;
 
@@ -87,7 +98,7 @@ pub trait LevelMasksExt<Config: IConfig>: LevelMasks<Config>{
     /// indices are not checked
     unsafe fn data_mask_from_blocks(
         &self, level1_blocks: &Self::Level1Blocks, level1_index: usize
-    ) -> Config::DataBitBlock;
+    ) -> <Self::Config as IConfig>::DataBitBlock;
 }
 
 type Level1Block<Config: IConfig> = Block<Config::Level1BitBlock, Config::DataBlockIndex, Config::Level1BlockIndices>;
@@ -291,7 +302,9 @@ impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
     }
 }
 
-impl<Config: IConfig> LevelMasks<Config> for HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
+    type Config = Config;
+
     #[inline]
     fn level0_mask(&self) -> Config::Level0BitBlock {
         *self.level0.mask()
@@ -315,7 +328,9 @@ impl<Config: IConfig> LevelMasks<Config> for HiSparseBitset<Config>{
 }
 
 // TODO: refactor to reduce code repetition
-impl<'a, Config: IConfig> LevelMasks<Config> for &'a HiSparseBitset<Config>{
+impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
+    type Config = Config;
+
     #[inline]
     fn level0_mask(&self) -> Config::Level0BitBlock {
         *self.level0.mask()
@@ -338,7 +353,7 @@ impl<'a, Config: IConfig> LevelMasks<Config> for &'a HiSparseBitset<Config>{
     }
 }
 
-impl<Config: IConfig> LevelMasksExt<Config> for HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
     type Level1Blocks = *const Level1Block<Config>;
 
     #[inline]
@@ -364,7 +379,7 @@ impl<Config: IConfig> LevelMasksExt<Config> for HiSparseBitset<Config>{
     }
 }
 
-impl<'a, Config: IConfig> LevelMasksExt<Config> for &'a HiSparseBitset<Config>{
+impl<'a, Config: IConfig> LevelMasksExt for &'a HiSparseBitset<Config>{
     type Level1Blocks = *const Level1Block<Config>;
 
     #[inline]
@@ -566,7 +581,7 @@ where
 
 #[inline]
 pub fn reduce_and<'a, Config, S>(sets: S)
-    -> reduce::Reduce<'a, Config, HiSparseBitset<Config>, S::IntoIter>
+    -> reduce::Reduce<'a, HiSparseBitset<Config>, S::IntoIter>
 where
     Config: IConfig,
     S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
@@ -578,11 +593,10 @@ where
 }
 
 #[inline]
-pub fn reduce_and2<Config, Set, S>(sets: S)
-    -> reduce2::Reduce<Config, BitAndOp, Set, S::IntoIter>
+pub fn reduce_and2<Set, S>(sets: S)
+    -> reduce2::Reduce<BitAndOp, Set, S::IntoIter>
 where
-    Config: IConfig,
-    Set: LevelMasksExt<Config>,
+    Set: LevelMasksExt,
     S: IntoIterator<Item = Set>,
     S::IntoIter: Clone,
 
