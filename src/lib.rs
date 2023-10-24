@@ -19,6 +19,7 @@ use num_traits::{AsPrimitive, PrimInt, WrappingNeg};
 
 use block::Block;
 use level::Level;
+use crate::binary_op::BitAndOp;
 use crate::bit_block::BitBlock;
 
 pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
@@ -578,7 +579,7 @@ where
 
 #[inline]
 pub fn reduce_and2<Config, Set, S>(sets: S)
-    -> reduce2::Reduce<Config, Set, S::IntoIter>
+    -> reduce2::Reduce<Config, BitAndOp, Set, S::IntoIter>
 where
     Config: IConfig,
     Set: LevelMasksExt<Config>,
