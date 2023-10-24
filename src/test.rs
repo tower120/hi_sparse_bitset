@@ -276,6 +276,34 @@ fn fuzzy_intersection_test(){
                     //assert_eq!(hi_intersection, indices2);
                 }
 
+                // reduce test
+                {
+                    let mut indices2 = Vec::new();
+                    for block in reduce_and(&hi_sets).iter(){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+                    assert_eq!(hi_intersection, indices2);
+                }
+
+                // reduce ext test
+                {
+                    let mut indices2 = Vec::new();
+                    for block in reduce_and(&hi_sets).iter_ext(){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+                    assert_eq!(hi_intersection, indices2);
+                }
+
                 let mut hashsets_intersection: Vec<usize> = hashsets_intersection.into_iter().collect();
                 hashsets_intersection.sort();
                 hi_intersection.sort();

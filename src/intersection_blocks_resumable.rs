@@ -13,7 +13,7 @@ use crate::bit_queue::BitQueue;
 use crate::block::Block;
 use crate::level::Level;
 
-use super::{bit_op, DataBlock, HiSparseBitset, IConfig};
+use super::{bit_op, DataBlock, HiSparseBitset, IConfig, Level1Block};
 
 pub struct IntersectionBlocksState<Config: IConfig> {
     level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
@@ -43,14 +43,18 @@ impl<Config: IConfig> IntersectionBlocksState<Config> {
     #[inline]
     pub fn resume<'a, S>(self, sets: S) -> IntersectionBlocks<'a, Config, S>
     where
-        S: Iterator<Item = &'a HiSparseBitset<Config>> + Clone
+        S: Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
+        S: ExactSizeIterator
     {
-        todo!();
-        /*let mut this = IntersectionBlocks{sets, state: self};
+        // Is it ok to have empty level1_blocks?
+        let level1_blocks = IntersectionBlocks::<Config, S>::make_level1_blocks(sets.len());
+        let mut this = IntersectionBlocks{sets, state: self, level1_blocks };
         this.update();
-        this*/
+        this
     }
 }
+
+type Level1Blocks<Config: IConfig> = ArrayVec<*const Level1Block<Config>, 32>;
 
 // TODO: undo this behavior.
 /// May return empty blocks during iteration!
@@ -61,18 +65,7 @@ where
 {
     sets: S,
     state: IntersectionBlocksState<Config>,
-
-    // TODO: bench max_sized per block size ArrayVec
-    level1_blocks: /*ArrayVec<
-        *const /*Level<*/
-            Block<Config::Level1BitBlock, Config::DataBlockIndex, Config::Level1BlockIndices>/*,
-            Config::Level1BlockIndex,
-        >*/,
-        10
-    >*/
-    Vec<
-        *const Block<Config::Level1BitBlock, Config::DataBlockIndex, Config::Level1BlockIndices>
-    >
+    level1_blocks: Level1Blocks<Config>
 }
 
 impl<'a, Config, S> IntersectionBlocks<'a, Config, S>
@@ -80,6 +73,14 @@ where
     Config: IConfig,
     S: Iterator<Item = &'a HiSparseBitset<Config>> + Clone,
 {
+    fn make_level1_blocks(sets_len: usize) -> Level1Blocks<Config> {
+        unsafe {
+            let mut array = ArrayVec::new();
+            array.set_len(sets_len);
+            array
+        }
+    }
+
     #[inline]
     pub(super) fn new(sets: S) -> Self
     where
@@ -100,17 +101,7 @@ where
                 level1_iter: BitQueue::empty(),
                 level0_index: 0,
             },
-
-            /*level1_blocks: unsafe {
-                let mut array = ArrayVec::new();
-                array.set_len(sets_len);
-                array
-            },*/
-            level1_blocks: unsafe {
-                let mut array = Vec::with_capacity(sets_len);
-                array.set_len(sets_len);
-                array
-            },
+            level1_blocks: Self::make_level1_blocks(sets_len)
         }
     }
 
@@ -131,8 +122,7 @@ where
     /// you'll get garbage in out.
     #[inline]
     fn update(&mut self){
-        todo!()
-/*        let Self{sets, state} = self;
+        let Self{sets, state, level1_blocks} = self;
 
         // Level0
         let level0_intersection = match Self::level0_intersection(sets.clone()){
@@ -154,7 +144,10 @@ where
             // We already update level0_iter - we do not
             // update level0_index too, since it will be updated in iterator.
             state.level1_iter  = BitQueue::empty();
-        }*/
+        }
+
+        // TODO: put into if?
+        Self::update_level1_blocks(level1_blocks, sets.clone(), state.level0_index);
     }
 
     #[inline]
@@ -176,7 +169,20 @@ where
             .reduce(ops::BitAnd::bitand)
             .unwrap_unchecked()
         }
-    }    
+    }
+
+    #[inline]
+    fn update_level1_blocks(level1_blocks: &mut Level1Blocks<Config>, sets: S, level0_index: usize){
+        // update level1_blocks from sets
+        unsafe {
+            for (index, set) in sets.enumerate(){
+                let level1_block_index = set.level0.get_unchecked(level0_index);
+                let level1_block       = set.level1.blocks().get_unchecked(level1_block_index.as_());
+
+                *level1_blocks.get_unchecked_mut(index) = level1_block /*as *mut _*/ as * const _;
+            }
+        }
+    }
 }
 
 
@@ -205,14 +211,7 @@ where
                     state.level1_iter = level1_intersection.bits_iter();
 
                     // update level1_blocks from sets
-                    unsafe {
-                        for (index, set) in sets.clone().enumerate(){
-                            let level1_block_index = set.level0.get_unchecked(state.level0_index);
-                            let level1_block       = set.level1.blocks().get_unchecked(level1_block_index.as_());
-
-                            *level1_blocks.get_unchecked_mut(index) = level1_block /*as *mut _*/ as * const _;
-                        }
-                    }
+                    Self::update_level1_blocks(level1_blocks, sets.clone(), state.level0_index);
                 } else {
                     return None;
                 }
@@ -220,30 +219,6 @@ where
         };
         
         let data_intersection = unsafe{
-/*            sets.clone()
-            .map(|set| {
-                // We could collect level1_block_index/&level1_block during level1 walk,
-                // but benchmarks showed that does not have measurable performance benefits.
-                // TODO: consider caching this in self
-                let level1_block_index = set.level0.get_unchecked(state.level0_index);
-                let level1_block       = set.level1.blocks().get_unchecked(level1_block_index.as_());
-
-                let data_block_index   = level1_block.get_unchecked(level1_index);
-                *set.data.blocks().get_unchecked(data_block_index.as_()).mask()
-            })
-            .reduce(ops::BitAnd::bitand)
-            .unwrap_unchecked()*/
-
-/*            sets.clone()
-            .enumerate()
-            .map(|(index, set)| {
-                let level1_block = &**level1_blocks.get_unchecked(index);
-                let data_block_index   = level1_block.get_unchecked(level1_index);
-                *set.data.blocks().get_unchecked(data_block_index.as_()).mask()
-            })
-            .reduce(ops::BitAnd::bitand)
-            .unwrap_unchecked()*/
-
             let mut level1_blocks_iter = level1_blocks.iter();
             sets.clone()
             .map(|set| {
