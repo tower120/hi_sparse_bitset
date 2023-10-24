@@ -9,6 +9,8 @@ pub mod configs;
 #[cfg(test)]
 mod test;
 mod reduce;
+mod binary_op;
+mod reduce2;
 
 use std::{ops, ops::ControlFlow};
 use std::mem::MaybeUninit;
@@ -311,7 +313,57 @@ impl<Config: IConfig> LevelMasks<Config> for HiSparseBitset<Config>{
     }
 }
 
+// TODO: refactor to reduce code repetition
+impl<'a, Config: IConfig> LevelMasks<Config> for &'a HiSparseBitset<Config>{
+    #[inline]
+    fn level0_mask(&self) -> Config::Level0BitBlock {
+        *self.level0.mask()
+    }
+
+    #[inline]
+    unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_block.mask()
+    }
+
+    #[inline]
+    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
+        *data_block.mask()
+    }
+}
+
 impl<Config: IConfig> LevelMasksExt<Config> for HiSparseBitset<Config>{
+    type Level1Blocks = *const Level1Block<Config>;
+
+    #[inline]
+    fn make_level1_blocks(&self) -> Self::Level1Blocks{
+        unsafe {
+            MaybeUninit::uninit().assume_init()
+        }
+    }
+
+    #[inline]
+    unsafe fn update_level1_blocks(&self, level1_blocks: &mut Self::Level1Blocks, level0_index: usize){
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_blocks = level1_block;
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks(&self, level1_blocks: &Self::Level1Blocks, level1_index: usize) -> Config::DataBitBlock {
+        let level1_block = &**level1_blocks;
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
+        *data_block.mask()
+    }
+}
+
+impl<'a, Config: IConfig> LevelMasksExt<Config> for &'a HiSparseBitset<Config>{
     type Level1Blocks = *const Level1Block<Config>;
 
     #[inline]
@@ -522,4 +574,18 @@ where
     <S as IntoIterator>::IntoIter: ExactSizeIterator,
 {
     reduce::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
+}
+
+#[inline]
+pub fn reduce_and2<Config, Set, S>(sets: S)
+    -> reduce2::Reduce<Config, Set, S::IntoIter>
+where
+    Config: IConfig,
+    Set: LevelMasksExt<Config>,
+    S: IntoIterator<Item = Set>,
+    S::IntoIter: Clone,
+
+    <S as IntoIterator>::IntoIter: ExactSizeIterator,
+{
+    reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
 }

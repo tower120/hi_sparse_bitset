@@ -413,3 +413,19 @@ fn remove_regression_test1() {
     let c= hi_set.contains(10000);
     assert!(c);
 }
+
+
+#[test]
+fn reduce2_test() {
+    let mut hi_set1: HiSparseBitset = [1,2,3].into_iter().collect();
+    let mut hi_set2: HiSparseBitset = [1,2,3].into_iter().collect();
+    let mut hi_set3: HiSparseBitset = [1,3].into_iter().collect();
+
+    let result = reduce_and2([&hi_set1, &hi_set2, &hi_set3]);
+    let intersections = result.iter().flat_map(|block|block.iter());
+    assert_equal(intersections, [1,3]);
+
+    let result = reduce_and2([hi_set1, hi_set2, hi_set3]);
+    let intersections = result.iter().flat_map(|block|block.iter());
+    assert_equal(intersections, [1,3]);
+}
