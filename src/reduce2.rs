@@ -15,29 +15,27 @@ struct State<Config: IConfig> {
     level0_index: usize,
 }
 
-// TODO : try to remove Config from Reduce by making it type in LevelMasks trait
-
-pub struct Reduce<Op, SetLike, S>
+pub struct Reduce<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasks,
-    S: Iterator<Item = SetLike> + Clone
+    S: Iterator + Clone,
+    S::Item: LevelMasks,
 {
     pub(crate) sets: S,
     pub(crate) phantom: PhantomData<(Op)>
 }
 
-impl<Op, SetLike, S> Reduce<Op, SetLike, S>
+impl<Op, S> Reduce<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasks,
-    S: Iterator<Item = SetLike> + Clone
+    S: Iterator + Clone,
+    S::Item: LevelMasks,
 {
     // TODO: This is BLOCK iterator. Make separate iterator for usizes.
     // TODO: Benchmark if there is need for "traverse".
     // TODO: !! Iterator must use &sets, since we store pointers to level1 inside !!
     #[inline]
-    pub fn iter(self) -> ReduceIter<Op, SetLike, S> {
+    pub fn iter(self) -> ReduceIter<Op, S> {
         let level0_iter = self.level0_mask().bits_iter();
 
         ReduceIter{
@@ -51,9 +49,9 @@ where
     }
 
     #[inline]
-    pub fn iter_ext(self) -> ReduceIterExt<Op, SetLike, S>
+    pub fn iter_ext(self) -> ReduceIterExt<Op, S>
     where
-        SetLike: LevelMasksExt,
+        S::Item: LevelMasksExt,
         S: ExactSizeIterator
     {
         let level0_iter = self.level0_mask().bits_iter();
@@ -72,13 +70,13 @@ where
 }
 
 
-impl<Op, SetLike, S> LevelMasks for Reduce<Op, SetLike, S>
+impl<Op, S> LevelMasks for Reduce<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasks,
-    S: Iterator<Item = SetLike> + Clone
+    S: Iterator + Clone,
+    S::Item: LevelMasks,
 {
-    type Config = SetLike::Config;
+    type Config = <S::Item as LevelMasks>::Config;
 
     /// Will computate.
     #[inline]
@@ -118,15 +116,15 @@ where
     }
 }
 
-impl<Op, SetLike, S> LevelMasksExt for Reduce<Op, SetLike, S>
+impl<Op, S> LevelMasksExt for Reduce<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasksExt,
-    S: Iterator<Item = SetLike> + Clone,
-    S: ExactSizeIterator
+    S: Iterator + Clone,
+    S: ExactSizeIterator,
+    S::Item: LevelMasksExt,
 {
     //type Level1Blocks = Vec<SetLike::Level1Blocks>;
-    type Level1Blocks = ArrayVec<SetLike::Level1Blocks, MAX_SETS>;
+    type Level1Blocks = ArrayVec<<S::Item as LevelMasksExt>::Level1Blocks, MAX_SETS>;
 
     #[inline]
     fn make_level1_blocks(&self) -> Self::Level1Blocks {
@@ -178,25 +176,25 @@ where
 }
 
 
-pub struct ReduceIter<Op, SetLike, S>
+pub struct ReduceIter<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasks,
-    S: Iterator<Item = SetLike> + Clone
+    S: Iterator + Clone,
+    S::Item: LevelMasks,
 {
-    reduce: Reduce<Op, SetLike, S>,
-    state: State<SetLike::Config>,
+    reduce: Reduce<Op, S>,
+    state: State<<S::Item as LevelMasks>::Config>,
     //phantom: PhantomData<Op>
 }
 
 
-impl<Op, SetLike, S> Iterator for ReduceIter<Op, SetLike, S>
+impl<Op, S> Iterator for ReduceIter<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasks,
-    S: Iterator<Item = SetLike> + Clone
+    S: Iterator + Clone,
+    S::Item: LevelMasks,
 {
-    type Item = DataBlock<<SetLike::Config as IConfig>::DataBitBlock>;
+    type Item = DataBlock<<<S::Item as LevelMasks>::Config as IConfig>::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -226,9 +224,10 @@ where
              self.reduce.data_mask(state.level0_index, level1_index)
         };
 
-        let block_start_index = data_block_start_index::<SetLike::Config>(
-            state.level0_index, level1_index
-        );
+        let block_start_index =
+            data_block_start_index::<<S::Item as LevelMasks>::Config>(
+                state.level0_index, level1_index
+            );
 
         Some(DataBlock{ start_index: block_start_index, bit_block: data_intersection })
     }
@@ -236,28 +235,28 @@ where
 
 
 
-pub struct ReduceIterExt<Op, SetLike, S>
+pub struct ReduceIterExt<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasksExt,
-    S: Iterator<Item = SetLike> + Clone,
-    S: ExactSizeIterator
+    S: Iterator + Clone,
+    S: ExactSizeIterator,
+    S::Item: LevelMasksExt,
 {
-    reduce: Reduce<Op, SetLike, S>,
-    state: State<SetLike::Config>,
+    reduce: Reduce<Op, S>,
+    state: State<<S::Item as LevelMasks>::Config>,
     //phantom: PhantomData<Op>
 
-    level1_blocks: <Reduce<Op, SetLike, S> as LevelMasksExt>::Level1Blocks
+    level1_blocks: <Reduce<Op, S> as LevelMasksExt>::Level1Blocks
 }
 
-impl<Op, SetLike, S> Iterator for ReduceIterExt<Op, SetLike, S>
+impl<Op, S> Iterator for ReduceIterExt<Op, S>
 where
     Op: BinaryOp,
-    SetLike: LevelMasksExt,
-    S: Iterator<Item = SetLike> + Clone,
-    S: ExactSizeIterator
+    S: Iterator + Clone,
+    S: ExactSizeIterator,
+    S::Item: LevelMasksExt,
 {
-    type Item = DataBlock<<SetLike::Config as IConfig>::DataBitBlock>;
+    type Item = DataBlock<<<S::Item as LevelMasks>::Config as IConfig>::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -292,9 +291,10 @@ where
             self.reduce.data_mask_from_blocks(level1_blocks, level1_index)
         };
 
-        let block_start_index = data_block_start_index::<SetLike::Config>(
-            state.level0_index, level1_index
-        );
+        let block_start_index =
+            data_block_start_index::<<S::Item as LevelMasks>::Config>(
+                state.level0_index, level1_index
+            );
 
         Some(DataBlock{ start_index: block_start_index, bit_block: data_intersection })
     }

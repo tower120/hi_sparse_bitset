@@ -593,14 +593,13 @@ where
 }
 
 #[inline]
-pub fn reduce_and2<Set, S>(sets: S)
-    -> reduce2::Reduce<BitAndOp, Set, S::IntoIter>
+pub fn reduce_and2<S>(sets: S)
+    -> reduce2::Reduce<BitAndOp, S::IntoIter>
 where
-    Set: LevelMasksExt,
-    S: IntoIterator<Item = Set>,
+    S: IntoIterator,
     S::IntoIter: Clone,
-
-    <S as IntoIterator>::IntoIter: ExactSizeIterator,
+    S::IntoIter: ExactSizeIterator,
+    S::Item: LevelMasksExt,
 {
     reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
 }
