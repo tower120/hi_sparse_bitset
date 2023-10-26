@@ -8,9 +8,9 @@ pub mod configs;
 
 #[cfg(test)]
 mod test;
-mod reduce;
 mod binary_op;
 mod reduce2;
+mod virtual_bitset;
 
 use std::{ops, ops::ControlFlow};
 use std::mem::MaybeUninit;
@@ -21,6 +21,7 @@ use block::Block;
 use level::Level;
 use crate::binary_op::BitAndOp;
 use crate::bit_block::BitBlock;
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt};
 
 pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> MyPrimitive for T{}
@@ -54,51 +55,6 @@ pub const fn max_range<Config: IConfig>() -> usize {
     (1 << Config::Level0BitBlock::SIZE_POT_EXPONENT)
     * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
     * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT)
-}
-
-pub trait LevelMasks{
-    type Config: IConfig;
-
-    fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock;
-
-    /// # Safety
-    ///
-    /// index is not checked
-    unsafe fn level1_mask(&self, level0_index: usize)
-        -> <Self::Config as IConfig>::Level1BitBlock;
-
-    /// # Safety
-    ///
-    /// indices are not checked
-    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize)
-        -> <Self::Config as IConfig>::DataBitBlock;
-}
-
-pub trait LevelMasksExt: LevelMasks{
-    /// Container/value/owned data
-    type Level1Blocks;
-
-    /// Make Level1Blocks in a state that can be used in `update_level1_blocks`.
-    ///
-    /// For example, Level1Blocks may be in uninitialized state, if
-    /// `update_level1_blocks` will initialize it any way.
-    fn make_level1_blocks(&self) -> Self::Level1Blocks;
-
-    /// Level1Blocks should be fully initialized after calling this function.
-    ///
-    /// # Safety
-    ///
-    /// index is not checked
-    unsafe fn update_level1_blocks(
-        &self, level1_blocks: &mut Self::Level1Blocks, level0_index: usize
-    );
-
-    /// # Safety
-    ///
-    /// indices are not checked
-    unsafe fn data_mask_from_blocks(
-        &self, level1_blocks: &Self::Level1Blocks, level1_index: usize
-    ) -> <Self::Config as IConfig>::DataBitBlock;
 }
 
 type Level1Block<Config: IConfig> = Block<Config::Level1BitBlock, Config::DataBlockIndex, Config::Level1BlockIndices>;
@@ -302,7 +258,7 @@ impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
     }
 }
 
-impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
+/*impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
     type Config = Config;
 
     #[inline]
@@ -325,7 +281,7 @@ impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
         let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
         *data_block.mask()
     }
-}
+}*/
 
 // TODO: refactor to reduce code repetition
 impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
@@ -353,7 +309,7 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
     }
 }
 
-impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
+/*impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
     type Level1Blocks = *const Level1Block<Config>;
 
     #[inline]
@@ -377,7 +333,7 @@ impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
         let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
         *data_block.mask()
     }
-}
+}*/
 
 impl<'a, Config: IConfig> LevelMasksExt for &'a HiSparseBitset<Config>{
     type Level1Blocks = *const Level1Block<Config>;
@@ -578,27 +534,11 @@ where
     intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
 }
 
-
-#[inline]
-pub fn reduce_and<'a, Config, S>(sets: S)
-    -> reduce::Reduce<'a, HiSparseBitset<Config>, S::IntoIter>
-where
-    Config: IConfig,
-    S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
-    S::IntoIter: Clone,
-
-    <S as IntoIterator>::IntoIter: ExactSizeIterator,
-{
-    reduce::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
-}
-
 #[inline]
 pub fn reduce_and2<S>(sets: S)
-    -> reduce2::Reduce<BitAndOp, S::IntoIter>
+    -> reduce2::Reduce<BitAndOp, S>
 where
-    S: IntoIterator,
-    S::IntoIter: Clone,
-    S::IntoIter: ExactSizeIterator,
+    S: ExactSizeIterator + Clone,
     S::Item: LevelMasksExt,
 {
     reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }

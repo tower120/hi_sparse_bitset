@@ -279,7 +279,7 @@ fn fuzzy_intersection_test(){
                 // reduce test
                 {
                     let mut indices2 = Vec::new();
-                    for block in reduce_and(&hi_sets).iter(){
+                    for block in reduce_and2(hi_sets.iter()).iter(){
                         block.traverse(
                             |index|{
                                 indices2.push(index);
@@ -293,7 +293,7 @@ fn fuzzy_intersection_test(){
                 // reduce ext test
                 {
                     let mut indices2 = Vec::new();
-                    for block in reduce_and(&hi_sets).iter_ext(){
+                    for block in reduce_and2(hi_sets.iter()).iter_ext(){
                         block.traverse(
                             |index|{
                                 indices2.push(index);
@@ -421,11 +421,14 @@ fn reduce2_test() {
     let mut hi_set2: HiSparseBitset = [1,2,3].into_iter().collect();
     let mut hi_set3: HiSparseBitset = [1,3].into_iter().collect();
 
-    let result = reduce_and2([&hi_set1, &hi_set2, &hi_set3]);
+    let hi_sets = [hi_set1, hi_set2, hi_set3];
+    let hi_set_refs = [&hi_sets[0], &hi_sets[1], &hi_sets[2]];
+
+    let result = reduce_and2(hi_sets.iter());
     let intersections = result.iter().flat_map(|block|block.iter());
     assert_equal(intersections, [1,3]);
 
-    let result = reduce_and2([hi_set1, hi_set2, hi_set3]);
+    let result = reduce_and2(hi_set_refs.iter().copied());
     let intersections = result.iter().flat_map(|block|block.iter());
     assert_equal(intersections, [1,3]);
 }

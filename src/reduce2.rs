@@ -33,7 +33,6 @@ where
 {
     // TODO: This is BLOCK iterator. Make separate iterator for usizes.
     // TODO: Benchmark if there is need for "traverse".
-    // TODO: !! Iterator must use &sets, since we store pointers to level1 inside !!
     #[inline]
     pub fn iter(self) -> ReduceIter<Op, S> {
         let level0_iter = self.level0_mask().bits_iter();
