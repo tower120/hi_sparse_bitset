@@ -19,9 +19,16 @@ use num_traits::{AsPrimitive, PrimInt, WrappingNeg};
 
 use block::Block;
 use level::Level;
-use crate::binary_op::BitAndOp;
+use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::bit_block::BitBlock;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt};
+
+
+/// Use any other operation then intersection(and) require
+/// to either do checks on block access (in LevelMasks), or
+/// have one empty block at each level as default, and default indices pointing at it.
+/// Second variant in use now.
+const INTERSECTION_ONLY: bool = false;
 
 pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> MyPrimitive for T{}
@@ -294,6 +301,11 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock {
+/*        let have = self.level0.mask().get_bit(level0_index);
+        if !have{
+            return Config::Level1BitBlock::zero();
+        }*/
+
         let level1_block_index = self.level0.get_unchecked(level0_index);
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
         *level1_block.mask()
@@ -301,8 +313,17 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock {
+        /*let have = self.level0.mask().get_bit(level0_index);
+        if !have{
+            return Config::DataBitBlock::zero();
+        }*/
         let level1_block_index = self.level0.get_unchecked(level0_index);
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+
+        /*let have = level1_block.mask().get_bit(level1_index);
+        if !have{
+            return Config::DataBitBlock::zero();
+        }*/
         let data_block_index = level1_block.get_unchecked(level1_index);
         let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
         *data_block.mask()
@@ -538,6 +559,18 @@ where
 pub fn reduce_and2<S>(sets: S)
     -> reduce2::Reduce<BitAndOp, S>
 where
+    S: ExactSizeIterator + Clone,
+    S::Item: LevelMasksExt,
+{
+    reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
+}
+
+
+#[inline]
+pub fn reduce<Op, S>(_: Op, sets: S)
+    -> reduce2::Reduce<Op, S>
+where
+    Op: BinaryOp,
     S: ExactSizeIterator + Clone,
     S::Item: LevelMasksExt,
 {

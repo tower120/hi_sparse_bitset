@@ -1,10 +1,27 @@
 use num_traits::{AsPrimitive, PrimInt};
+use crate::INTERSECTION_ONLY;
 
-#[derive(Default, Clone)]
+#[derive(/*Default,*/ Clone)]
 pub struct Level<LevelBlock, LevelBlockIndex>{
     blocks: Vec<LevelBlock>,
     free_block_indices: Vec<LevelBlockIndex>,
 }
+
+impl<LevelBlock: Default, LevelBlockIndex> Default for Level<LevelBlock, LevelBlockIndex> {
+    #[inline]
+    fn default() -> Self {
+        Self{
+            blocks: if !INTERSECTION_ONLY{
+                //Always have empty block at index 0.
+                vec![Default::default()]
+            } else {
+                Default::default()
+            },
+            free_block_indices: Default::default()
+        }
+    }
+}
+
 impl<LevelBlock: Default, LevelBlockIndex: PrimInt + 'static> Level<LevelBlock, LevelBlockIndex> {
     #[inline]
     pub fn blocks(&self) -> &[LevelBlock]{

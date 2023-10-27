@@ -3,6 +3,7 @@ use std::iter::zip;
 
 use itertools::assert_equal;
 use rand::Rng;
+use crate::binary_op::{BitOrOp, BitXorOp};
 
 use super::*;
 
@@ -124,6 +125,7 @@ fn fuzzy_test(){
     }
 }
 
+// TODO: refactor and remove
 #[test]
 fn fuzzy_intersection_test(){
     const MAX_SETS : usize = 10;
@@ -328,6 +330,239 @@ fn fuzzy_intersection_test(){
     }
 }
 
+fn fuzzy_reduce_test<Op: BinaryOp, H>(hiset_op: Op, hashset_op: H, repeats: usize)
+where
+    H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>,
+    H: Copy
+{
+    const MAX_SETS : usize = 10;
+    const MAX_INSERTS: usize = 10000;
+    const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
+    const MAX_REMOVES : usize = 10000;
+    const MAX_RANGE: usize = 100000;
+    const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 100;
+
+    #[inline]
+    fn hashset_multi_op<'a, H>(
+        hash_sets: impl IntoIterator<Item = &'a HashSet<usize>>,
+        hashset_op: H
+    ) -> HashSet<usize>
+    where
+        H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>
+    {
+        let mut hash_sets_iter = hash_sets.into_iter();
+        let mut acc = hash_sets_iter.next().unwrap().clone();
+        for set in hash_sets_iter{
+            let intersection = hashset_op(&acc, &set);
+            acc = intersection;
+        }
+        acc
+    }
+
+    let mut rng = rand::thread_rng();
+    for _ in 0..repeats{
+        let sets_count = rng.gen_range(2..MAX_SETS);
+        let mut hash_sets: Vec<HashSet<usize>> = vec![Default::default(); sets_count];
+        let mut hi_sets  : Vec<HiSparseBitset> = vec![Default::default(); sets_count];
+
+        // Resumable intersection guarantee that we'll traverse at least
+        // non removed initial intersection set.
+
+        // initial insert
+        let mut intersection_state = IntersectionBlocksState::default();
+        let mut initial_hashsets_intersection;
+        {
+            for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
+                for _ in 0..rng.gen_range(0..MAX_INSERTS){
+                    let index = rng.gen_range(0..MAX_RANGE);
+                    hash_set.insert(index);
+                    hi_set.insert(index);
+                }
+            }
+            initial_hashsets_intersection = hashset_multi_op(&hash_sets, hashset_op);
+        }
+
+        for _ in 0..10{
+            // random insert
+            for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
+                for _ in 0..rng.gen_range(0..MAX_INSERTS){
+                    let index = rng.gen_range(0..MAX_RANGE);
+                    hash_set.insert(index);
+                    hi_set.insert(index);
+                }
+            }
+
+            // guaranteed intersection (insert all)
+            for _ in 0..rng.gen_range(0..MAX_GUARANTEED_INTERSECTIONS){
+                let index = rng.gen_range(0..MAX_RANGE);
+                for hash_set in &mut hash_sets{
+                    hash_set.insert(index);
+                }
+                for hi_set in &mut hi_sets{
+                    hi_set.insert(index);
+                }
+            }
+
+            // random remove
+            let mut removed = Vec::new();
+            for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
+                for _ in 0..rng.gen_range(0..MAX_REMOVES){
+                    let index = rng.gen_range(0..MAX_RANGE);
+                    hash_set.remove(&index);
+                    hi_set.remove(index);
+                    removed.push(index);
+                }
+            }
+
+            // etalon intersection
+            let hashsets_intersection = hashset_multi_op(&hash_sets, hashset_op);
+            let mut hashsets_intersection_vec: Vec<_> = hashsets_intersection.iter().copied().collect();
+            hashsets_intersection_vec.sort();
+
+
+            // remove non-existent intersections from initial_hashsets_intersection
+            for index in &removed{
+                if !hashsets_intersection.contains(index){
+                    initial_hashsets_intersection.remove(index);
+                }
+            }
+
+            // TODO
+            /*// intersection resume
+            {
+                let mut intersection = intersection_state.resume(hi_sets.iter());
+                let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
+
+                // all intersections must be valid
+                loop{
+                    if blocks_to_consume == 0{
+                        break;
+                    }
+                    blocks_to_consume -= 1;
+
+                    if let Some(block) = intersection.next(){
+                        block.traverse(
+                            |index|{
+                                assert!(hashsets_intersection.contains(&index));
+                                initial_hashsets_intersection.remove(&index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    } else {
+                        break;
+                    }
+                }
+
+                intersection_state = intersection.suspend();
+            }*/
+
+            // intersection
+            {
+                /*let mut hi_intersection = collect_intersection(&hi_sets);
+
+                // check that intersection_blocks = intersection_blocks_traverse
+                {
+                    let mut indices2 = Vec::new();
+                    for block in intersection_blocks(&hi_sets){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+                    assert_eq!(hi_intersection, indices2);
+                }
+
+                {
+                    let mut indices2 = Vec::new();
+                    let state = IntersectionBlocksState::default();
+                    for block in state.resume(hi_sets.iter()){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+
+                    if hi_intersection != indices2{
+                        println!("{:?}", hash_sets);
+                        panic!();
+                    }
+                    //assert_eq!(hi_intersection, indices2);
+                }*/
+
+                // reduce test
+                {
+                    let mut indices2 = Vec::new();
+                    for block in reduce(hiset_op, hi_sets.iter()).iter(){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+                    indices2.sort();
+                    assert_eq!(hashsets_intersection_vec, indices2);
+                }
+
+                // reduce ext test
+                {
+                    let mut indices2 = Vec::new();
+                    for block in reduce(hiset_op, hi_sets.iter()).iter_ext(){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+                    indices2.sort();
+                    assert_eq!(hashsets_intersection_vec, indices2);
+                }
+
+                /*let mut hashsets_intersection: Vec<usize> = hashsets_intersection.into_iter().collect();
+                hashsets_intersection.sort();
+                hi_intersection.sort();
+                assert_equal(hi_intersection, hashsets_intersection);*/
+            }
+        }
+
+        /*// consume resumable intersection leftovers
+        {
+            let intersection = intersection_state.resume(hi_sets.iter());
+            for block in intersection{
+                block.traverse(
+                    |index|{
+                        initial_hashsets_intersection.remove(&index);
+                        ControlFlow::Continue(())
+                    }
+                );
+            }
+        }
+        // assert that we consumed all initial intersection set.
+        assert!(initial_hashsets_intersection.is_empty());*/
+    }
+}
+
+#[test]
+fn fuzzy_and_test(){
+    fuzzy_reduce_test(BitAndOp, |l,r| l&r, 100);
+}
+
+#[test]
+fn fuzzy_or_test(){
+    fuzzy_reduce_test(BitOrOp, |l,r| l|r, 30);
+}
+
+/*#[test]
+fn fuzzy_xor_test(){
+    fuzzy_reduce_test(BitXorOp, |l,r| l^r, 30);
+}*/
+
+
 #[test]
 fn empty_intersection_test(){
     let state = IntersectionBlocksState::default();
@@ -432,3 +667,88 @@ fn reduce2_test() {
     let intersections = result.iter().flat_map(|block|block.iter());
     assert_equal(intersections, [1,3]);
 }
+
+
+#[test]
+fn reduce_or_test(){
+    type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
+
+    const BLOCK_SIZE: usize = 64;
+    const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
+    const LEVEL_1: usize = BLOCK_SIZE;
+
+    // Different level 0
+    {
+        let set1_offset = LEVEL_0 * 1;
+        let hi_set1_in = [set1_offset + BLOCK_SIZE * 1, set1_offset + BLOCK_SIZE * 2];
+        let hi_set1: HiSparseBitset = hi_set1_in.clone().into_iter().collect();
+
+        let set2_offset = LEVEL_0 * 2;
+        let hi_set2_in = [set2_offset + BLOCK_SIZE * 1];
+        let hi_set2: HiSparseBitset = hi_set2_in.clone().into_iter().collect();
+
+        let hi_sets = [&hi_set1, &hi_set2];
+        let union = reduce(BitOrOp, hi_sets.iter().copied());
+
+        let mut out = Vec::new();
+        for block in union.iter/*_ext*/(){
+            for i in block.iter(){
+                out.push(i);
+                println!("{:}", i);
+            }
+        }
+
+        let mut etalon: Vec<_> = hi_set1_in.into_iter().collect();
+        etalon.extend_from_slice(hi_set2_in.as_slice());
+        etalon.sort();
+
+        out.sort();
+        assert_equal(out, etalon);
+    }
+}
+
+/*#[test]
+fn reduce_xor_test(){
+    type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
+
+    const BLOCK_SIZE: usize = 64;
+    const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
+    const LEVEL_1: usize = BLOCK_SIZE;
+
+    // Different level 0
+    {
+        let set1_offset = LEVEL_0 * 1;
+        let h1e1 = set1_offset + BLOCK_SIZE * 1;
+        let h1e2 = set1_offset + BLOCK_SIZE * 2;
+
+        let h1e1 = 0;
+        let h1e2 = 1;
+
+        let hi_set1_in = [h1e1, h1e2];
+        let hi_set1: HiSparseBitset = hi_set1_in.clone().into_iter().collect();
+
+        let set2_offset = LEVEL_0 * 2;
+        let h2e1 = set2_offset + BLOCK_SIZE * 1;
+        let h2e1 = 2;
+        let hi_set2_in = [h2e1, h1e2];
+        let hi_set2: HiSparseBitset = hi_set2_in.clone().into_iter().collect();
+
+        let hi_sets = [&hi_set1, &hi_set2];
+        let reduce = reduce(BitXorOp, hi_sets.iter().copied());
+
+        let mut out = Vec::new();
+        for block in reduce.iter/*_ext*/(){
+            for i in block.iter(){
+                out.push(i);
+                println!("{:}", i);
+            }
+        }
+
+        let mut etalon = vec![h1e1, h2e1];
+        etalon.extend_from_slice(hi_set2_in.as_slice());
+        etalon.sort();
+
+        out.sort();
+        assert_equal(out, etalon);
+    }
+}*/

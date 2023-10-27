@@ -1,11 +1,14 @@
 use std::mem;
-use std::ops::{BitAnd, ControlFlow};
+use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use std::ops::ControlFlow::*;
 use crate::bit_op;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 
 // TODO: consider removing copy/clone
-pub trait BitBlock: BitAnd<Output = Self> + Sized + Copy + Clone{
+pub trait BitBlock
+    : BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self>
+    + Sized + Copy + Clone
+{
     const SIZE_POT_EXPONENT: usize;
 
     fn zero() -> Self;

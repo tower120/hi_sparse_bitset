@@ -1,14 +1,15 @@
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
+use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 
-use num_traits::PrimInt;
+use num_traits::{PrimInt, Zero};
+use crate::INTERSECTION_ONLY;
 
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + Clone
+    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
 {
     mask: Mask,
     /// Next level block indices
@@ -19,13 +20,19 @@ where
 impl<Mask, BlockIndex, BlockIndices> Default for Block<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + Clone
+    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
 {
     #[inline]
     fn default() -> Self {
         Self {
             mask: Mask::zero(),
-            block_indices: unsafe{MaybeUninit::uninit().assume_init()},
+            block_indices:
+                if INTERSECTION_ONLY{
+                    unsafe{MaybeUninit::uninit().assume_init()}
+                } else {
+                    // All indices 0.
+                    unsafe{MaybeUninit::zeroed().assume_init()}
+                },
             phantom: PhantomData
         }
     }
@@ -81,8 +88,16 @@ where
     #[inline]
     pub unsafe fn remove(&mut self, index: usize) -> bool {
         // mask
-        self.mask.set_bit::<false>(index)
+        let prev = self.mask.set_bit::<false>(index);
         // don't touch block_index - it state is irrelevant
+        if !INTERSECTION_ONLY {
+            // If we have Blocks section (compile-time check)
+            if !size_of::<BlockIndices>().is_zero(){
+                let block_indices = self.block_indices.as_mut();
+                *block_indices.get_unchecked_mut(index) = BlockIndex::zero();
+            }
+        }
+        prev
     }
 
     /// # Safety
