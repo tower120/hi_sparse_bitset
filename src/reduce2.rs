@@ -82,7 +82,7 @@ where
     fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
         self.sets.clone()
         .map(|set| set.level0_mask())
-        .reduce(Op::op)
+        .reduce(Op::hierarchy_op)
         .unwrap()
     }
 
@@ -95,7 +95,7 @@ where
             .map(|set| {
                 set.level1_mask(level0_index)
             })
-            .reduce(Op::op)
+            .reduce(Op::hierarchy_op)
             .unwrap_unchecked()
         }
     }
@@ -109,7 +109,7 @@ where
             .map(|set| {
                 set.data_mask(level0_index, level1_index)
             })
-            .reduce(Op::op)
+            .reduce(Op::data_op)
             .unwrap_unchecked()
         }
     }
@@ -168,7 +168,7 @@ where
                 let set_level1_blocks = level1_blocks_iter.next().unwrap_unchecked();
                 set.data_mask_from_blocks(set_level1_blocks, level1_index)
             })
-            .reduce(Op::op)
+            .reduce(Op::data_op)
             .unwrap_unchecked()
         }
     }

@@ -3,7 +3,7 @@ use std::iter::zip;
 
 use itertools::assert_equal;
 use rand::Rng;
-use crate::binary_op::{BitOrOp, BitXorOp};
+use crate::binary_op::{BitOrOp, BitSubOp, BitXorOp};
 
 use super::*;
 
@@ -557,11 +557,16 @@ fn fuzzy_or_test(){
     fuzzy_reduce_test(BitOrOp, |l,r| l|r, 30);
 }
 
-/*#[test]
+#[test]
 fn fuzzy_xor_test(){
     fuzzy_reduce_test(BitXorOp, |l,r| l^r, 30);
-}*/
+}
 
+// Sub, probably, should not be used with reduce. But for test it will work.
+#[test]
+fn fuzzy_sub_test(){
+    fuzzy_reduce_test(BitSubOp, |l,r| l-r, 30);
+}
 
 #[test]
 fn empty_intersection_test(){
@@ -697,17 +702,17 @@ fn reduce_or_test(){
                 println!("{:}", i);
             }
         }
+        out.sort();
 
         let mut etalon: Vec<_> = hi_set1_in.into_iter().collect();
         etalon.extend_from_slice(hi_set2_in.as_slice());
         etalon.sort();
 
-        out.sort();
         assert_equal(out, etalon);
     }
 }
 
-/*#[test]
+#[test]
 fn reduce_xor_test(){
     type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
 
@@ -721,15 +726,11 @@ fn reduce_xor_test(){
         let h1e1 = set1_offset + BLOCK_SIZE * 1;
         let h1e2 = set1_offset + BLOCK_SIZE * 2;
 
-        let h1e1 = 0;
-        let h1e2 = 1;
-
         let hi_set1_in = [h1e1, h1e2];
         let hi_set1: HiSparseBitset = hi_set1_in.clone().into_iter().collect();
 
         let set2_offset = LEVEL_0 * 2;
         let h2e1 = set2_offset + BLOCK_SIZE * 1;
-        let h2e1 = 2;
         let hi_set2_in = [h2e1, h1e2];
         let hi_set2: HiSparseBitset = hi_set2_in.clone().into_iter().collect();
 
@@ -743,12 +744,11 @@ fn reduce_xor_test(){
                 println!("{:}", i);
             }
         }
+        out.sort();
 
         let mut etalon = vec![h1e1, h2e1];
-        etalon.extend_from_slice(hi_set2_in.as_slice());
         etalon.sort();
 
-        out.sort();
         assert_equal(out, etalon);
     }
-}*/
+}
