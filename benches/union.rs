@@ -49,6 +49,21 @@ fn hi_sparse_bitset_reduce_or_iter_ext2<Conf: IConfig>(sets: &[HiSparseBitset<Co
     counter
 }
 
+fn hi_sparse_bitset_reduce_or_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
+    use ControlFlow::*;
+
+    let iter = reduce(BitOrOp, sets.iter()).iter_ext3();
+
+    let mut counter = 0;
+    for block in iter {
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())
+        });
+    }
+    counter
+}
+
 fn hibitset_union(sets: &[hibitset::BitSet]) -> usize{
     // Looks like this is the best possible way of doing multi intersection with hibitset.
     let intersection = &sets[0] | &sets[1] | &sets[2];
@@ -106,6 +121,7 @@ pub fn bench_iter(c: &mut Criterion) {
     c.bench_function("hi_sparse_bitset_reduce_or_iter", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_or_iter_ext", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_or_iter_ext2", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext2(black_box(&hi_sparse_sets))));
+    c.bench_function("hi_sparse_bitset_reduce_or_iter_ext3", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext3(black_box(&hi_sparse_sets))));
     c.bench_function("hibitset_union", |b| b.iter(|| hibitset_union(black_box(&hibitsets))));
     //c.bench_function("hashset_intersection",   |b| b.iter(|| hashset_intersection(black_box(&hash_sets))));
 }

@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::marker::PhantomData;
 use std::ops;
 use arrayvec::ArrayVec;
@@ -5,9 +6,9 @@ use assume::assume;
 use num_traits::AsPrimitive;
 use crate::bit_block::BitBlock;
 use crate::{data_block_start_index, DataBlock, HiSparseBitset, IConfig, LevelMasks, LevelMasksExt};
-use crate::binary_op::BinaryOp;
+use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::bit_queue::BitQueue;
-use crate::virtual_bitset::LevelMasksExt2;
+use crate::virtual_bitset::{LevelMasksExt2, LevelMasksExt3};
 
 const MAX_SETS: usize = 32;
 
@@ -79,6 +80,26 @@ where
         let level1_blocks = self.make_level1_blocks2();
 
         ReduceIterExt2{
+            reduce: self,
+            state: State{
+                level0_iter,
+                level1_iter: BitQueue::empty(),
+                level0_index: 0,
+            },
+            level1_blocks
+        }
+    }
+
+    #[inline]
+    pub fn iter_ext3(self) -> ReduceIterExt3<Op, S>
+        where
+            S::Item: LevelMasksExt3,
+            S: ExactSizeIterator
+    {
+        let level0_iter = self.level0_mask().bits_iter();
+        let level1_blocks = self.make_level1_blocks3();
+
+        ReduceIterExt3{
             reduce: self,
             state: State{
                 level0_iter,
@@ -265,6 +286,103 @@ where
 
 
 
+impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S: ExactSizeIterator,
+        S::Item: LevelMasksExt3,
+{
+    // TODO: Use [_; MAX_SETS] with len, for better predictability.
+    //       ArrayVec is NOT guaranteed to be POD.
+    //       (thou, current implementation is)
+    type Level1Blocks3 = ArrayVec<<S::Item as LevelMasksExt3>::Level1Blocks3, MAX_SETS>;
+
+    #[inline]
+    fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
+        // Basically do nothing.
+        let mut array = ArrayVec::new();
+        unsafe {
+            // calling constructors in deep
+            for (index, set) in self.sets.clone().enumerate() {
+                std::ptr::write(
+                    array.get_unchecked_mut(index),
+                    set.make_level1_blocks3()
+                );
+            }
+            // len need to be set on every "update" anyway
+            //array.set_len(self.sets.len());
+        }
+        array
+    }
+
+    #[inline]
+    unsafe fn update_level1_blocks3(
+        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+    ) -> Option<<Self::Config as IConfig>::Level1BitBlock> {
+        // compile-time check
+        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>(){
+            // intersection case can be optimized, since we know
+            // that with intersection, there can be no
+            // empty masks/blocks queried.
+
+            let mask =
+                self.sets.clone().enumerate()
+                .map(|(index, set)|{
+                    set.update_level1_blocks3(
+                        level1_blocks.get_unchecked_mut(index),
+                        level0_index
+                    ).unwrap_unchecked()
+                })
+                .reduce(Op::hierarchy_op)
+                .unwrap_unchecked();
+
+            level1_blocks.set_len(self.sets.len());
+            return Some(mask);
+        }
+
+        // Overwrite only non-empty blocks.
+        let mut mask_acc = None;
+        let mut level1_blocks_index = 0;
+        for set in self.sets.clone(){
+            let level1_mask = set.update_level1_blocks3(
+                level1_blocks.get_unchecked_mut(level1_blocks_index),
+                level0_index
+            );
+            if let Some(mask) = level1_mask{
+                level1_blocks_index += 1;
+                //mask_acc = Op::hierarchy_op(mask_acc, mask );
+                // Benchmarks show that this is faster then fold-style.
+                // Don't change.
+                if let Some(mask_acc) = &mut mask_acc{
+                    *mask_acc = Op::hierarchy_op(*mask_acc, mask );
+                } else {
+                    mask_acc = Some(mask);
+                }
+            }
+        }
+        level1_blocks.set_len(level1_blocks_index);
+        mask_acc
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks3(
+        /*&self, */level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    ) -> <Self::Config as IConfig>::DataBitBlock {
+        unsafe{
+            level1_blocks.iter()
+                .map(|set_level1_blocks|
+                    <S::Item as LevelMasksExt3>::data_mask_from_blocks3(
+                        set_level1_blocks, level1_index
+                    )
+                )
+                .reduce(Op::data_op)
+                .unwrap_unchecked()
+        }
+    }
+}
+
+
 pub struct ReduceIter<Op, S>
 where
     Op: BinaryOp,
@@ -447,6 +565,73 @@ impl<Op, S> Iterator for ReduceIterExt2<Op, S>
             //self.reduce.
             Reduce::<Op, S>::
                 data_mask_from_blocks2(level1_blocks, level1_index)
+        };
+
+        let block_start_index =
+            data_block_start_index::<<S::Item as LevelMasks>::Config>(
+                state.level0_index, level1_index
+            );
+
+        Some(DataBlock{ start_index: block_start_index, bit_block: data_intersection })
+    }
+}
+
+
+
+pub struct ReduceIterExt3<Op, S>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S: ExactSizeIterator,
+        S::Item: LevelMasksExt3,
+{
+    reduce: Reduce<Op, S>,
+    state: State<<S::Item as LevelMasks>::Config>,
+    //phantom: PhantomData<Op>
+
+    level1_blocks: <Reduce<Op, S> as LevelMasksExt3>::Level1Blocks3
+}
+
+impl<Op, S> Iterator for ReduceIterExt3<Op, S>
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S: ExactSizeIterator,
+    S::Item: LevelMasksExt3,
+{
+    type Item = DataBlock<<<S::Item as LevelMasks>::Config as IConfig>::DataBitBlock>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let Self{reduce, state, level1_blocks} = self;
+
+        let level1_index =
+            loop{
+                if let Some(index) = state.level1_iter.next(){
+                    break index;
+                } else {
+                    //update level0
+                    if let Some(index) = state.level0_iter.next(){
+                        state.level0_index = index;
+
+                        let level1_intersection = unsafe{
+                            reduce.update_level1_blocks3(level1_blocks, state.level0_index)
+                        };
+
+                        state.level1_iter = unsafe{
+                            // level1_mask can not be empty here
+                            level1_intersection.unwrap_unchecked().bits_iter()
+                        };
+                    } else {
+                        return None;
+                    }
+                }
+            };
+
+        let data_intersection = unsafe {
+            //self.reduce.
+            Reduce::<Op, S>::
+                data_mask_from_blocks3(level1_blocks, level1_index)
         };
 
         let block_start_index =

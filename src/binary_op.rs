@@ -7,7 +7,7 @@
 use std::ops::{BitAnd, BitOr, BitXor};
 use crate::bit_block::BitBlock;
 
-pub trait BinaryOp: Copy{
+pub trait BinaryOp: Copy + 'static{
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
 

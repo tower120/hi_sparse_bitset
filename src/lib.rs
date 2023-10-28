@@ -21,7 +21,7 @@ use block::Block;
 use level::Level;
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::bit_block::BitBlock;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt, LevelMasksExt2};
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt, LevelMasksExt2, LevelMasksExt3};
 
 
 /// Use any other operation then intersection(and) require
@@ -303,11 +303,6 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock {
-/*        let have = self.level0.mask().get_bit(level0_index);
-        if !have{
-            return Config::Level1BitBlock::zero();
-        }*/
-
         let level1_block_index = self.level0.get_unchecked(level0_index);
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
         *level1_block.mask()
@@ -315,17 +310,9 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock {
-        /*let have = self.level0.mask().get_bit(level0_index);
-        if !have{
-            return Config::DataBitBlock::zero();
-        }*/
         let level1_block_index = self.level0.get_unchecked(level0_index);
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
 
-        /*let have = level1_block.mask().get_bit(level1_index);
-        if !have{
-            return Config::DataBitBlock::zero();
-        }*/
         let data_block_index = level1_block.get_unchecked(level1_index);
         let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
         *data_block.mask()
@@ -415,6 +402,43 @@ impl<'a, Config: IConfig> LevelMasksExt2 for &'a HiSparseBitset<Config>{
         let data_block = this.data.blocks().get_unchecked(data_block_index.as_());
         *data_block.mask()*/
 
+        let array_ptr = level1_blocks.0;
+        let level1_block = &*level1_blocks.1;
+
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = &*array_ptr.add(data_block_index.as_());
+        *data_block.mask()
+    }
+}
+
+impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
+    type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
+
+    #[inline]
+    fn make_level1_blocks3(&self) -> Self::Level1Blocks3{
+        unsafe {
+            MaybeUninit::uninit().assume_init()
+        }
+    }
+
+    #[inline]
+    unsafe fn update_level1_blocks3(&self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize)
+        -> Option<<Self::Config as IConfig>::Level1BitBlock>
+    {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        if level1_block_index.is_zero(){
+            return None;
+        }
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
+
+        Some(*level1_block.mask())
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks3(
+        /*&self,*/ level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    ) -> Config::DataBitBlock {
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;
 
