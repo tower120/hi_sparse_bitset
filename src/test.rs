@@ -523,6 +523,21 @@ where
                     assert_eq!(hashsets_intersection_vec, indices2);
                 }
 
+                // reduce ext2 test
+                {
+                    let mut indices2 = Vec::new();
+                    for block in reduce(hiset_op, hi_sets.iter()).iter_ext2(){
+                        block.traverse(
+                            |index|{
+                                indices2.push(index);
+                                ControlFlow::Continue(())
+                            }
+                        );
+                    }
+                    indices2.sort();
+                    assert_eq!(hashsets_intersection_vec, indices2);
+                }
+
                 /*let mut hashsets_intersection: Vec<usize> = hashsets_intersection.into_iter().collect();
                 hashsets_intersection.sort();
                 hi_intersection.sort();

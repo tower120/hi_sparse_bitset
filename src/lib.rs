@@ -8,20 +8,20 @@ pub mod configs;
 
 #[cfg(test)]
 mod test;
-mod binary_op;
+pub mod binary_op;
 mod reduce2;
 mod virtual_bitset;
 
 use std::{ops, ops::ControlFlow};
 use std::mem::MaybeUninit;
 use std::ops::{BitAndAssign, BitXorAssign};
-use num_traits::{AsPrimitive, PrimInt, WrappingNeg};
+use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
 
 use block::Block;
 use level::Level;
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::bit_block::BitBlock;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt};
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt, LevelMasksExt2};
 
 
 /// Use any other operation then intersection(and) require
@@ -65,6 +65,7 @@ pub const fn max_range<Config: IConfig>() -> usize {
 }
 
 type Level1Block<Config: IConfig> = Block<Config::Level1BitBlock, Config::DataBlockIndex, Config::Level1BlockIndices>;
+type LevelDataBlock<Config: IConfig> = Block<Config::DataBitBlock, usize, [usize;0]>;
 
 /// Hierarchical sparse bitset. Tri-level hierarchy. Highest uint it can hold
 /// is Level0Mask * Level1Mask * DenseBlock.
@@ -80,7 +81,8 @@ pub struct HiSparseBitset<Config: IConfig>{
                 Config::Level1BlockIndex,
             >,
     data  : Level<
-                Block<Config::DataBitBlock, usize, [usize;0]>,
+                LevelDataBlock<Config>,
+                //Block<Config::DataBitBlock, usize, [usize;0]>,
                 Config::DataBlockIndex,
             >,
 }
@@ -378,6 +380,46 @@ impl<'a, Config: IConfig> LevelMasksExt for &'a HiSparseBitset<Config>{
         let level1_block = &**level1_blocks;
         let data_block_index = level1_block.get_unchecked(level1_index);
         let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
+        *data_block.mask()
+    }
+}
+
+impl<'a, Config: IConfig> LevelMasksExt2 for &'a HiSparseBitset<Config>{
+    //type Level1Blocks2 = (*const HiSparseBitset<Config> /* TODO: Data line here */, *const Level1Block<Config>);
+    type Level1Blocks2 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
+
+    #[inline]
+    fn make_level1_blocks2(&self) -> Self::Level1Blocks2{
+        unsafe {
+            MaybeUninit::uninit().assume_init()
+        }
+    }
+
+    #[inline]
+    unsafe fn update_level1_blocks2(&self, level1_blocks: &mut Self::Level1Blocks2, level0_index: usize) -> bool {
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+        if level1_block_index.is_zero(){
+            return false;
+        }
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
+        return true;
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks2(/*&self,*/ level1_blocks: &Self::Level1Blocks2, level1_index: usize) -> Config::DataBitBlock {
+        /*let this = &*level1_blocks.0;
+        let level1_block = &*level1_blocks.1;
+
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = this.data.blocks().get_unchecked(data_block_index.as_());
+        *data_block.mask()*/
+
+        let array_ptr = level1_blocks.0;
+        let level1_block = &*level1_blocks.1;
+
+        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block = &*array_ptr.add(data_block_index.as_());
         *data_block.mask()
     }
 }

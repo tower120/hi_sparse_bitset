@@ -11,6 +11,8 @@ simd = ["dep:wide"]
 num-traits = "0.2"
 wide = { version = "0.7.13", optional = true }
 arrayvec = "0.7"
+# TODO: remove
+assume = "0.5"
 
 [dev-dependencies]
 rand = "0.8"
@@ -23,4 +25,9 @@ hibitset = "0.6.4"
 [[bench]]
 name = "intersection_bench"
 path = "benches/intersection.rs"
+harness = false
+
+[[bench]]
+name = "union_bench"
+path = "benches/union.rs"
 harness = false

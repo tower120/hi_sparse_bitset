@@ -62,6 +62,22 @@ fn hi_sparse_bitset_reduce_and_iter_ext<Conf: IConfig>(sets: &[HiSparseBitset<Co
 }
 
 
+fn hi_sparse_bitset_reduce_and_iter_ext2<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
+    use ControlFlow::*;
+
+    let iter = reduce_and2(sets.iter()).iter_ext2();
+
+    let mut counter = 0;
+    for block in iter {
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())
+        });
+    }
+    counter
+}
+
+
 /*// TODO: This does not bench anything.
 fn hi_bitset_intersection_iter_resumable(sets: &Vec<HiSparseBitset>) -> usize {
     use ControlFlow::*;
@@ -111,6 +127,7 @@ fn hashset_intersection(sets: &Vec<HashSet<usize>>) -> usize {
     counter
 }
 
+// TODO : Bench with worst-case parameters
 pub fn bench_iter(c: &mut Criterion) {
     type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::simd_128>;
     //type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::u64s>;
@@ -154,6 +171,7 @@ pub fn bench_iter(c: &mut Criterion) {
     //c.bench_function("hi_bitset_intersection_iter_resumable", |b| b.iter(|| hi_bitset_intersection_iter_resumable(black_box(&hi_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter_ext", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext(black_box(&hi_sparse_sets))));
+    c.bench_function("hi_sparse_bitset_reduce_and_iter_ext2", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext2(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_intersection_iter", |b| b.iter(|| hi_sparse_bitset_intersection_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_intersection_traverse", |b| b.iter(|| hi_sparse_bitset_intersection_traverse(black_box(&hi_sparse_sets))));
     c.bench_function("hibitset_intersection", |b| b.iter(|| hibitset_intersection(black_box(&hibitsets))));
