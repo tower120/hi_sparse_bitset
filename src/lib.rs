@@ -267,6 +267,13 @@ impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
     }
 }
 
+impl<Config: IConfig, const N: usize> From<[usize; N]> for HiSparseBitset<Config> {
+    fn from(value: [usize; N]) -> Self {
+        Self::from_iter(value.into_iter())
+    }
+}
+
+
 /*impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
     type Config = Config;
 
@@ -632,13 +639,14 @@ where
 }
 
 
+// TODO: add LevelMasksRef and accept only S::Item = impl LevelMasksRef
 #[inline]
 pub fn reduce<Op, S>(_: Op, sets: S)
     -> reduce2::Reduce<Op, S>
 where
     Op: BinaryOp,
     S: ExactSizeIterator + Clone,
-    S::Item: LevelMasksExt,
+    S::Item: LevelMasks/*Ext*/,
 {
     reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
 }

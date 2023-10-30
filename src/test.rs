@@ -768,7 +768,7 @@ fn reduce_xor_test(){
         let reduce = reduce(BitXorOp, hi_sets.iter().copied());
 
         let mut out = Vec::new();
-        for block in reduce.iter/*_ext*/(){
+        for block in reduce.iter_ext3(){
             for i in block.iter(){
                 out.push(i);
                 println!("{:}", i);
@@ -781,4 +781,37 @@ fn reduce_xor_test(){
 
         assert_equal(out, etalon);
     }
+}
+
+#[test]
+fn multilayer_test(){
+    let seq1 = [1,2,3];
+    let hi_sets1 = [
+        HiSparseBitset::from_iter(seq1.into_iter()),
+        HiSparseBitset::from_iter(seq1.into_iter()),
+        HiSparseBitset::from_iter(seq1.into_iter()),
+    ];
+    let and1 = reduce(BitAndOp, hi_sets1.iter());
+
+    let seq2 = [3,4,5];
+    let hi_sets2 = [
+        HiSparseBitset::from_iter(seq2.into_iter()),
+        HiSparseBitset::from_iter(seq2.into_iter()),
+        HiSparseBitset::from_iter(seq2.into_iter()),
+    ];
+    let and2 = reduce(BitAndOp, hi_sets2.iter());
+
+    let seq3 = [5,6,7];
+    let hi_sets3 = [
+        HiSparseBitset::from_iter(seq3.into_iter()),
+        HiSparseBitset::from_iter(seq3.into_iter()),
+        HiSparseBitset::from_iter(seq3.into_iter()),
+    ];
+    let and3 = reduce(BitAndOp, hi_sets3.iter());
+
+    let ands = [and1, and2, and3];
+    let or = reduce(BitOrOp, ands.iter());
+    let or_collected: Vec<_> = or.iter_ext3().flat_map(|block|block.iter()).collect();
+
+    assert_equal(or_collected, [1,2,3,4,5,6,7]);
 }

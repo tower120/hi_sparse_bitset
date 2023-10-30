@@ -18,6 +18,7 @@ struct State<Config: IConfig> {
     level0_index: usize,
 }
 
+#[derive(Clone)]
 pub struct Reduce<Op, S>
 where
     Op: BinaryOp,
@@ -157,6 +158,32 @@ where
         }
     }
 }
+
+
+impl<'a, Op, S> LevelMasks for &'a Reduce<Op, S>
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S::Item: LevelMasks,
+{
+    type Config = <Reduce<Op, S> as LevelMasks>::Config;
+
+    #[inline]
+    fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
+        <Reduce<Op, S> as LevelMasks>::level0_mask(self)
+    }
+
+    #[inline]
+    unsafe fn level1_mask(&self, level0_index: usize) -> <Self::Config as IConfig>::Level1BitBlock {
+        <Reduce<Op, S> as LevelMasks>::level1_mask(self, level0_index)
+    }
+
+    #[inline]
+    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> <Self::Config as IConfig>::DataBitBlock {
+        <Reduce<Op, S> as LevelMasks>::data_mask(self, level0_index, level1_index)
+    }
+}
+
 
 impl<Op, S> LevelMasksExt for Reduce<Op, S>
 where
@@ -379,6 +406,40 @@ impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
                 .reduce(Op::data_op)
                 .unwrap_unchecked()
         }
+    }
+}
+
+
+impl<'a, Op, S> LevelMasksExt3 for &'a Reduce<Op, S>
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S: ExactSizeIterator,
+    S::Item: LevelMasksExt3,
+{
+    type Level1Blocks3 = <Reduce<Op, S> as LevelMasksExt3>::Level1Blocks3;
+
+    #[inline]
+    fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
+        <Reduce<Op, S> as LevelMasksExt3>::make_level1_blocks3(self)
+    }
+
+    #[inline]
+    unsafe fn update_level1_blocks3(
+        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+    ) -> Option<<Self::Config as IConfig>::Level1BitBlock> {
+        <Reduce<Op, S> as LevelMasksExt3>::update_level1_blocks3(
+            self, level1_blocks, level0_index
+        )
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks3(
+        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    ) -> <Self::Config as IConfig>::DataBitBlock {
+        <Reduce<Op, S> as LevelMasksExt3>::data_mask_from_blocks3(
+            level1_blocks, level1_index
+        )
     }
 }
 
