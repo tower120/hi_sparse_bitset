@@ -311,20 +311,6 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
         }
     }
 
-/*    #[inline]
-    unsafe fn update_level1_blocks3(&self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize)
-        -> Option<<Self::Config as IConfig>::Level1BitBlock>
-    {
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        if level1_block_index.is_zero(){
-            return None;
-        }
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
-
-        Some(*level1_block.mask())
-    }*/
-
     #[inline]
     unsafe fn always_update_level1_blocks3 (
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize

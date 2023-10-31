@@ -35,20 +35,6 @@ pub trait LevelMasksExt3: LevelMasks{
     /// `update_level1_blocks` will initialize it any way.
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3;
 
-/*    // TODO: remove
-    /// Combined level1 block list update + level1 mask (for level0_index).
-    /// Returns LevelMasks::level1_mask, or None, if level0_index invalid.
-    ///
-    /// Level1Blocks should be fully initialized after calling this function,
-    /// if function did not return None.
-    ///
-    /// # Safety
-    ///
-    /// index is not checked
-    unsafe fn update_level1_blocks3 (
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
-    ) -> Option<<Self::Config as IConfig>::Level1BitBlock>;
-*/
     /// Same as update_level1_blocks3 but always update level1_blocks
     ///
     /// Return (Level1Mask, is_not_empty/valid)

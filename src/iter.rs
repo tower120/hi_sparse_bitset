@@ -161,31 +161,14 @@ where
                     if let Some(index) = state.level0_iter.next(){
                         state.level0_index = index;
 
-                        // new style
-                        {
-                            let (level1_intersection, valid) = unsafe {
-                                virtual_set.always_update_level1_blocks3(level1_blocks, state.level0_index)
-                            };
-                            if !valid {
-                                // level1_mask can not be empty here
-                                unsafe { std::hint::unreachable_unchecked() }
-                            }
-                            state.level1_iter = level1_intersection.bits_iter();
+                        let (level1_intersection, valid) = unsafe {
+                            virtual_set.always_update_level1_blocks3(level1_blocks, index)
+                        };
+                        if !valid {
+                            // level1_mask can not be empty here
+                            unsafe { std::hint::unreachable_unchecked() }
                         }
-
-                        /*// old style
-                        {
-                            // update level1 iter
-                            let level1_intersection = unsafe {
-                                virtual_set.level1_mask(index.as_())
-                            };
-                            state.level1_iter = level1_intersection.bits_iter();
-
-                            // update level1_blocks from sets
-                            unsafe {
-                                virtual_set.update_level1_blocks3(level1_blocks, state.level0_index);
-                            }
-                        }*/
+                        state.level1_iter = level1_intersection.bits_iter();
                     } else {
                         return None;
                     }
@@ -193,7 +176,6 @@ where
             };
 
         let data_intersection = unsafe {
-            //self.reduce.
             T::data_mask_from_blocks3(level1_blocks, level1_index)
         };
 

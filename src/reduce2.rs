@@ -150,55 +150,6 @@ impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
         array
     }
 
-/*    #[inline]
-    unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
-    ) -> Option<<Self::Config as IConfig>::Level1BitBlock> {
-        // compile-time check
-        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>(){
-            // intersection case can be optimized, since we know
-            // that with intersection, there can be no
-            // empty masks/blocks queried.
-
-            let mask =
-                self.sets.clone().enumerate()
-                .map(|(index, set)|{
-                    set.update_level1_blocks3(
-                        level1_blocks.get_unchecked_mut(index),
-                        level0_index
-                    ).unwrap_unchecked()
-                })
-                .reduce(Op::hierarchy_op)
-                .unwrap_unchecked();
-
-            level1_blocks.set_len(self.sets.len());
-            return Some(mask);
-        }
-
-        // Overwrite only non-empty blocks.
-        let mut mask_acc = None;
-        let mut level1_blocks_index = 0;
-        for set in self.sets.clone(){
-            let level1_mask = set.update_level1_blocks3(
-                level1_blocks.get_unchecked_mut(level1_blocks_index),
-                level0_index
-            );
-            if let Some(mask) = level1_mask{
-                level1_blocks_index += 1;
-                //mask_acc = Op::hierarchy_op(mask_acc, mask );
-                // Benchmarks show that this is faster then fold-style.
-                // Don't change.
-                if let Some(mask_acc) = &mut mask_acc{
-                    *mask_acc = Op::hierarchy_op(*mask_acc, mask );
-                } else {
-                    mask_acc = Some(mask);
-                }
-            }
-        }
-        level1_blocks.set_len(level1_blocks_index);
-        mask_acc
-    }*/
-
     #[inline]
     unsafe fn always_update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
@@ -208,7 +159,6 @@ impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
             // intersection case can be optimized, since we know
             // that with intersection, there can be no
             // empty masks/blocks queried.
-
             let mask =
                 self.sets.clone().enumerate()
                     .map(|(index, set)|{
@@ -277,15 +227,6 @@ where
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
         <Reduce<Op, S> as LevelMasksExt3>::make_level1_blocks3(self)
     }
-
-/*    #[inline]
-    unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
-    ) -> Option<<Self::Config as IConfig>::Level1BitBlock> {
-        <Reduce<Op, S> as LevelMasksExt3>::update_level1_blocks3(
-            self, level1_blocks, level0_index
-        )
-    }*/
 
     #[inline]
     unsafe fn always_update_level1_blocks3(
