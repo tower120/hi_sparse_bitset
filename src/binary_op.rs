@@ -17,6 +17,8 @@ pub trait BinaryOp: Copy + 'static{
     fn data_op<T: BitBlock>(left: T, right: T) -> T;
 }
 
+// TODO: rename structs?
+
 #[derive(Copy, Clone)]
 pub struct BitAndOp;
 impl BinaryOp for BitAndOp {

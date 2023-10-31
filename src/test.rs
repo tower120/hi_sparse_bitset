@@ -281,7 +281,7 @@ fn fuzzy_intersection_test(){
                 // reduce test
                 {
                     let mut indices2 = Vec::new();
-                    for block in reduce_and2(hi_sets.iter()).iter(){
+                    for block in reduce(BitAndOp, hi_sets.iter()).iter(){
                         block.traverse(
                             |index|{
                                 indices2.push(index);
@@ -295,7 +295,7 @@ fn fuzzy_intersection_test(){
                 // reduce ext test
                 {
                     let mut indices2 = Vec::new();
-                    for block in reduce_and2(hi_sets.iter()).iter_ext(){
+                    for block in reduce(BitAndOp, hi_sets.iter()).iter_ext3(){
                         block.traverse(
                             |index|{
                                 indices2.push(index);
@@ -508,36 +508,6 @@ where
                     assert_eq!(hashsets_intersection_vec, indices2);
                 }
 
-                // reduce ext test
-                {
-                    let mut indices2 = Vec::new();
-                    for block in reduce(hiset_op, hi_sets.iter()).iter_ext(){
-                        block.traverse(
-                            |index|{
-                                indices2.push(index);
-                                ControlFlow::Continue(())
-                            }
-                        );
-                    }
-                    indices2.sort();
-                    assert_eq!(hashsets_intersection_vec, indices2);
-                }
-
-                // reduce ext2 test
-                {
-                    let mut indices2 = Vec::new();
-                    for block in reduce(hiset_op, hi_sets.iter()).iter_ext2(){
-                        block.traverse(
-                            |index|{
-                                indices2.push(index);
-                                ControlFlow::Continue(())
-                            }
-                        );
-                    }
-                    indices2.sort();
-                    assert_eq!(hashsets_intersection_vec, indices2);
-                }
-
                 // reduce ext3 test
                 {
                     let mut indices2 = Vec::new();
@@ -694,11 +664,11 @@ fn reduce2_test() {
     let hi_sets = [hi_set1, hi_set2, hi_set3];
     let hi_set_refs = [&hi_sets[0], &hi_sets[1], &hi_sets[2]];
 
-    let result = reduce_and2(hi_sets.iter());
+    let result = reduce(BitAndOp, hi_sets.iter());
     let intersections = result.iter().flat_map(|block|block.iter());
     assert_equal(intersections, [1,3]);
 
-    let result = reduce_and2(hi_set_refs.iter().copied());
+    let result = reduce(BitAndOp, hi_set_refs.iter().copied());
     let intersections = result.iter().flat_map(|block|block.iter());
     assert_equal(intersections, [1,3]);
 }

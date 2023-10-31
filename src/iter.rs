@@ -4,8 +4,13 @@ use crate::binary_op::BinaryOp;
 use crate::{data_block_start_index, DataBlock, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::reduce2::State;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
+
+pub struct State<Config: IConfig> {
+    pub(crate) level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
+    pub(crate) level1_iter: <Config::Level1BitBlock as BitBlock>::BitsIter,
+    pub(crate) level0_index: usize,
+}
 
 /// Simple iterator - access each data block, by traversing all hierarchy
 /// levels indirections each time.

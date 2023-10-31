@@ -4,7 +4,6 @@ use std::ops::BitOr;
 use crate::binary_op::{BinaryOp, BitOrOp};
 use crate::{HiSparseBitset, IConfig};
 use crate::iter::IterExt3;
-use crate::reduce2::{ReduceIter, State};
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 pub struct HiSparseBitsetOp<Op, S1, S2>{
@@ -82,7 +81,7 @@ where
         )
     }
 
-    // TODO: BENCHMARK!! Looks like this have no sense for binary op.
+/*    // TODO: BENCHMARK!! Looks like this have no sense for binary op.
 
     #[inline]
     unsafe fn update_level1_blocks3(
@@ -105,7 +104,7 @@ where
         } else {
             mask1
         }
-    }
+    }*/
 
     #[inline]
     unsafe fn always_update_level1_blocks3(

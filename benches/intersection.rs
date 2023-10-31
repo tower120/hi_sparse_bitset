@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks, intersection_blocks_traverse, iter, reduce, reduce_and2};
+use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks, intersection_blocks_traverse, iter, reduce};
 use hi_sparse_bitset::binary_op::BitAndOp;
 
 fn hi_sparse_bitset_intersection_traverse<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
@@ -35,7 +35,7 @@ fn hi_sparse_bitset_intersection_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf
 fn hi_sparse_bitset_reduce_and_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;
 
-    let iter = reduce_and2(sets.iter()).iter();
+    let iter = reduce(BitAndOp, sets.iter()).iter();
 
     let mut counter = 0;
     for block in iter {
@@ -46,44 +46,12 @@ fn hi_sparse_bitset_reduce_and_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]
     }
     counter
 }
-
-fn hi_sparse_bitset_reduce_and_iter_ext<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
-    use ControlFlow::*;
-
-    let iter = reduce_and2(sets.iter()).iter_ext();
-
-    let mut counter = 0;
-    for block in iter {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
-    counter
-}
-
-
-fn hi_sparse_bitset_reduce_and_iter_ext2<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
-    use ControlFlow::*;
-
-    let iter = reduce_and2(sets.iter()).iter_ext2();
-
-    let mut counter = 0;
-    for block in iter {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
-    counter
-}
-
 
 
 fn hi_sparse_bitset_reduce_and_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;
 
-    let iter = reduce_and2(sets.iter()).iter_ext3();
+    let iter = reduce(BitAndOp, sets.iter()).iter_ext3();
 
     let mut counter = 0;
     for block in iter {
@@ -94,23 +62,6 @@ fn hi_sparse_bitset_reduce_and_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<C
     }
     counter
 }
-
-fn hi_sparse_bitset_reduce_and_iter_ext3_new<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
-    use ControlFlow::*;
-
-    //let iter = reduce_and2(sets.iter()).iter_ext3();
-    let iter = iter::IterExt3::new(reduce(BitAndOp, sets.iter()));
-
-    let mut counter = 0;
-    for block in iter {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
-    counter
-}
-
 
 
 /*// TODO: This does not bench anything.
@@ -205,10 +156,7 @@ pub fn bench_iter(c: &mut Criterion) {
 
     //c.bench_function("hi_bitset_intersection_iter_resumable", |b| b.iter(|| hi_bitset_intersection_iter_resumable(black_box(&hi_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_reduce_and_iter_ext", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_reduce_and_iter_ext2", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext2(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter_ext3", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext3(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_reduce_and_iter_ext3_new", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext3_new(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_intersection_iter", |b| b.iter(|| hi_sparse_bitset_intersection_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_intersection_traverse", |b| b.iter(|| hi_sparse_bitset_intersection_traverse(black_box(&hi_sparse_sets))));
     c.bench_function("hibitset_intersection", |b| b.iter(|| hibitset_intersection(black_box(&hibitsets))));

@@ -23,7 +23,7 @@ use block::Block;
 use level::Level;
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::bit_block::BitBlock;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt, LevelMasksExt2, LevelMasksExt3};
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 
 /// Use any other operation then intersection(and) require
@@ -275,33 +275,6 @@ impl<Config: IConfig, const N: usize> From<[usize; N]> for HiSparseBitset<Config
     }
 }
 
-
-/*impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
-    type Config = Config;
-
-    #[inline]
-    fn level0_mask(&self) -> Config::Level0BitBlock {
-        *self.level0.mask()
-    }
-
-    #[inline]
-    unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        *level1_block.mask()
-    }
-
-    #[inline]
-    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
-        *data_block.mask()
-    }
-}*/
-
-// TODO: refactor to reduce code repetition
 impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
     type Config = Config;
 
@@ -328,98 +301,6 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
     }
 }
 
-/*impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
-    type Level1Blocks = *const Level1Block<Config>;
-
-    #[inline]
-    fn make_level1_blocks(&self) -> Self::Level1Blocks{
-        unsafe {
-            MaybeUninit::uninit().assume_init()
-        }
-    }
-
-    #[inline]
-    unsafe fn update_level1_blocks(&self, level1_blocks: &mut Self::Level1Blocks, level0_index: usize){
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        *level1_blocks = level1_block;
-    }
-
-    #[inline]
-    unsafe fn data_mask_from_blocks(&self, level1_blocks: &Self::Level1Blocks, level1_index: usize) -> Config::DataBitBlock {
-        let level1_block = &**level1_blocks;
-        let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
-        *data_block.mask()
-    }
-}*/
-
-impl<'a, Config: IConfig> LevelMasksExt for &'a HiSparseBitset<Config>{
-    type Level1Blocks = *const Level1Block<Config>;
-
-    #[inline]
-    fn make_level1_blocks(&self) -> Self::Level1Blocks{
-        unsafe {
-            MaybeUninit::uninit().assume_init()
-        }
-    }
-
-    #[inline]
-    unsafe fn update_level1_blocks(&self, level1_blocks: &mut Self::Level1Blocks, level0_index: usize){
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        *level1_blocks = level1_block;
-    }
-
-    #[inline]
-    unsafe fn data_mask_from_blocks(&self, level1_blocks: &Self::Level1Blocks, level1_index: usize) -> Config::DataBitBlock {
-        let level1_block = &**level1_blocks;
-        let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
-        *data_block.mask()
-    }
-}
-
-impl<'a, Config: IConfig> LevelMasksExt2 for &'a HiSparseBitset<Config>{
-    //type Level1Blocks2 = (*const HiSparseBitset<Config> /* TODO: Data line here */, *const Level1Block<Config>);
-    type Level1Blocks2 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
-
-    #[inline]
-    fn make_level1_blocks2(&self) -> Self::Level1Blocks2{
-        unsafe {
-            MaybeUninit::uninit().assume_init()
-        }
-    }
-
-    #[inline]
-    unsafe fn update_level1_blocks2(&self, level1_blocks: &mut Self::Level1Blocks2, level0_index: usize) -> bool {
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        if level1_block_index.is_zero(){
-            return false;
-        }
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
-        return true;
-    }
-
-    #[inline]
-    unsafe fn data_mask_from_blocks2(/*&self,*/ level1_blocks: &Self::Level1Blocks2, level1_index: usize) -> Config::DataBitBlock {
-        /*let this = &*level1_blocks.0;
-        let level1_block = &*level1_blocks.1;
-
-        let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = this.data.blocks().get_unchecked(data_block_index.as_());
-        *data_block.mask()*/
-
-        let array_ptr = level1_blocks.0;
-        let level1_block = &*level1_blocks.1;
-
-        let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = &*array_ptr.add(data_block_index.as_());
-        *data_block.mask()
-    }
-}
-
 impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
     type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
 
@@ -430,7 +311,7 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
         }
     }
 
-    #[inline]
+/*    #[inline]
     unsafe fn update_level1_blocks3(&self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize)
         -> Option<<Self::Config as IConfig>::Level1BitBlock>
     {
@@ -442,7 +323,7 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
         *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
 
         Some(*level1_block.mask())
-    }
+    }*/
 
     #[inline]
     unsafe fn always_update_level1_blocks3 (
@@ -643,16 +524,6 @@ where
     <S as IntoIterator>::IntoIter: ExactSizeIterator,
 {
     intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
-}
-
-#[inline]
-pub fn reduce_and2<S>(sets: S)
-    -> reduce2::Reduce<BitAndOp, S>
-where
-    S: ExactSizeIterator + Clone,
-    S::Item: LevelMasksExt,
-{
-    reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
 }
 
 
