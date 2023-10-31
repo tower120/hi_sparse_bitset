@@ -11,6 +11,8 @@ mod test;
 pub mod binary_op;
 mod reduce2;
 mod virtual_bitset;
+mod op;
+pub mod iter;
 
 use std::{ops, ops::ControlFlow};
 use std::mem::MaybeUninit;
@@ -441,6 +443,21 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
 
         Some(*level1_block.mask())
     }
+
+    #[inline]
+    unsafe fn always_update_level1_blocks3 (
+        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool){
+        let level1_block_index = self.level0.get_unchecked(level0_index);
+
+        // TODO: This can point to static empty block, if level1_block_index invalid.
+
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
+
+        (*level1_block.mask(), !level1_block_index.is_zero())
+    }
+
 
     #[inline]
     unsafe fn data_mask_from_blocks3(

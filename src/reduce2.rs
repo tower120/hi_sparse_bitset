@@ -12,10 +12,11 @@ use crate::virtual_bitset::{LevelMasksExt2, LevelMasksExt3};
 
 const MAX_SETS: usize = 32;
 
-struct State<Config: IConfig> {
-    level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
-    level1_iter: <Config::Level1BitBlock as BitBlock>::BitsIter,
-    level0_index: usize,
+// TODO: State is common for reduce and op
+pub struct State<Config: IConfig> {
+    pub(crate) level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
+    pub(crate) level1_iter: <Config::Level1BitBlock as BitBlock>::BitsIter,
+    pub(crate) level0_index: usize,
 }
 
 #[derive(Clone)]
@@ -393,6 +394,53 @@ impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
     }
 
     #[inline]
+    unsafe fn always_update_level1_blocks3(
+        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
+        // compile-time check
+        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>(){
+            // intersection case can be optimized, since we know
+            // that with intersection, there can be no
+            // empty masks/blocks queried.
+
+            let mask =
+                self.sets.clone().enumerate()
+                    .map(|(index, set)|{
+                        set.update_level1_blocks3(
+                            level1_blocks.get_unchecked_mut(index),
+                            level0_index
+                        ).unwrap_unchecked()
+                    })
+                    .reduce(Op::hierarchy_op)
+                    .unwrap_unchecked();
+
+            level1_blocks.set_len(self.sets.len());
+            return (mask, true);
+        }
+
+        // Overwrite only non-empty blocks.
+        let mut level1_blocks_index = 0;
+
+        let mask_acc =
+            self.sets.clone()
+            .map(|set|{
+                let (level1_mask, valid) = set.always_update_level1_blocks3(
+                    level1_blocks.get_unchecked_mut(level1_blocks_index),
+                    level0_index
+                );
+                if valid {
+                    level1_blocks_index += 1;
+                }
+                level1_mask
+            })
+            .reduce(Op::hierarchy_op)
+            .unwrap_unchecked();
+
+        level1_blocks.set_len(level1_blocks_index);
+        (mask_acc, level1_blocks_index!=0)
+    }
+
+    #[inline]
     unsafe fn data_mask_from_blocks3(
         /*&self, */level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock {
@@ -404,6 +452,8 @@ impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
                     )
                 )
                 .reduce(Op::data_op)
+                // level1_blocks can not be empty, since then -
+                // level1 mask will be empty, and there will be nothing to iterate.
                 .unwrap_unchecked()
         }
     }
@@ -429,6 +479,15 @@ where
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> Option<<Self::Config as IConfig>::Level1BitBlock> {
         <Reduce<Op, S> as LevelMasksExt3>::update_level1_blocks3(
+            self, level1_blocks, level0_index
+        )
+    }
+
+    #[inline]
+    unsafe fn always_update_level1_blocks3(
+        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
+        <Reduce<Op, S> as LevelMasksExt3>::always_update_level1_blocks3(
             self, level1_blocks, level0_index
         )
     }

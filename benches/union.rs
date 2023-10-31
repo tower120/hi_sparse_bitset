@@ -1,8 +1,9 @@
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks, intersection_blocks_traverse, reduce, reduce_and2};
+use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks, intersection_blocks_traverse, iter, reduce, reduce_and2};
 use hi_sparse_bitset::binary_op::*;
+use hi_sparse_bitset::iter::SimpleIter;
 
 fn hi_sparse_bitset_reduce_or_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;
@@ -56,6 +57,52 @@ fn hi_sparse_bitset_reduce_or_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Co
 
     let mut counter = 0;
     for block in iter {
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())
+        });
+    }
+    counter
+}
+
+fn hi_sparse_bitset_reduce_or_iter_ext3_new<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
+    use ControlFlow::*;
+
+    let iter = iter::IterExt3::new(reduce(BitOrOp, sets.iter()));
+
+    let mut counter = 0;
+    for block in iter {
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())
+        });
+    }
+    counter
+}
+
+
+fn hi_sparse_bitset_op_or_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
+    use ControlFlow::*;
+
+    let operation = &sets[0] | &sets[1] | &sets[2];
+
+    let mut counter = 0;
+    for block in operation.iter_ext3() {
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())
+        });
+    }
+    counter
+}
+
+fn hi_sparse_bitset_op_or_simple_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
+    use ControlFlow::*;
+
+    let operation = &sets[0] | &sets[1] | &sets[2];
+
+    let mut counter = 0;
+    for block in SimpleIter::new(operation) {
         block.traverse(|_|{
             counter += 1;
             Continue(())
@@ -122,6 +169,9 @@ pub fn bench_iter(c: &mut Criterion) {
     c.bench_function("hi_sparse_bitset_reduce_or_iter_ext", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_or_iter_ext2", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext2(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_or_iter_ext3", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext3(black_box(&hi_sparse_sets))));
+    c.bench_function("hi_sparse_bitset_reduce_or_iter_ext3_new", |b| b.iter(|| hi_sparse_bitset_reduce_or_iter_ext3_new(black_box(&hi_sparse_sets))));
+    c.bench_function("hi_sparse_bitset_op_or_iter_ext3", |b| b.iter(|| hi_sparse_bitset_op_or_iter_ext3(black_box(&hi_sparse_sets))));
+    c.bench_function("hi_sparse_bitset_op_or_simple_iter", |b| b.iter(|| hi_sparse_bitset_op_or_simple_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hibitset_union", |b| b.iter(|| hibitset_union(black_box(&hibitsets))));
     //c.bench_function("hashset_intersection",   |b| b.iter(|| hashset_intersection(black_box(&hash_sets))));
 }

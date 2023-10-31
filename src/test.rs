@@ -815,3 +815,43 @@ fn multilayer_test(){
 
     assert_equal(or_collected, [1,2,3,4,5,6,7]);
 }
+
+#[test]
+fn multilayer_or_test(){
+    type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
+
+    const BLOCK_SIZE: usize = 64;
+    const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
+    const LEVEL_1: usize = BLOCK_SIZE;
+
+    let sets1 = [
+        HiSparseBitset::from([1,2,3]),
+        HiSparseBitset::from([3,4,5]),
+    ];
+    let or1 = reduce(BitOrOp, sets1.iter());
+
+    let offset = LEVEL_1*2;
+    let sets2 = [
+        HiSparseBitset::from([offset+1,offset+2,offset+3]),
+        HiSparseBitset::from([offset+3,offset+4,offset+5]),
+    ];
+    let or2 = reduce(BitOrOp, sets2.iter());
+
+    let higher_kind = [or1, or2];
+    let higher_kind_or = reduce(BitOrOp, higher_kind.iter());
+
+    let or_collected: Vec<_> = higher_kind_or.iter_ext3().flat_map(|block|block.iter()).collect();
+    assert_equal(or_collected, [1,2,3,4,5, offset+1,offset+2,offset+3,offset+4,offset+5]);
+}
+
+#[test]
+fn op_or_test(){
+    let seq1: HiSparseBitset = [1,2,3].into();
+    let seq2: HiSparseBitset = [3,4,5].into();
+    let seq3: HiSparseBitset = [5,6,7].into();
+
+    let or = &seq1 | &seq2 | &seq3;
+    let or_collected: Vec<_> = or.iter_ext3().flat_map(|block|block.iter()).collect();
+    assert_equal(or_collected, [1,2,3,4,5,6,7]);
+
+}

@@ -7,6 +7,8 @@
 use std::ops::{BitAnd, BitOr, BitXor};
 use crate::bit_block::BitBlock;
 
+// TODO: all operations should accept & instead?
+//       To work with [u64;N] more flawlessly?
 pub trait BinaryOp: Copy + 'static{
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
