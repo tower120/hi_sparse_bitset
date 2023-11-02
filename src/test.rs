@@ -4,6 +4,7 @@ use std::iter::zip;
 use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitOrOp, BitSubOp, BitXorOp};
+use crate::iter::SimpleIter;
 
 use super::*;
 
@@ -18,6 +19,9 @@ cfg_if::cfg_if! {
 }
 
 type HiSparseBitset = super::HiSparseBitset<Config>;
+type IteratorState  = super::iter::State<Config>;
+
+// TODO: remove
 type IntersectionBlocksState = super::intersection_blocks_resumable::IntersectionBlocksState<Config>;
 
 #[test]
@@ -369,7 +373,7 @@ where
         // non removed initial intersection set.
 
         // initial insert
-        let mut intersection_state = IntersectionBlocksState::default();
+        let mut intersection_state = IteratorState::default();
         let mut initial_hashsets_intersection;
         {
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
@@ -383,12 +387,14 @@ where
         }
 
         for _ in 0..10{
+            let mut inserted = Vec::new();
             // random insert
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
                 for _ in 0..rng.gen_range(0..MAX_INSERTS){
                     let index = rng.gen_range(0..MAX_RANGE);
                     hash_set.insert(index);
                     hi_set.insert(index);
+                    inserted.push(index);
                 }
             }
 
@@ -401,6 +407,7 @@ where
                 for hi_set in &mut hi_sets{
                     hi_set.insert(index);
                 }
+                inserted.push(index);
             }
 
             // random remove
@@ -421,16 +428,20 @@ where
 
 
             // remove non-existent intersections from initial_hashsets_intersection
-            for index in &removed{
+            let changed = Iterator::chain(removed.iter(), inserted.iter());
+            for index in changed{
                 if !hashsets_intersection.contains(index){
                     initial_hashsets_intersection.remove(index);
                 }
             }
 
-            // TODO
-            /*// intersection resume
+            // TODO: Same for SimpleIter
+            // intersection suspend/resume
             {
-                let mut intersection = intersection_state.resume(hi_sets.iter());
+                let mut intersection =
+                    crate::iter::IterExt3
+                    //crate::iter::SimpleIter
+                        ::resume(reduce(hiset_op, hi_sets.iter()), intersection_state);
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
                 // all intersections must be valid
@@ -444,6 +455,9 @@ where
                         block.traverse(
                             |index|{
                                 assert!(hashsets_intersection.contains(&index));
+                                // We cannot guarantee that index will
+                                // exists in initial intersection, since
+                                // it could be added after initial fill.
                                 initial_hashsets_intersection.remove(&index);
                                 ControlFlow::Continue(())
                             }
@@ -454,45 +468,10 @@ where
                 }
 
                 intersection_state = intersection.suspend();
-            }*/
+            }
 
             // intersection
             {
-                /*let mut hi_intersection = collect_intersection(&hi_sets);
-
-                // check that intersection_blocks = intersection_blocks_traverse
-                {
-                    let mut indices2 = Vec::new();
-                    for block in intersection_blocks(&hi_sets){
-                        block.traverse(
-                            |index|{
-                                indices2.push(index);
-                                ControlFlow::Continue(())
-                            }
-                        );
-                    }
-                    assert_eq!(hi_intersection, indices2);
-                }
-
-                {
-                    let mut indices2 = Vec::new();
-                    let state = IntersectionBlocksState::default();
-                    for block in state.resume(hi_sets.iter()){
-                        block.traverse(
-                            |index|{
-                                indices2.push(index);
-                                ControlFlow::Continue(())
-                            }
-                        );
-                    }
-
-                    if hi_intersection != indices2{
-                        println!("{:?}", hash_sets);
-                        panic!();
-                    }
-                    //assert_eq!(hi_intersection, indices2);
-                }*/
-
                 // reduce test
                 {
                     let mut indices2 = Vec::new();
@@ -522,17 +501,13 @@ where
                     indices2.sort();
                     assert_eq!(hashsets_intersection_vec, indices2);
                 }
-
-                /*let mut hashsets_intersection: Vec<usize> = hashsets_intersection.into_iter().collect();
-                hashsets_intersection.sort();
-                hi_intersection.sort();
-                assert_equal(hi_intersection, hashsets_intersection);*/
             }
         }
 
-        /*// consume resumable intersection leftovers
+        // consume resumable intersection leftovers
         {
-            let intersection = intersection_state.resume(hi_sets.iter());
+            let intersection =
+                SimpleIter::resume(reduce(hiset_op, hi_sets.iter()), intersection_state);
             for block in intersection{
                 block.traverse(
                     |index|{
@@ -543,7 +518,7 @@ where
             }
         }
         // assert that we consumed all initial intersection set.
-        assert!(initial_hashsets_intersection.is_empty());*/
+        assert!(initial_hashsets_intersection.is_empty());
     }
 }
 

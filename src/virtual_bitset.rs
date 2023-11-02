@@ -35,6 +35,7 @@ pub trait LevelMasksExt3: LevelMasks{
     /// `update_level1_blocks` will initialize it any way.
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3;
 
+    // TODO: rename
     /// Same as update_level1_blocks3 but always update level1_blocks
     ///
     /// Return (Level1Mask, is_not_empty/valid)

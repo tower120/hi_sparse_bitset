@@ -23,6 +23,11 @@ pub trait BitQueue: Iterator<Item = usize>{
     /// # Safety
     ///
     /// Panics, if mask size does not match BitQueue.
+    ///
+    /// _P.S. This should be compile-time panic
+    /// (it is not due to RUST limitations). It does assert
+    /// in compile-time, but throw panic runtime. So, kinda noop,
+    /// when OK._
     fn mask_out(&mut self, mask: &Self::Mask);
 }
 
