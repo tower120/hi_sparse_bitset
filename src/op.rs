@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
-use std::ops::BitOr;
-use crate::binary_op::{BinaryOp, BitOrOp};
+use std::ops::{BitOr, BitAnd, BitXor, Sub};
+use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
 use crate::iter::IterExt3;
+use crate::reduce2::Reduce;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
+// TODO: rename to something shorter?
+#[derive(Clone)]
 pub struct HiSparseBitsetOp<Op, S1, S2>{
     pub(crate) s1: S1,
     pub(crate) s2: S2,
@@ -97,31 +99,137 @@ where
     }
 }
 
+// TODO: move behind default feature flag operations impl?
+// TODO: impl for references too.
+// We need this all because RUST still does not support template/generic specialization.
+macro_rules! impl_op {
+    ($op_class:ident, $op_fn:ident, $binary_op:ident) => {
+        impl<'a, Config: IConfig, Rhs> $op_class<Rhs> for &'a HiSparseBitset<Config>
+        {
+            type Output = HiSparseBitsetOp<$binary_op, &'a HiSparseBitset<Config>, Rhs>;
 
+            #[inline]
+            fn $op_fn(self, rhs: Rhs) -> Self::Output {
+                HiSparseBitsetOp::new($binary_op, self, rhs)
+            }
+        }
 
-impl<'a, Config: IConfig> BitOr for &'a HiSparseBitset<Config>
-{
-    type Output = HiSparseBitsetOp<BitOrOp, &'a HiSparseBitset<Config>, &'a HiSparseBitset<Config>>;
+        // Do not impl for &HiSparseBitsetOp - this seems superficial. (Or not?)
+        impl<Op, S1, S2, Config, Rhs>
+            $op_class<Rhs> for HiSparseBitsetOp<Op, S1, S2>
+        where
+            Rhs: LevelMasksExt3<Config = Config>,
+            Config: IConfig,
+            Op: BinaryOp,
+            S1: LevelMasksExt3<Config = Config>,
+            S2: LevelMasksExt3<Config = Config>,
+        {
+            type Output = HiSparseBitsetOp<$binary_op, HiSparseBitsetOp<Op, S1, S2>, Rhs>;
 
-    #[inline]
-    fn bitor(self, rhs: Self) -> Self::Output {
-        HiSparseBitsetOp::new(BitOrOp, self, rhs)
+            #[inline]
+            fn $op_fn(self, rhs: Rhs) -> Self::Output {
+                HiSparseBitsetOp::new($binary_op, self, rhs)
+            }
+        }
+
+        // Do not impl for &Reduce - this seems superficial. (Or not?)
+        impl<Op, S, Rhs> $op_class<Rhs> for Reduce<Op, S>
+        where
+            Rhs: LevelMasksExt3,
+            Op:BinaryOp,
+            S: Clone,
+        {
+            type Output = HiSparseBitsetOp<$binary_op, Reduce<Op, S>, Rhs>;
+
+            #[inline]
+            fn $op_fn(self, rhs: Rhs) -> Self::Output {
+                HiSparseBitsetOp::new($binary_op, self, rhs)
+            }
+        }
     }
 }
 
-impl<'a, Op, S1, S2, Config: IConfig>
-    BitOr<&'a HiSparseBitset<Config>>
-    for HiSparseBitsetOp<Op, S1, S2>
-where
-    Config: IConfig,
-    Op:BinaryOp,
-    S1: LevelMasksExt3<Config = Config>,
-    S2: LevelMasksExt3<Config = Config>,
-{
-    type Output = HiSparseBitsetOp<BitOrOp, HiSparseBitsetOp<Op, S1, S2>, &'a HiSparseBitset<Config>>;
+impl_op!(BitOr, bitor, BitOrOp);
+impl_op!(BitAnd, bitand, BitAndOp);
+impl_op!(BitXor, bitxor, BitXorOp);
+impl_op!(Sub, sub, BitSubOp);
 
-    #[inline]
-    fn bitor(self, rhs: &'a HiSparseBitset<Config>) -> Self::Output {
-        HiSparseBitsetOp::new(BitOrOp, self, rhs)
+#[cfg(test)]
+mod test{
+    use std::collections::HashSet;
+    use itertools::assert_equal;
+    use rand::seq::IteratorRandom;
+    use crate::reduce;
+    use super::*;
+
+    type HiSparseBitset = crate::HiSparseBitset<crate::configs::u64s>;
+
+    #[test]
+    fn ops_test(){
+        let mut rng = rand::thread_rng();
+        let v1 = (0..10_000).choose_multiple(&mut rng, 1000);
+        let v2 = (0..10_000).choose_multiple(&mut rng, 1000);
+        let v3 = (0..10_000).choose_multiple(&mut rng, 1000);
+        let v4 = (0..10_000).choose_multiple(&mut rng, 1000);
+        let hiset1: HiSparseBitset = v1.iter().copied().collect();
+        let hiset2: HiSparseBitset = v2.iter().copied().collect();
+        let hiset3: HiSparseBitset = v3.iter().copied().collect();
+        let hiset4: HiSparseBitset = v4.iter().copied().collect();
+
+        let set1: HashSet<usize> = v1.iter().copied().collect();
+        let set2: HashSet<usize> = v2.iter().copied().collect();
+        let set3: HashSet<usize> = v3.iter().copied().collect();
+        let set4: HashSet<usize> = v4.iter().copied().collect();
+
+        fn test<Op, S1, S2>(h: HiSparseBitsetOp<Op, S1, S2>, s: HashSet<usize>)
+        where
+            Op: BinaryOp,
+            S1: LevelMasksExt3<Config = S2::Config>,
+            S2: LevelMasksExt3,
+        {
+            let mut hv: Vec<usize> = h.iter_ext3()
+                .flat_map(|block| block.iter())
+                .collect();
+
+            let mut s: Vec<usize> = s.into_iter().collect();
+            s.sort();
+            assert_equal(hv, s);
+        }
+
+        // &HiSet <-> &HiSet
+        test(&hiset1 & &hiset2, &set1 & &set2);
+        test(&hiset1 | &hiset2, &set1 | &set2);
+        test(&hiset1 ^ &hiset2, &set1 ^ &set2);
+        test(&hiset1 - &hiset2, &set1 - &set2);
+
+        // Reduce <-> Reduce
+        let reduce1 = reduce(BitOrOp, [&hiset1, &hiset2].into_iter());
+        let reduce2 = reduce(BitOrOp, [&hiset3, &hiset4].into_iter());
+        let set_or1 = &set1 | &set2;
+        let set_or2 = &set3 | &set4;
+        test(
+            reduce1.clone() & reduce2.clone(),
+            &set_or1        & &set_or2
+        );
+        test(
+            reduce1.clone() | reduce2.clone(),
+            &set_or1        | &set_or2
+        );
+        test(
+            reduce1.clone() ^ reduce2.clone(),
+            &set_or1        ^ &set_or2
+        );
+        test(
+            reduce1.clone() - reduce2.clone(),
+            &set_or1        - &set_or2
+        );
+
+        // Op <-> Op
+        let hiset_or1 = &hiset1 | &hiset2;
+        let hiset_or2 = &hiset3 | &hiset4;
+        test(hiset_or1.clone() & hiset_or2.clone(), &set_or1 & &set_or2);
+        test(hiset_or1.clone() | hiset_or2.clone(), &set_or1 | &set_or2);
+        test(hiset_or1.clone() ^ hiset_or2.clone(), &set_or1 ^ &set_or2);
+        test(hiset_or1.clone() - hiset_or2.clone(), &set_or1 - &set_or2);
     }
 }

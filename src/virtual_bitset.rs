@@ -1,7 +1,6 @@
 //! Only &HiSparseBitset, Op, &Op, Reduce, &Reduce implements
 //! [LevelMasksExt]. This guarantees that [DataBitBlock] pointers
 //! will never be invalidated during virtual bitset iteration.
-// TODO: leave only refs?
 
 use crate::IConfig;
 

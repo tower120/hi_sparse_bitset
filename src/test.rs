@@ -5,6 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitOrOp, BitSubOp, BitXorOp};
 use crate::iter::SimpleIter;
+use crate::op::HiSparseBitsetOp;
 
 use super::*;
 
@@ -436,7 +437,7 @@ where
             }
 
             // TODO: Same for SimpleIter
-            // intersection suspend/resume
+            // suspend/resume
             {
                 let mut intersection =
                     crate::iter::IterExt3
@@ -470,12 +471,46 @@ where
                 intersection_state = intersection.suspend();
             }
 
-            // intersection
+            // reduce test
             {
-                // reduce test
+                let mut indices2 = Vec::new();
+                for block in reduce(hiset_op, hi_sets.iter()).iter(){
+                    block.traverse(
+                        |index|{
+                            indices2.push(index);
+                            ControlFlow::Continue(())
+                        }
+                    );
+                }
+                indices2.sort();
+                assert_eq!(hashsets_intersection_vec, indices2);
+            }
+
+            // reduce ext3 test
+            {
+                let mut indices2 = Vec::new();
+                for block in reduce(hiset_op, hi_sets.iter()).iter_ext3(){
+                    block.traverse(
+                        |index|{
+                            indices2.push(index);
+                            ControlFlow::Continue(())
+                        }
+                    );
+                }
+                indices2.sort();
+                assert_eq!(hashsets_intersection_vec, indices2);
+            }
+
+            // op
+            {
+                fn run<Op, S1, S2>(op: HiSparseBitsetOp<Op, S1, S2>) -> Vec<usize>
+                where
+                    Op: BinaryOp,
+                    S1: LevelMasksExt3,
+                    S2: LevelMasksExt3<Config = S1::Config>,
                 {
                     let mut indices2 = Vec::new();
-                    for block in reduce(hiset_op, hi_sets.iter()).iter(){
+                    for block in op.iter_ext3(){
                         block.traverse(
                             |index|{
                                 indices2.push(index);
@@ -484,27 +519,41 @@ where
                         );
                     }
                     indices2.sort();
-                    assert_eq!(hashsets_intersection_vec, indices2);
+                    indices2
                 }
 
-                // reduce ext3 test
-                {
-                    let mut indices2 = Vec::new();
-                    for block in reduce(hiset_op, hi_sets.iter()).iter_ext3(){
-                        block.traverse(
-                            |index|{
-                                indices2.push(index);
-                                ControlFlow::Continue(())
-                            }
-                        );
-                    }
-                    indices2.sort();
+                let op = HiSparseBitsetOp::new(hiset_op, &hi_sets[0], &hi_sets[1]);
+                let indices2 = match hi_sets.len(){
+                    2 => {
+                        Some(run(op))
+                    },
+                    3 => {
+                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[2]);
+                        Some(run(op))
+                    },
+                    4 => {
+                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[2]);
+                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[3]);
+                        Some(run(op))
+                    },
+                    5 => {
+                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[2]);
+                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[3]);
+                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[4]);
+                        Some(run(op))
+                    },
+                    _ => {
+                        // Just skip all other cases, too long to type that.
+                        None
+                    },
+                };
+                if let Some(indices2) = indices2{
                     assert_eq!(hashsets_intersection_vec, indices2);
                 }
             }
         }
 
-        // consume resumable intersection leftovers
+        // consume resumable leftovers
         {
             let intersection =
                 SimpleIter::resume(reduce(hiset_op, hi_sets.iter()), intersection_state);

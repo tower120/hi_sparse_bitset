@@ -513,7 +513,8 @@ where
 }
 
 
-// TODO: add LevelMasksRef and accept only S::Item = impl LevelMasksRef
+// TODO: consider removing ExactSizeIterator requirement - it is not strictly necessary.
+/// `sets` iterator must be cheap to clone. It will be cloned multiple times.
 #[inline]
 pub fn reduce<Op, S>(_: Op, sets: S)
     -> reduce2::Reduce<Op, S>

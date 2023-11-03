@@ -15,10 +15,10 @@ const MAX_SETS: usize = 32;
 
 #[derive(Clone)]
 pub struct Reduce<Op, S>
-where
+/*where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasks,
+    S::Item: LevelMasks,*/
 {
     pub(crate) sets: S,
     pub(crate) phantom: PhantomData<(Op)>
