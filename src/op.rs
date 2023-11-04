@@ -4,7 +4,7 @@ use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
 use crate::iter::IterExt3;
 use crate::reduce2::Reduce;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt3, LevelMasksRef};
 
 // TODO: rename to something shorter?
 #[derive(Clone)]
@@ -99,13 +99,13 @@ where
     }
 }
 
+impl<Op, S1, S2> LevelMasksRef for HiSparseBitsetOp<Op, S1, S2>{}
+
 // TODO: move behind default feature flag operations impl?
-// TODO: impl for references too.
 // We need this all because RUST still does not support template/generic specialization.
 macro_rules! impl_op {
     ($op_class:ident, $op_fn:ident, $binary_op:ident) => {
-        impl<'a, Config: IConfig, Rhs> $op_class<Rhs> for &'a HiSparseBitset<Config>
-        {
+        impl<'a, Config: IConfig, Rhs> $op_class<Rhs> for &'a HiSparseBitset<Config> {
             type Output = HiSparseBitsetOp<$binary_op, &'a HiSparseBitset<Config>, Rhs>;
 
             #[inline]
@@ -114,16 +114,7 @@ macro_rules! impl_op {
             }
         }
 
-        // Do not impl for &HiSparseBitsetOp - this seems superficial. (Or not?)
-        impl<Op, S1, S2, Config, Rhs>
-            $op_class<Rhs> for HiSparseBitsetOp<Op, S1, S2>
-        where
-            Rhs: LevelMasksExt3<Config = Config>,
-            Config: IConfig,
-            Op: BinaryOp,
-            S1: LevelMasksExt3<Config = Config>,
-            S2: LevelMasksExt3<Config = Config>,
-        {
+        impl<Op, S1, S2, Rhs> $op_class<Rhs> for HiSparseBitsetOp<Op, S1, S2> {
             type Output = HiSparseBitsetOp<$binary_op, HiSparseBitsetOp<Op, S1, S2>, Rhs>;
 
             #[inline]
@@ -132,14 +123,26 @@ macro_rules! impl_op {
             }
         }
 
-        // Do not impl for &Reduce - this seems superficial. (Or not?)
-        impl<Op, S, Rhs> $op_class<Rhs> for Reduce<Op, S>
-        where
-            Rhs: LevelMasksExt3,
-            Op:BinaryOp,
-            S: Clone,
-        {
+        impl<'a, Op, S1, S2, Rhs> $op_class<Rhs> for &'a HiSparseBitsetOp<Op, S1, S2> {
+            type Output = HiSparseBitsetOp<$binary_op, &'a HiSparseBitsetOp<Op, S1, S2>, Rhs>;
+
+            #[inline]
+            fn $op_fn(self, rhs: Rhs) -> Self::Output {
+                HiSparseBitsetOp::new($binary_op, self, rhs)
+            }
+        }
+
+        impl<Op, S, Rhs> $op_class<Rhs> for Reduce<Op, S> {
             type Output = HiSparseBitsetOp<$binary_op, Reduce<Op, S>, Rhs>;
+
+            #[inline]
+            fn $op_fn(self, rhs: Rhs) -> Self::Output {
+                HiSparseBitsetOp::new($binary_op, self, rhs)
+            }
+        }
+
+        impl<'a, Op, S, Rhs> $op_class<Rhs> for &'a Reduce<Op, S> {
+            type Output = HiSparseBitsetOp<$binary_op, &'a Reduce<Op, S>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
@@ -224,6 +227,24 @@ mod test{
             &set_or1        - &set_or2
         );
 
+        // &Reduce <-> &Reduce
+        test(
+            &reduce1 & &reduce2,
+            &set_or1 & &set_or2
+        );
+        test(
+            &reduce1 | &reduce2,
+            &set_or1 | &set_or2
+        );
+        test(
+            &reduce1 ^ &reduce2,
+            &set_or1 ^ &set_or2
+        );
+        test(
+            &reduce1 - &reduce2,
+            &set_or1 - &set_or2
+        );
+
         // Op <-> Op
         let hiset_or1 = &hiset1 | &hiset2;
         let hiset_or2 = &hiset3 | &hiset4;
@@ -231,5 +252,11 @@ mod test{
         test(hiset_or1.clone() | hiset_or2.clone(), &set_or1 | &set_or2);
         test(hiset_or1.clone() ^ hiset_or2.clone(), &set_or1 ^ &set_or2);
         test(hiset_or1.clone() - hiset_or2.clone(), &set_or1 - &set_or2);
+
+        // &Op <-> &Op
+        test(&hiset_or1 & &hiset_or2, &set_or1 & &set_or2);
+        test(&hiset_or1 | &hiset_or2, &set_or1 | &set_or2);
+        test(&hiset_or1 ^ &hiset_or2, &set_or1 ^ &set_or2);
+        test(&hiset_or1 - &hiset_or2, &set_or1 - &set_or2);
     }
 }

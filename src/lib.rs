@@ -275,6 +275,7 @@ impl<Config: IConfig, const N: usize> From<[usize; N]> for HiSparseBitset<Config
     }
 }
 
+// Implementing for ref only.
 impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
     type Config = Config;
 
@@ -301,6 +302,7 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
     }
 }
 
+// Implementing for ref only.
 impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
     type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
 
