@@ -165,7 +165,7 @@ mod test{
     use crate::reduce;
     use super::*;
 
-    type HiSparseBitset = crate::HiSparseBitset<crate::configs::u64s>;
+    type HiSparseBitset = crate::HiSparseBitset<crate::configs::_64bit>;
 
     #[test]
     fn ops_test(){

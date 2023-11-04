@@ -80,7 +80,7 @@ fn hibitset_union(sets: &[hibitset::BitSet]) -> usize{
 /// Bench worst case scenario for hibitset and default iter.
 /// All sets does not have intersections.
 pub fn bench_iter(c: &mut Criterion) {
-    type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::simd_128>;
+    type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::_128bit>;
     const SIZE: usize = 10000;
     const SETS: usize = 3;
 

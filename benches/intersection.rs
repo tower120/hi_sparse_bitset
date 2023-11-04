@@ -1,21 +1,9 @@
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks_traverse, iter, reduce};
+use hi_sparse_bitset::{HiSparseBitset, IConfig, iter, reduce};
 use hi_sparse_bitset::binary_op::BitAndOp;
 
-fn hi_sparse_bitset_intersection_traverse<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
-    use ControlFlow::*;
-
-    let mut counter = 0;
-    intersection_blocks_traverse(sets, |block| {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });     
-    } );
-    counter
-}
 fn hi_sparse_bitset_reduce_and_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;
 
@@ -99,7 +87,7 @@ fn hashset_intersection(sets: &Vec<HashSet<usize>>) -> usize {
 
 // TODO : Bench with worst-case parameters
 pub fn bench_iter(c: &mut Criterion) {
-    type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::simd_128>;
+    type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::_128bit>;
     //type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::u64s>;
     const SIZE: usize = 10000;
     const SETS: usize = 5;
@@ -141,7 +129,6 @@ pub fn bench_iter(c: &mut Criterion) {
     //c.bench_function("hi_bitset_intersection_iter_resumable", |b| b.iter(|| hi_bitset_intersection_iter_resumable(black_box(&hi_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter_ext3", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext3(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_intersection_traverse", |b| b.iter(|| hi_sparse_bitset_intersection_traverse(black_box(&hi_sparse_sets))));
     c.bench_function("hibitset_intersection", |b| b.iter(|| hibitset_intersection(black_box(&hibitsets))));
     c.bench_function("hashset_intersection",   |b| b.iter(|| hashset_intersection(black_box(&hash_sets))));
 }

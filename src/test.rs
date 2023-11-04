@@ -11,11 +11,11 @@ use super::*;
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_64)] {
-        type Config = configs::u64s;
+        type Config = configs::_64bit;
     } else if #[cfg(hisparsebitset_test_128)] {
-        type Config = configs::simd_128;
+        type Config = configs::_128bit;
     } else {
-        type Config = configs::simd_128;
+        type Config = configs::_128bit;
     }
 }
 
@@ -25,7 +25,7 @@ type IteratorState  = super::iter::State<Config>;
 #[test]
 fn level_indices_test(){
     // assuming all levels with 128bit blocks
-    type HiSparseBitset = super::HiSparseBitset<configs::simd_128>;
+    type HiSparseBitset = super::HiSparseBitset<configs::_128bit>;
 
     let levels = HiSparseBitset::level_indices(0);
     assert_eq!(levels, (0,0,0));
@@ -494,7 +494,7 @@ fn reduce2_test() {
 
 #[test]
 fn reduce_or_test(){
-    type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
+    type HiSparseBitset = super::HiSparseBitset<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -532,7 +532,7 @@ fn reduce_or_test(){
 
 #[test]
 fn reduce_xor_test(){
-    type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
+    type HiSparseBitset = super::HiSparseBitset<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -606,7 +606,7 @@ fn multilayer_test(){
 
 #[test]
 fn multilayer_or_test(){
-    type HiSparseBitset = super::HiSparseBitset<configs::u64s>;
+    type HiSparseBitset = super::HiSparseBitset<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
