@@ -320,7 +320,7 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
     }
 
     #[inline]
-    unsafe fn always_update_level1_blocks3 (
+    unsafe fn update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);

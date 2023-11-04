@@ -226,7 +226,7 @@ where
         let mut level1_blocks = virtual_set.make_level1_blocks3();
         let lvl1_mask_gen = |index| unsafe {
             // Generate both mask and level1_blocks cache
-            let (mask, valid) = virtual_set.always_update_level1_blocks3(&mut level1_blocks, index);
+            let (mask, valid) = virtual_set.update_level1_blocks3(&mut level1_blocks, index);
             if !valid {
                 // level1_mask can not be empty here
                 std::hint::unreachable_unchecked()
@@ -269,7 +269,7 @@ where
                         state.level0_index = index;
 
                         let (level1_intersection, valid) = unsafe {
-                            virtual_set.always_update_level1_blocks3(level1_blocks, index)
+                            virtual_set.update_level1_blocks3(level1_blocks, index)
                         };
                         if !valid {
                             // level1_mask can not be empty here

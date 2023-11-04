@@ -34,13 +34,11 @@ pub trait LevelMasksExt3: LevelMasks{
     /// `update_level1_blocks` will initialize it any way.
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3;
 
-    // TODO: rename
-    /// Same as update_level1_blocks3 but always update level1_blocks
-    ///
-    /// Return (Level1Mask, is_not_empty/valid)
+    /// Update `level1_blocks` and
+    /// return (Level1Mask, is_not_empty/valid).
     ///
     /// if level0_index valid - update `level1_blocks`.
-    unsafe fn always_update_level1_blocks3 (
+    unsafe fn update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool);
 
@@ -89,10 +87,10 @@ impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
     }
 
     #[inline]
-    unsafe fn always_update_level1_blocks3(
+    unsafe fn update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        <T as LevelMasksExt3>::always_update_level1_blocks3(
+        <T as LevelMasksExt3>::update_level1_blocks3(
             self, level1_blocks, level0_index
         )
     }

@@ -80,11 +80,11 @@ where
     }
 
     #[inline]
-    unsafe fn always_update_level1_blocks3(
+    unsafe fn update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        let (mask1, v1) = self.s1.always_update_level1_blocks3(&mut level1_blocks.0, level0_index);
-        let (mask2, v2) = self.s2.always_update_level1_blocks3(&mut level1_blocks.1, level0_index);
+        let (mask1, v1) = self.s1.update_level1_blocks3(&mut level1_blocks.0, level0_index);
+        let (mask2, v2) = self.s2.update_level1_blocks3(&mut level1_blocks.1, level0_index);
         let mask = Op::hierarchy_op(mask1, mask2);
         (mask, v1 | v2)
     }

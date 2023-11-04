@@ -118,7 +118,7 @@ where
     }
 
     #[inline]
-    unsafe fn always_update_level1_blocks3(
+    unsafe fn update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         // This should act the same as a few assumes in default loop,
@@ -131,7 +131,7 @@ where
             let mask =
                 self.sets.clone()
                 .map(|set|{
-                    let (mask, valid) = set.always_update_level1_blocks3(
+                    let (mask, valid) = set.update_level1_blocks3(
                         level1_blocks.get_unchecked_mut(index),
                         level0_index
                     );
@@ -156,7 +156,7 @@ where
         let mask_acc =
             self.sets.clone()
             .map(|set|{
-                let (level1_mask, valid) = set.always_update_level1_blocks3(
+                let (level1_mask, valid) = set.update_level1_blocks3(
                     level1_blocks.get_unchecked_mut(level1_blocks_index),
                     level0_index
                 );
