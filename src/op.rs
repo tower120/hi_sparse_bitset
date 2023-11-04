@@ -206,8 +206,8 @@ mod test{
         test(&hiset1 - &hiset2, &set1 - &set2);
 
         // Reduce <-> Reduce
-        let reduce1 = reduce(BitOrOp, [&hiset1, &hiset2].into_iter());
-        let reduce2 = reduce(BitOrOp, [&hiset3, &hiset4].into_iter());
+        let reduce1 = reduce(BitOrOp, [&hiset1, &hiset2].into_iter()).unwrap();
+        let reduce2 = reduce(BitOrOp, [&hiset3, &hiset4].into_iter()).unwrap();
         let set_or1 = &set1 | &set2;
         let set_or2 = &set3 | &set4;
         test(

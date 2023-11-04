@@ -1,4 +1,3 @@
-pub mod intersection_blocks_resumable;
 mod block;
 mod level;
 mod bit_block;
@@ -498,32 +497,21 @@ pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) ->
     indices
 }
 
-/// Same as [intersection_blocks_traverse], but iterator, and a tiny bit slower.
-/// 
-/// `sets` iterator will be cloned and iterated multiple times.
-#[inline]
-pub fn intersection_blocks<'a, Config, S>(sets: S)
-    -> intersection_blocks_resumable::IntersectionBlocks<'a, Config, S::IntoIter>
-where
-    Config: IConfig,
-    S: IntoIterator<Item = &'a HiSparseBitset<Config>>,
-    S::IntoIter: Clone,
-
-    <S as IntoIterator>::IntoIter: ExactSizeIterator,
-{
-    intersection_blocks_resumable::IntersectionBlocks::new(sets.into_iter())
-}
-
-
 // TODO: consider removing ExactSizeIterator requirement - it is not strictly necessary.
-/// `sets` iterator must be cheap to clone. It will be cloned multiple times.
+/// `sets` iterator must be cheap to clone.
+/// It will be cloned AT LEAST once for each returned block during iteration.
 #[inline]
 pub fn reduce<Op, S>(_: Op, sets: S)
-    -> reduce2::Reduce<Op, S>
+    -> Option<reduce2::Reduce<Op, S>>
 where
     Op: BinaryOp,
-    S: ExactSizeIterator + Clone,
+    S: /*Iterator +*/ ExactSizeIterator + Clone,
     S::Item: LevelMasks/*Ext*/,
 {
-    reduce2::Reduce{ sets: sets.into_iter(), phantom: Default::default() }
+    if sets.len() == 0{
+        return None;
+    }
+    Some(reduce2::Reduce{ sets, phantom: Default::default() })
 }
+
+// TODO: Do we need fold as well?

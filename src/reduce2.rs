@@ -56,13 +56,14 @@ where
 {
     type Config = <S::Item as LevelMasks>::Config;
 
-    /// Will computate.
     #[inline]
     fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
-        self.sets.clone()
-        .map(|set| set.level0_mask())
-        .reduce(Op::hierarchy_op)
-        .unwrap()
+        unsafe{
+            self.sets.clone()
+            .map(|set| set.level0_mask())
+            .reduce(Op::hierarchy_op)
+            .unwrap_unchecked()
+        }
     }
 
     #[inline]

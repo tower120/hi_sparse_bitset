@@ -1,14 +1,14 @@
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks, intersection_blocks_traverse, iter, reduce};
+use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks_traverse, iter, reduce};
 use hi_sparse_bitset::binary_op::*;
 use hi_sparse_bitset::iter::SimpleIter;
 
 fn hi_sparse_bitset_reduce_or_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;
 
-    let iter = reduce(BitOrOp, sets.iter()).iter();
+    let iter = reduce(BitOrOp, sets.iter()).unwrap().iter();
 
     let mut counter = 0;
     for block in iter {
@@ -23,7 +23,7 @@ fn hi_sparse_bitset_reduce_or_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>])
 fn hi_sparse_bitset_reduce_or_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;
 
-    let iter = reduce(BitOrOp, sets.iter()).iter_ext3();
+    let iter = reduce(BitOrOp, sets.iter()).unwrap().iter_ext3();
 
     let mut counter = 0;
     for block in iter {

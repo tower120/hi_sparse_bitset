@@ -62,6 +62,8 @@ impl<Config: IConfig> Default for State<Config>{
             level0_index: 0
         }
     }
+
+    // TODO: consider returning "resume()" here
 }
 
 /// Remove non-existent elements from `state` internal iterators.
