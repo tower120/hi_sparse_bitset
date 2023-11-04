@@ -497,7 +497,6 @@ pub fn collect_intersection<Config: IConfig>(sets: &[HiSparseBitset<Config>]) ->
     indices
 }
 
-// TODO: consider removing ExactSizeIterator requirement - it is not strictly necessary.
 /// `sets` iterator must be cheap to clone.
 /// It will be cloned AT LEAST once for each returned block during iteration.
 #[inline]
@@ -505,10 +504,10 @@ pub fn reduce<Op, S>(_: Op, sets: S)
     -> Option<reduce2::Reduce<Op, S>>
 where
     Op: BinaryOp,
-    S: /*Iterator +*/ ExactSizeIterator + Clone,
+    S: Iterator + Clone,
     S::Item: LevelMasks/*Ext*/,
 {
-    if sets.len() == 0{
+    if sets.clone().next().is_none(){
         return None;
     }
     Some(reduce2::Reduce{ sets, phantom: Default::default() })

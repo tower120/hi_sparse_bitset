@@ -96,11 +96,10 @@ where
 }
 
 impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S: ExactSizeIterator,
-        S::Item: LevelMasksExt3,
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S::Item: LevelMasksExt3,
 {
     // TODO: Use [_; MAX_SETS] with len, for better predictability.
     //       ArrayVec is NOT guaranteed to be POD.
@@ -129,23 +128,32 @@ impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
     unsafe fn always_update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        // compile-time check
-        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>(){
+        // This should act the same as a few assumes in default loop,
+        // but I feel safer this way.
+        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>() { /* compile-time check */
             // intersection case can be optimized, since we know
             // that with intersection, there can be no
             // empty masks/blocks queried.
+            let mut index = 0;
             let mask =
-                self.sets.clone().enumerate()
-                    .map(|(index, set)|{
-                        set.always_update_level1_blocks3(
-                            level1_blocks.get_unchecked_mut(index),
-                            level0_index
-                        ).0
-                    })
-                    .reduce(Op::hierarchy_op)
-                    .unwrap_unchecked();
+                self.sets.clone()
+                .map(|set|{
+                    let (mask, valid) = set.always_update_level1_blocks3(
+                        level1_blocks.get_unchecked_mut(index),
+                        level0_index
+                    );
+                    // assume(valid)
+                    if !valid{ std::hint::unreachable_unchecked(); }
+                    index += 1;
+                    mask
+                })
+                .reduce(Op::hierarchy_op)
+                .unwrap_unchecked();
 
-            level1_blocks.set_len(self.sets.len());
+            // Contradictory this have no effect in benchmarks.
+            //level1_blocks.set_len(self.sets.len());
+
+            level1_blocks.set_len(index);
             return (mask, true);
         }
 
