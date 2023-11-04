@@ -1,4 +1,4 @@
-use num_traits::{AsPrimitive, PrimInt};
+use num_traits::{PrimInt};
 use crate::INTERSECTION_ONLY;
 
 #[derive(Clone)]

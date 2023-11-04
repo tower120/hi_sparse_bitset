@@ -1,7 +1,7 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 use arrayvec::ArrayVec;
-use crate::{data_block_start_index, DataBlock, HiSparseBitset, IConfig, LevelMasks};
+use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::iter::{IterExt3, SimpleIter};
 use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};

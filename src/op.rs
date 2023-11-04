@@ -190,7 +190,7 @@ mod test{
             S1: LevelMasksExt3<Config = S2::Config>,
             S2: LevelMasksExt3,
         {
-            let mut hv: Vec<usize> = h.iter_ext3()
+            let hv: Vec<usize> = h.iter_ext3()
                 .flat_map(|block| block.iter())
                 .collect();
 

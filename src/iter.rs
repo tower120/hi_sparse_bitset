@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
 use num_traits::AsPrimitive;
-use crate::binary_op::BinaryOp;
 use crate::{data_block_start_index, DataBlock, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;

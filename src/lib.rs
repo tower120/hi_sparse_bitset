@@ -13,14 +13,14 @@ mod virtual_bitset;
 mod op;
 pub mod iter;
 
-use std::{ops, ops::ControlFlow};
+use std::{ops::ControlFlow};
 use std::mem::MaybeUninit;
 use std::ops::{BitAndAssign, BitXorAssign};
 use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
 
 use block::Block;
 use level::Level;
-use crate::binary_op::{BinaryOp, BitAndOp};
+use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
@@ -65,8 +65,15 @@ pub const fn max_range<Config: IConfig>() -> usize {
     * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT)
 }
 
-type Level1Block<Config: IConfig> = Block<Config::Level1BitBlock, Config::DataBlockIndex, Config::Level1BlockIndices>;
-type LevelDataBlock<Config: IConfig> = Block<Config::DataBitBlock, usize, [usize;0]>;
+type Level1Block<Config> = Block<
+    <Config as IConfig>::Level1BitBlock,
+    <Config as IConfig>::DataBlockIndex,
+    <Config as IConfig>::Level1BlockIndices
+>;
+
+type LevelDataBlock<Config> = Block<
+    <Config as IConfig>::DataBitBlock, usize, [usize;0]
+>;
 
 /// Hierarchical sparse bitset. Tri-level hierarchy. Highest uint it can hold
 /// is Level0Mask * Level1Mask * DenseBlock.
@@ -243,6 +250,7 @@ impl<Config: IConfig> HiSparseBitset<Config> {
         }
     }
 
+    // TODO: move to virtual set.
     pub fn contains(&self, index: usize) -> bool {
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
         let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
@@ -303,13 +311,12 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 
 // Implementing for ref only.
 impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
-    type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
+    // MaybeUninit is here just to do not write anything during make_level1_blocks3.
+    type Level1Blocks3 = MaybeUninit<(*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>)>;
 
     #[inline]
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3{
-        unsafe {
-            MaybeUninit::uninit().assume_init()
-        }
+        MaybeUninit::uninit()
     }
 
     #[inline]
@@ -321,16 +328,15 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
         // TODO: This can point to static empty block, if level1_block_index invalid.
 
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
-        *level1_blocks = (self.data.blocks().as_ptr(), level1_block);
-
+        level1_blocks.write((self.data.blocks().as_ptr(), level1_block));
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
-
 
     #[inline]
     unsafe fn data_mask_from_blocks3(
         /*&self,*/ level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> Config::DataBitBlock {
+        let level1_blocks = level1_blocks.assume_init_ref();
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;
 

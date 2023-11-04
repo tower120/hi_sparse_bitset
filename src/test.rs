@@ -1,9 +1,9 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{collections::HashSet};
 use std::iter::zip;
 
 use itertools::assert_equal;
 use rand::Rng;
-use crate::binary_op::{BitOrOp, BitSubOp, BitXorOp};
+use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::iter::SimpleIter;
 use crate::op::HiSparseBitsetOp;
 
@@ -398,7 +398,7 @@ fn one_intersection_test(){
     hi_set.insert(521);
 
     let state = IteratorState::default();
-    let mut iter = crate::iter::IterExt3::resume(
+    let iter = crate::iter::IterExt3::resume(
         reduce(BitAndOp, [&hi_set].into_iter()).unwrap(),
         state
     );
@@ -421,7 +421,7 @@ fn regression_test1() {
     // worked only below 2^14=16384.
     // Probably because 128^2 = 16384.
     // Problem on switching level0 block.
-    let mut sets_data = vec![
+    let sets_data = vec![
         vec![
             16384
         ],
@@ -475,9 +475,9 @@ fn remove_regression_test1() {
 
 #[test]
 fn reduce2_test() {
-    let mut hi_set1: HiSparseBitset = [1,2,3].into_iter().collect();
-    let mut hi_set2: HiSparseBitset = [1,2,3].into_iter().collect();
-    let mut hi_set3: HiSparseBitset = [1,3].into_iter().collect();
+    let hi_set1: HiSparseBitset = [1,2,3].into_iter().collect();
+    let hi_set2: HiSparseBitset = [1,2,3].into_iter().collect();
+    let hi_set3: HiSparseBitset = [1,3].into_iter().collect();
 
     let hi_sets = [hi_set1, hi_set2, hi_set3];
     let hi_set_refs = [&hi_sets[0], &hi_sets[1], &hi_sets[2]];

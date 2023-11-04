@@ -1,8 +1,5 @@
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
-use std::ops::{BitAndAssign, BitXorAssign};
-use num_traits::{PrimInt, WrappingNeg};
-use crate::bit_block::BitBlock;
 use crate::bit_op::{one_bits_iter, OneBitsIter};
 use crate::MyPrimitive;
 

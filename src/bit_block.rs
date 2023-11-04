@@ -1,6 +1,5 @@
 use std::mem;
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
-use std::ops::ControlFlow::*;
 use crate::bit_op;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 
@@ -96,7 +95,7 @@ impl BitBlock for wide::u64x2{
     }
 
     #[inline]
-    fn set_bit<const BIT: bool>(&mut self, mut bit_index: usize) -> bool {
+    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
         bit_op::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
     }
 
