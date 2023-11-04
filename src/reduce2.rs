@@ -1,18 +1,11 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
-use std::ops;
 use arrayvec::ArrayVec;
-use assume::assume;
-use num_traits::AsPrimitive;
-use crate::bit_block::BitBlock;
 use crate::{data_block_start_index, DataBlock, HiSparseBitset, IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
-use crate::bit_queue::BitQueue;
 use crate::iter::{IterExt3, SimpleIter};
 use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};
-
 const MAX_SETS: usize = 32;
-
 #[derive(Clone)]
 pub struct Reduce<Op, S>
 /*where
@@ -21,7 +14,7 @@ pub struct Reduce<Op, S>
     S::Item: LevelMasks,*/
 {
     pub(crate) sets: S,
-    pub(crate) phantom: PhantomData<(Op)>
+    pub(crate) phantom: PhantomData<Op>
 }
 
 impl<Op, S> Reduce<Op, S>

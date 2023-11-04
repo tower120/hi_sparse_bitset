@@ -11,8 +11,6 @@ simd = ["dep:wide"]
 num-traits = "0.2"
 wide = { version = "0.7.13", optional = true }
 arrayvec = "0.7"
-# TODO: remove
-assume = "0.5"
 
 [dev-dependencies]
 rand = "0.8"

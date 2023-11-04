@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hi_sparse_bitset::{HiSparseBitset, IConfig, intersection_blocks_traverse, iter, reduce};
+use hi_sparse_bitset::{HiSparseBitset, IConfig, iter, reduce};
 use hi_sparse_bitset::binary_op::*;
 use hi_sparse_bitset::iter::SimpleIter;
 

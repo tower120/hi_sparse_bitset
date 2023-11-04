@@ -1,7 +1,7 @@
 use num_traits::{AsPrimitive, PrimInt};
 use crate::INTERSECTION_ONLY;
 
-#[derive(/*Default,*/ Clone)]
+#[derive(Clone)]
 pub struct Level<LevelBlock, LevelBlockIndex>{
     blocks: Vec<LevelBlock>,
     free_block_indices: Vec<LevelBlockIndex>,
