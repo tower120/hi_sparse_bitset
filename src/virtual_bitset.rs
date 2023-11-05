@@ -13,13 +13,13 @@ pub trait LevelMasks{
     ///
     /// index is not checked
     unsafe fn level1_mask(&self, level0_index: usize)
-                          -> <Self::Config as IConfig>::Level1BitBlock;
+        -> <Self::Config as IConfig>::Level1BitBlock;
 
     /// # Safety
     ///
     /// indices are not checked
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize)
-                        -> <Self::Config as IConfig>::DataBitBlock;
+        -> <Self::Config as IConfig>::DataBitBlock;
 }
 
 pub trait LevelMasksExt3: LevelMasks{
@@ -27,6 +27,10 @@ pub trait LevelMasksExt3: LevelMasks{
     ///
     /// Must be POD.
     type Level1Blocks3;
+
+    /// Could [data_mask_from_blocks3] be called if [update_level1_blocks3]
+    /// returned false.
+    const EMPTY_LVL1_TOLERANCE: bool;
 
     /// Make Level1Blocks in a state that can be used in `update_level1_blocks`.
     ///
@@ -44,7 +48,9 @@ pub trait LevelMasksExt3: LevelMasks{
 
     /// # Safety
     ///
-    /// indices are not checked
+    /// - indices are not checked
+    /// - if ![EMPTY_LVL1_TOLERANCE] should not be called, if
+    ///   [update_level1_blocks3] returned false.
     unsafe fn data_mask_from_blocks3(
         /*&self,*/ level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock;
@@ -80,6 +86,8 @@ impl<'a, T: LevelMasks + LevelMasksRef> LevelMasks for &'a T {
 
 impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
     type Level1Blocks3 = T::Level1Blocks3;
+
+    const EMPTY_LVL1_TOLERANCE: bool = T::EMPTY_LVL1_TOLERANCE;
 
     #[inline]
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {

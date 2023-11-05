@@ -35,6 +35,16 @@ fn hi_sparse_bitset_reduce_and_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<C
     counter
 }
 
+fn hi_sparse_bitset_op_and_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize{
+    let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
+
+    let mut counter = 0;
+    for _ in intersection.iter_ext3(){
+        counter += 1;
+    }
+    counter
+}
+
 
 /*// TODO: This does not bench anything.
 fn hi_bitset_intersection_iter_resumable(sets: &Vec<HiSparseBitset>) -> usize {
@@ -129,6 +139,7 @@ pub fn bench_iter(c: &mut Criterion) {
     //c.bench_function("hi_bitset_intersection_iter_resumable", |b| b.iter(|| hi_bitset_intersection_iter_resumable(black_box(&hi_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_iter_ext3", |b| b.iter(|| hi_sparse_bitset_reduce_and_iter_ext3(black_box(&hi_sparse_sets))));
+    c.bench_function("hi_sparse_bitset_op_and_iter_ext3", |b| b.iter(|| hi_sparse_bitset_op_and_iter_ext3(black_box(&hi_sparse_sets))));
     c.bench_function("hibitset_intersection", |b| b.iter(|| hibitset_intersection(black_box(&hibitsets))));
     c.bench_function("hashset_intersection",   |b| b.iter(|| hashset_intersection(black_box(&hash_sets))));
 }

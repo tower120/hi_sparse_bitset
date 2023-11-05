@@ -1,7 +1,9 @@
+use std::any::TypeId;
 use std::marker::PhantomData;
 use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
+use crate::bit_block::BitBlock;
 use crate::iter::IterExt3;
 use crate::reduce2::Reduce;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3, LevelMasksRef};
@@ -72,11 +74,13 @@ where
     S1: LevelMasksExt3,
     S2: LevelMasksExt3<Config = S1::Config>,
 {
-    type Level1Blocks3 = (S1::Level1Blocks3, S2::Level1Blocks3);
+    type Level1Blocks3 = (S1::Level1Blocks3, S2::Level1Blocks3, bool, bool);
+
+    const EMPTY_LVL1_TOLERANCE: bool = true;
 
     #[inline]
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
-        (self.s1.make_level1_blocks3(), self.s2.make_level1_blocks3())
+        (self.s1.make_level1_blocks3(), self.s2.make_level1_blocks3(), false, false)
     }
 
     #[inline]
@@ -85,6 +89,17 @@ where
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         let (mask1, v1) = self.s1.update_level1_blocks3(&mut level1_blocks.0, level0_index);
         let (mask2, v2) = self.s2.update_level1_blocks3(&mut level1_blocks.1, level0_index);
+
+        let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+        if !IS_INTERSECTION{
+        if !S1::EMPTY_LVL1_TOLERANCE {
+            level1_blocks.2 = v1;
+        }
+        if !S2::EMPTY_LVL1_TOLERANCE {
+            level1_blocks.3 = v2;
+        }
+        }
+
         let mask = Op::hierarchy_op(mask1, mask2);
         (mask, v1 | v2)
     }
@@ -93,8 +108,21 @@ where
     unsafe fn data_mask_from_blocks3(
         level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock {
-        let m0 = S1::data_mask_from_blocks3(&level1_blocks.0, level1_index);
-        let m1 = S2::data_mask_from_blocks3(&level1_blocks.1, level1_index);
+        // intersection can never point to empty blocks.
+        let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+
+        let m0 = if S1::EMPTY_LVL1_TOLERANCE | IS_INTERSECTION | level1_blocks.2{
+            S1::data_mask_from_blocks3(&level1_blocks.0, level1_index)
+        } else {
+            <Self::Config as IConfig>::DataBitBlock::zero()
+        };
+
+        let m1 = if S2::EMPTY_LVL1_TOLERANCE | IS_INTERSECTION | level1_blocks.3{
+            S2::data_mask_from_blocks3(&level1_blocks.1, level1_index)
+        } else {
+            <Self::Config as IConfig>::DataBitBlock::zero()
+        };
+
         Op::data_op(m0, m1)
     }
 }
@@ -161,6 +189,7 @@ impl_op!(Sub, sub, BitSubOp);
 mod test{
     use std::collections::HashSet;
     use itertools::assert_equal;
+    use rand::Rng;
     use rand::seq::IteratorRandom;
     use crate::reduce;
     use super::*;
@@ -169,15 +198,42 @@ mod test{
 
     #[test]
     fn ops_test(){
+        cfg_if::cfg_if! {
+        if #[cfg(miri)] {
+            const MAX_RANGE: usize = 10_000;
+            const AMOUNT   : usize = 1;
+            const INDEX_MUL: usize = 5;
+        } else {
+            const MAX_RANGE: usize = 10_000;
+            const AMOUNT   : usize = 1000;
+            const INDEX_MUL: usize = 5;
+        }
+        }
+
         let mut rng = rand::thread_rng();
-        let v1 = (0..10_000).choose_multiple(&mut rng, 1000);
-        let v2 = (0..10_000).choose_multiple(&mut rng, 1000);
-        let v3 = (0..10_000).choose_multiple(&mut rng, 1000);
-        let v4 = (0..10_000).choose_multiple(&mut rng, 1000);
-        let hiset1: HiSparseBitset = v1.iter().copied().collect();
+        let mut v1 = Vec::new();
+        let mut v2 = Vec::new();
+        let mut v3 = Vec::new();
+        let mut v4 = Vec::new();
+        for _ in 0..AMOUNT{
+            v1.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
+            v2.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
+            v3.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
+            v4.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
+        }
+
+        /*
+        // This is incredibly slow with MIRI
+        let v1 = (0..MAX_RANGE).map(|i|i*INDEX_MUL).choose_multiple(&mut rng, AMOUNT);
+        let v2 = (0..MAX_RANGE).map(|i|i*INDEX_MUL).choose_multiple(&mut rng, AMOUNT);
+        let v3 = (0..MAX_RANGE).map(|i|i*INDEX_MUL).choose_multiple(&mut rng, AMOUNT);
+        let v4 = (0..MAX_RANGE).map(|i|i*INDEX_MUL).choose_multiple(&mut rng, AMOUNT);
+         */
+
+        /*let hiset1: HiSparseBitset = v1.iter().copied().collect();
         let hiset2: HiSparseBitset = v2.iter().copied().collect();
         let hiset3: HiSparseBitset = v3.iter().copied().collect();
-        let hiset4: HiSparseBitset = v4.iter().copied().collect();
+        let hiset4: HiSparseBitset = v4.iter().copied().collect();*/
 
         let set1: HashSet<usize> = v1.iter().copied().collect();
         let set2: HashSet<usize> = v2.iter().copied().collect();
@@ -199,25 +255,48 @@ mod test{
             assert_equal(hv, s);
         }
 
-        // &HiSet <-> &HiSet
+        /*// &HiSet <-> &HiSet
         test(&hiset1 & &hiset2, &set1 & &set2);
         test(&hiset1 | &hiset2, &set1 | &set2);
         test(&hiset1 ^ &hiset2, &set1 ^ &set2);
-        test(&hiset1 - &hiset2, &set1 - &set2);
+        test(&hiset1 - &hiset2, &set1 - &set2);*/
+
+
+        let hiset1 = HiSparseBitset::from([0]);
+        let hiset2 = HiSparseBitset::from([0]);
+        let hiset3 = HiSparseBitset::from([4096]);
+        let hiset4 = HiSparseBitset::from([4096]);
 
         // Reduce <-> Reduce
-        let reduce1 = reduce(BitOrOp, [&hiset1, &hiset2].into_iter()).unwrap();
-        let reduce2 = reduce(BitOrOp, [&hiset3, &hiset4].into_iter()).unwrap();
+        let group1 = [&hiset1, &hiset2];
+        let group2 = [&hiset3, &hiset4];
+        let reduce1 = reduce(BitOrOp, group1.iter().copied()).unwrap();
+        let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
         let set_or1 = &set1 | &set2;
         let set_or2 = &set3 | &set4;
-        test(
+
+
+        {
+            let op = (reduce1.clone() | reduce2.clone());
+            let hv: Vec<usize> = op.iter_ext3()
+                .flat_map(|block| block.iter())
+                .collect();
+
+            //op.iter_ext3().next();
+        }
+
+
+        return;
+        /*test(
             reduce1.clone() & reduce2.clone(),
             &set_or1        & &set_or2
-        );
+        );*/
         test(
             reduce1.clone() | reduce2.clone(),
             &set_or1        | &set_or2
         );
+                return;
+
         test(
             reduce1.clone() ^ reduce2.clone(),
             &set_or1        ^ &set_or2

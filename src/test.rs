@@ -72,22 +72,36 @@ fn insert_regression_test(){
 
 #[test]
 fn fuzzy_test(){
-    const MAX_SIZE : usize = 10000;
-    const MAX_RANGE: usize = 100000;
-    const CONTAINS_PROBES: usize = 1000;
+    cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        const MAX_SIZE : usize = 1000;
+        const MAX_RANGE: usize = 1000;
+        const CONTAINS_PROBES: usize = 100;
+        const REPEATS: usize = 2;
+        const INNER_REPEATS: usize = 3;
+        const INDEX_MUL: usize = 10;
+    } else {
+        const MAX_SIZE : usize = 10000;
+        const MAX_RANGE: usize = 10000;
+        const CONTAINS_PROBES: usize = 1000;
+        const REPEATS: usize = 100;
+        const INNER_REPEATS: usize = 10;
+        const INDEX_MUL: usize = 10;
+    }
+    }
 
     let mut rng = rand::thread_rng();
-    for _ in 0..100{
+    for _ in 0..REPEATS{
         let mut hash_set = HashSet::new();
         let mut hi_set = HiSparseBitset::default();
 
         let mut inserted = Vec::new();
         let mut removed = Vec::new();
 
-        for _ in 0..10{
+        for _ in 0..INNER_REPEATS{
             // random insert
             for _ in 0..rng.gen_range(0..MAX_SIZE){
-                let index = rng.gen_range(0..MAX_RANGE);
+                let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
                 inserted.push(index);
                 hash_set.insert(index);
                 hi_set.insert(index);
@@ -106,7 +120,7 @@ fn fuzzy_test(){
 
             // random contains
             for _ in 0..CONTAINS_PROBES{
-                let index = rng.gen_range(0..MAX_RANGE);
+                let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
                 let h1 = hash_set.contains(&index);
                 let h2 = hi_set.contains(index);
                 assert_eq!(h1, h2);
@@ -528,6 +542,25 @@ fn reduce_or_test(){
 
         assert_equal(out, etalon);
     }
+}
+
+#[test]
+fn op_or_regression_test1(){
+    type HiSparseBitset = crate::HiSparseBitset<crate::configs::_64bit>;
+    let h1 = HiSparseBitset::from([0]);
+    let h2 = HiSparseBitset::from([0]);
+    let h3 = HiSparseBitset::from([4096]);
+    let h4 = HiSparseBitset::from([4096]);
+
+    let group1 = [&h1, &h2];
+    let group2 = [&h3, &h4];
+    let reduce1 = reduce(BitOrOp, group1.iter().copied()).unwrap();
+    let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
+
+    let op = reduce1 | reduce2;
+    let mut iter = op.iter_ext3();
+    assert!(iter.next().is_some());
+    assert!(iter.next().is_none());
 }
 
 #[test]

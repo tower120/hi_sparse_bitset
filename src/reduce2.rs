@@ -1,11 +1,45 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 use arrayvec::ArrayVec;
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::iter::{IterExt3, SimpleIter};
 use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};
+
+/*trait CacheStorage{
+    type Item;
+
+    fn new(size: usize) -> Self;
+    fn as_slice(&self) -> &[Self::Item];
+}
+*/
+trait CacheStorageBuilder{
+    type Storage<T>: AsRef<[T]> + AsMut<[T]>;
+
+    fn build<T, F>(init: F) -> Self::Storage<T>
+    where
+        F: FnMut(&mut MaybeUninit<Self::Storage<T>>);
+}
+
+struct FixedCache<const N: usize>;
+impl<const N: usize> CacheStorageBuilder for FixedCache<N>{
+    type Storage<T> = [T;N];
+
+    #[inline]
+    fn build<T, F>(mut init: F) -> Self::Storage<T>
+    where
+        F: FnMut(&mut MaybeUninit<Self::Storage<T>>)
+    {
+        let mut s = MaybeUninit::uninit();
+        init(&mut s);
+        unsafe{ s.assume_init() }
+    }
+}
+
+
 const MAX_SETS: usize = 32;
+
 #[derive(Clone)]
 pub struct Reduce<Op, S>
 /*where
@@ -91,7 +125,7 @@ where
 impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
 where
     Op: BinaryOp,
-    S: Iterator + Clone,
+    S: ExactSizeIterator + Clone,
     S::Item: LevelMasksExt3,
 {
     // TODO: Use [_; MAX_SETS] with len, for better predictability.
@@ -105,14 +139,18 @@ where
         let mut array = ArrayVec::new();
         unsafe {
             // calling constructors in deep
-            for (index, set) in self.sets.clone().enumerate() {
+            let mut index = 0;
+            for set in self.sets.clone() {
+                let elements: *mut <S::Item as LevelMasksExt3>::Level1Blocks3 = array.as_mut_ptr();
+                let element = elements.add(index);
                 std::ptr::write(
-                    array.get_unchecked_mut(index),
+                    element,
                     set.make_level1_blocks3()
                 );
+                index += 1;
             }
-            // len need to be set on every "update" anyway
-            //array.set_len(self.sets.len());
+            // need this for MIRI
+            array.set_len(index);
         }
         array
     }
@@ -153,6 +191,8 @@ where
         // Overwrite only non-empty blocks.
         let mut level1_blocks_index = 0;
 
+        level1_blocks.set_len(self.sets.len());
+
         let mask_acc =
             self.sets.clone()
             .map(|set|{
@@ -169,6 +209,8 @@ where
         level1_blocks.set_len(level1_blocks_index);
         (mask_acc, level1_blocks_index!=0)
     }
+
+    const EMPTY_LVL1_TOLERANCE: bool = false;
 
     #[inline]
     unsafe fn data_mask_from_blocks3(

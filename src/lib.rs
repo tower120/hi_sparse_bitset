@@ -84,15 +84,8 @@ type LevelDataBlock<Config> = Block<
 /// Structure optimized for intersection speed. Insert/remove/contains is fast O(1) too.
 pub struct HiSparseBitset<Config: IConfig>{
     level0: Block<Config::Level0BitBlock, Config::Level1BlockIndex, Config::Level0BlockIndices>,
-    level1: Level<
-                Level1Block<Config>,
-                Config::Level1BlockIndex,
-            >,
-    data  : Level<
-                LevelDataBlock<Config>,
-                //Block<Config::DataBitBlock, usize, [usize;0]>,
-                Config::DataBlockIndex,
-            >,
+    level1: Level<Level1Block<Config>,    Config::Level1BlockIndex>,
+    data  : Level<LevelDataBlock<Config>, Config::DataBlockIndex>,
 }
 
 impl<Config: IConfig> Default for HiSparseBitset<Config> {
@@ -313,6 +306,8 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
     // MaybeUninit is here just to do not write anything during make_level1_blocks3.
     type Level1Blocks3 = MaybeUninit<(*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>)>;
+
+    const EMPTY_LVL1_TOLERANCE: bool = true;
 
     #[inline]
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3{
