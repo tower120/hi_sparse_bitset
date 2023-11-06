@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: taiki-e/install-action@v2
+    - name: Build
+      run: RUSTFLAGS="--deny warnings" cargo build
+
+#  build-all-features:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v2
+#    #- uses: ATiltedTree/setup-rust@v1
+#    #  with:
+#    #    rust-version: stable
+#    - name: Build with all features
+#      run: RUSTFLAGS="--deny warnings" cargo build --all-features
+#
+#  tests:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v2
+#    #- uses: ATiltedTree/setup-rust@v1
+#    #  with:
+#    #    rust-version: stable
+#    - name: Run tests
+#      run: RUSTFLAGS="--deny warnings" cargo test --all-features
+#
+#  miri:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v2
+#    #- uses: ATiltedTree/setup-rust@v1
+#    #  with:
+#    #    rust-version: stable
+#    - uses: actions-rs/toolchain@v1
+#      with:
+#          toolchain: nightly
+#          components: miri
+#    - name: Miri tests
+#      run: RUSTFLAGS="--deny warnings" cargo +nightly miri test
+#
+#  benches:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v2
+#    #- uses: ATiltedTree/setup-rust@v1
+#    #  with:
+#    #    rust-version: stable
+#    - name: Build benches
+#      run: RUSTFLAGS="--deny warnings" cargo build --benches
+#
+#  doc:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v2
+#    #- uses: ATiltedTree/setup-rust@v1
+#    #  with:
+#    #    rust-version: stable
+#    - name: Build doc
+#      run: RUSTDOCFLAGS="--deny warnings" cargo doc --lib

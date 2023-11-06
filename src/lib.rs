@@ -4,14 +4,15 @@ mod bit_block;
 mod bit_queue;
 mod bit_op;
 pub mod configs;
-
-#[cfg(test)]
-mod test;
 pub mod binary_op;
 mod reduce2;
 mod virtual_bitset;
 mod op;
 pub mod iter;
+mod cache;
+
+#[cfg(test)]
+mod test;
 
 use std::{ops::ControlFlow};
 use std::mem::MaybeUninit;
@@ -22,7 +23,7 @@ use block::Block;
 use level::Level;
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
-use crate::reduce2::FixedCache;
+use crate::cache::{CacheStorageBuilder, FixedCache};
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 
@@ -50,6 +51,8 @@ pub trait IConfig: 'static {
     type DataBitBlock: BitBlock + Default;
     /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
     type DataBlockIndex: MyPrimitive;
+
+    type DefaultCache: CacheStorageBuilder;
 }
 
 // TODO: move somewhere more appropriate
@@ -393,14 +396,15 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
 /// `sets` iterator must be cheap to clone.
 /// It will be cloned AT LEAST once for each returned block during iteration.
 #[inline]
-pub fn reduce<Op, S>(op: Op, sets: S)
-    -> Option<reduce2::Reduce<Op, S, FixedCache>>
+pub fn reduce<Config, Op, S>(op: Op, sets: S)
+    -> Option<reduce2::Reduce<Op, S, Config::DefaultCache>>
 where
+    Config:IConfig,
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasks/*Ext*/,
+    S::Item: LevelMasks/*Ext*/<Config = Config>,
 {
-    reduce_w_cache(op, sets, FixedCache)
+    reduce_w_cache(op, sets, Default::default())
 }
 
 /// Reduce using specific Cache type for iteration.

@@ -4,6 +4,7 @@
 //! not limited by MAX index, and know that your indices will be dense,
 //! you can try 64/64/256 bit levels.
 
+use crate::cache::FixedCache;
 use crate::IConfig;
 
 /// MAX = 262_144
@@ -20,6 +21,8 @@ impl IConfig for _64bit {
 
     type DataBitBlock = u64;
     type DataBlockIndex = u16;
+
+    type DefaultCache = FixedCache<32>;
 }
 
 /// MAX = 2_097_152
@@ -38,6 +41,8 @@ impl IConfig for _128bit {
 
     type DataBitBlock = wide::u64x2;
     type DataBlockIndex = u16;
+
+    type DefaultCache = FixedCache<32>;
 }
 
 // TODO: simd_256
