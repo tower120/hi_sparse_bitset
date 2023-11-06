@@ -1,5 +1,7 @@
 use std::any::TypeId;
+use std::char::MAX;
 use std::marker::PhantomData;
+use std::mem;
 use std::mem::MaybeUninit;
 use arrayvec::ArrayVec;
 use crate::{IConfig, LevelMasks};
@@ -7,55 +9,112 @@ use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::iter::{IterExt3, SimpleIter};
 use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};
 
-/*trait CacheStorage{
-    type Item;
-
-    fn new(size: usize) -> Self;
-    fn as_slice(&self) -> &[Self::Item];
+// TODO: move to separate module/file
+pub trait CacheStorage<T>{
+    fn as_ptr(&self) -> *const T;
+    fn as_mut_ptr(&mut self) -> *mut T;
 }
-*/
-trait CacheStorageBuilder{
-    type Storage<T>: AsRef<[T]> + AsMut<[T]>;
 
-    fn build<T, F>(init: F) -> Self::Storage<T>
+pub trait CacheStorageBuilder: Clone{
+    type Storage<T>: CacheStorage<T>;
+
+    /// MAX - if not fixed
+    const FIXED_CAPACITY: usize;
+
+    fn build<T, S>(size_getter: S) -> Self::Storage<T>
     where
-        F: FnMut(&mut MaybeUninit<Self::Storage<T>>);
+        S: FnMut() -> usize;
 }
 
-struct FixedCache<const N: usize>;
-impl<const N: usize> CacheStorageBuilder for FixedCache<N>{
-    type Storage<T> = [T;N];
+/// This is NOT the same as ArrayVec. It does not store len.
+pub struct FixedCacheStorage<T, const N: usize>([MaybeUninit<T>; N]);
+impl<T, const N: usize> CacheStorage<T> for FixedCacheStorage<T, N>{
+    #[inline]
+    fn as_ptr(&self) -> *const T {
+        self.0.as_ptr() as *const T
+    }
 
     #[inline]
-    fn build<T, F>(mut init: F) -> Self::Storage<T>
+    fn as_mut_ptr(&mut self) -> *mut T {
+        self.0.as_mut_ptr() as *mut T
+    }
+}
+
+/// Fixed capacity cache.
+#[derive(Clone)]
+pub struct FixedCache<const N: usize = MAX_SETS>;
+impl<const N: usize> CacheStorageBuilder for FixedCache<N>{
+    type Storage<T> = FixedCacheStorage<T, N>;
+
+    const FIXED_CAPACITY: usize = N;
+
+    #[inline]
+    fn build<T, S>(_: S) -> Self::Storage<T>
     where
-        F: FnMut(&mut MaybeUninit<Self::Storage<T>>)
+        S: FnMut() -> usize
     {
-        let mut s = MaybeUninit::uninit();
-        init(&mut s);
-        unsafe{ s.assume_init() }
+        unsafe{ MaybeUninit::uninit().assume_init() }
     }
 }
 
 
+pub struct DynamicCacheStorage<T>(Box<[T]>);
+impl<T> CacheStorage<T> for DynamicCacheStorage<T>{
+    #[inline]
+    fn as_ptr(&self) -> *const T {
+        self.0.as_ptr()
+    }
+
+    #[inline]
+    fn as_mut_ptr(&mut self) -> *mut T {
+        self.0.as_mut_ptr()
+    }
+}
+
+/// Dynamically allocated cache.
+///
+/// If number of sets are enormously large, and you can't just increase FixedCache
+/// size - you need this.
+#[derive(Clone)]
+pub struct DynamicCache;
+impl CacheStorageBuilder for DynamicCache{
+    type Storage<T> = DynamicCacheStorage<T>;
+
+    const FIXED_CAPACITY: usize = usize::MAX;
+
+    #[inline]
+    fn build<T, S>(mut size_getter: S) -> Self::Storage<T>
+    where
+        S: FnMut() -> usize
+    {
+        let size = size_getter();
+
+        // TODO: make somehow faster?
+        let mut v: Vec<T> = Vec::with_capacity(size);
+        unsafe{
+            v.set_len(size);
+            let boxed = v.into_boxed_slice();
+            DynamicCacheStorage(boxed)
+        }
+    }
+}
+
+
+// TODO: try to have Default Cache in IConfig, instead.
 const MAX_SETS: usize = 32;
 
 #[derive(Clone)]
-pub struct Reduce<Op, S>
-/*where
-    Op: BinaryOp,
-    S: Iterator + Clone,
-    S::Item: LevelMasks,*/
-{
+pub struct Reduce<Op, S, Storage> {
     pub(crate) sets: S,
-    pub(crate) phantom: PhantomData<Op>
+    pub(crate) phantom: PhantomData<(Op, Storage)>
 }
 
-impl<Op, S> Reduce<Op, S>
+impl<Op, S, Storage> Reduce<Op, S, Storage>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
     S::Item: LevelMasks,
+    Storage: CacheStorageBuilder
 {
     // TODO: This is BLOCK iterator. Make separate iterator for usizes.
     // TODO: Benchmark if there is need for "traverse".
@@ -74,12 +133,12 @@ where
     }
 }
 
-
-impl<Op, S> LevelMasks for Reduce<Op, S>
+impl<Op, S, Storage> LevelMasks for Reduce<Op, S, Storage>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
     S::Item: LevelMasks,
+    Storage: CacheStorageBuilder
 {
     type Config = <S::Item as LevelMasks>::Config;
 
@@ -122,26 +181,36 @@ where
     }
 }
 
-impl<Op, S> LevelMasksExt3 for Reduce<Op, S>
+impl<Op, S, Storage> LevelMasksExt3 for Reduce<Op, S, Storage>
 where
     Op: BinaryOp,
     S: ExactSizeIterator + Clone,
     S::Item: LevelMasksExt3,
+    Storage: CacheStorageBuilder
 {
-    // TODO: Use [_; MAX_SETS] with len, for better predictability.
-    //       ArrayVec is NOT guaranteed to be POD.
-    //       (thou, current implementation is)
-    type Level1Blocks3 = ArrayVec<<S::Item as LevelMasksExt3>::Level1Blocks3, MAX_SETS>;
+    type Level1Blocks3 = (
+        // array of S::LevelMasksExt3
+        <Storage as CacheStorageBuilder>::Storage<<S::Item as LevelMasksExt3>::Level1Blocks3>,
+        // len
+        usize
+    );
+
+    const EMPTY_LVL1_TOLERANCE: bool = false;
 
     #[inline]
     fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
-        // Basically do nothing.
-        let mut array = ArrayVec::new();
-        unsafe {
-            // calling constructors in deep
+        // It should be faster to calculate sets amount in front,
+        // then to relocated Vec with pushes during DynamicCache construction.
+        let sets_count = || self.sets.clone().count();
+
+        let mut storage: <Storage as CacheStorageBuilder>::Storage<<S::Item as LevelMasksExt3>::Level1Blocks3>
+            = Storage::build(sets_count);
+
+        // init storage in deep
+        unsafe{
             let mut index = 0;
+            let elements = storage.as_mut_ptr();
             for set in self.sets.clone() {
-                let elements: *mut <S::Item as LevelMasksExt3>::Level1Blocks3 = array.as_mut_ptr();
                 let element = elements.add(index);
                 std::ptr::write(
                     element,
@@ -149,16 +218,19 @@ where
                 );
                 index += 1;
             }
-            // need this for MIRI
-            array.set_len(index);
+            assert!(Storage::FIXED_CAPACITY >= index, "Reduce cache overflow");
         }
-        array
+
+        return (storage, 0);
     }
 
     #[inline]
     unsafe fn update_level1_blocks3(
         &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
+        let (level1_blocks_storage, level1_blocks_len) = level1_blocks;
+        let level1_blocks_ptr = level1_blocks_storage.as_mut_ptr();
+
         // This should act the same as a few assumes in default loop,
         // but I feel safer this way.
         if TypeId::of::<Op>() == TypeId::of::<BitAndOp>() { /* compile-time check */
@@ -170,7 +242,7 @@ where
                 self.sets.clone()
                 .map(|set|{
                     let (mask, valid) = set.update_level1_blocks3(
-                        level1_blocks.get_unchecked_mut(index),
+                        &mut *level1_blocks_ptr.add(index),
                         level0_index
                     );
                     // assume(valid)
@@ -181,43 +253,41 @@ where
                 .reduce(Op::hierarchy_op)
                 .unwrap_unchecked();
 
-            // Contradictory this have no effect in benchmarks.
-            //level1_blocks.set_len(self.sets.len());
-
-            level1_blocks.set_len(index);
+            *level1_blocks_len = index;
             return (mask, true);
         }
 
         // Overwrite only non-empty blocks.
-        let mut level1_blocks_index = 0;
-
-        level1_blocks.set_len(self.sets.len());
+        let mut index = 0;
 
         let mask_acc =
             self.sets.clone()
             .map(|set|{
                 let (level1_mask, valid) = set.update_level1_blocks3(
-                    level1_blocks.get_unchecked_mut(level1_blocks_index),
+                    &mut *level1_blocks_ptr.add(index),
                     level0_index
                 );
-                level1_blocks_index += valid as usize;
+                index += valid as usize;
                 level1_mask
             })
             .reduce(Op::hierarchy_op)
             .unwrap_unchecked();
 
-        level1_blocks.set_len(level1_blocks_index);
-        (mask_acc, level1_blocks_index!=0)
+        *level1_blocks_len = index;
+        (mask_acc, index !=0)
     }
-
-    const EMPTY_LVL1_TOLERANCE: bool = false;
 
     #[inline]
     unsafe fn data_mask_from_blocks3(
         /*&self, */level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock {
         unsafe{
-            level1_blocks.iter()
+            let slice = std::slice::from_raw_parts(
+                level1_blocks.0.as_ptr(),
+                level1_blocks.1
+            );
+
+            slice.iter()
                 .map(|set_level1_blocks|
                     <S::Item as LevelMasksExt3>::data_mask_from_blocks3(
                         set_level1_blocks, level1_index
@@ -231,4 +301,4 @@ where
     }
 }
 
-impl<Op, S> LevelMasksRef for Reduce<Op, S>{}
+impl<Op, S, Storage> LevelMasksRef for Reduce<Op, S, Storage>{}
