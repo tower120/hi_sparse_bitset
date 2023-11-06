@@ -23,9 +23,10 @@ pub trait LevelMasks{
 }
 
 pub trait LevelMasksExt3: LevelMasks{
-    /// Container/value/owned data
+    /// Cached Level1Blocks3 for faster accessing DataBlocks,
+    /// without traversing whole hierarchy for getting each block during iteration.
     ///
-    /// Must be POD.
+    /// Must have fixed structure. (Make once, and do not re-create)
     type Level1Blocks3;
 
     /// Could [data_mask_from_blocks3] be called if [update_level1_blocks3]

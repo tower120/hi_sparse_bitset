@@ -22,6 +22,7 @@ use block::Block;
 use level::Level;
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
+use crate::reduce2::FixedCache;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 
@@ -392,8 +393,36 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
 /// `sets` iterator must be cheap to clone.
 /// It will be cloned AT LEAST once for each returned block during iteration.
 #[inline]
-pub fn reduce<Op, S>(_: Op, sets: S)
-    -> Option<reduce2::Reduce<Op, S>>
+pub fn reduce<Op, S>(op: Op, sets: S)
+    -> Option<reduce2::Reduce<Op, S, FixedCache>>
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S::Item: LevelMasks/*Ext*/,
+{
+    reduce_w_cache(op, sets, FixedCache)
+}
+
+/// Reduce using specific Cache type for iteration.
+///
+/// Presumably, you only need this if you working with large number of sets, and you
+/// don't fit in default cache constraints (you want to increase cache size).
+/// Or if you somehow have deep hierarchy of reduces (reduce on reduce on reduce, and so on)
+/// and you're out of stack space (you want to decrease cache size).
+///
+/// Cache applied to current sets only, so you can combine different cache
+/// types.
+///
+/// TODO: See cache.
+///
+/// # Safety
+///
+/// Panics during iteration, if Cache is smaller then sets len.
+///
+/// TODO: Move that check into construction?
+#[inline]
+pub fn reduce_w_cache<Op, S, Cache>(_: Op, sets: S, _: Cache)
+    -> Option<reduce2::Reduce<Op, S, Cache>>
 where
     Op: BinaryOp,
     S: Iterator + Clone,

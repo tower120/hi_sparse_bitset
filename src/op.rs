@@ -160,8 +160,8 @@ macro_rules! impl_op {
             }
         }
 
-        impl<Op, S, Rhs> $op_class<Rhs> for Reduce<Op, S> {
-            type Output = HiSparseBitsetOp<$binary_op, Reduce<Op, S>, Rhs>;
+        impl<Op, S, Rhs, Storage> $op_class<Rhs> for Reduce<Op, S, Storage> {
+            type Output = HiSparseBitsetOp<$binary_op, Reduce<Op, S, Storage>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
@@ -169,8 +169,8 @@ macro_rules! impl_op {
             }
         }
 
-        impl<'a, Op, S, Rhs> $op_class<Rhs> for &'a Reduce<Op, S> {
-            type Output = HiSparseBitsetOp<$binary_op, &'a Reduce<Op, S>, Rhs>;
+        impl<'a, Op, S, Rhs, Storage> $op_class<Rhs> for &'a Reduce<Op, S, Storage> {
+            type Output = HiSparseBitsetOp<$binary_op, &'a Reduce<Op, S, Storage>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {

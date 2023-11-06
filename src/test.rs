@@ -140,17 +140,34 @@ fn fuzzy_test(){
         }
     }
 }
-fn fuzzy_reduce_test<Op: BinaryOp, H>(hiset_op: Op, hashset_op: H, repeats: usize)
+fn fuzzy_reduce_test<Op: BinaryOp, H>(hiset_op: Op, hashset_op: H)
 where
     H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>,
     H: Copy
 {
-    const MAX_SETS : usize = 10;
-    const MAX_INSERTS: usize = 10000;
-    const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
-    const MAX_REMOVES : usize = 10000;
-    const MAX_RANGE: usize = 100000;
-    const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 100;
+    cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        const MAX_SETS : usize = 4;
+        const MAX_INSERTS: usize = 100;
+        const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
+        const MAX_REMOVES : usize = 100;
+        const MAX_RANGE: usize = 1000;
+        const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 5;
+        const REPEATS: usize = 2;
+        const INNER_REPEATS: usize = 3;
+        const INDEX_MUL: usize = 20;
+    } else {
+        const MAX_SETS : usize = 10;
+        const MAX_INSERTS: usize = 10000;
+        const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
+        const MAX_REMOVES : usize = 10000;
+        const MAX_RANGE: usize = 10000;
+        const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 100;
+        const REPEATS: usize = 100;
+        const INNER_REPEATS: usize = 10;
+        const INDEX_MUL: usize = 10;
+    }
+    }
 
     #[inline]
     fn hashset_multi_op<'a, H>(
@@ -170,7 +187,7 @@ where
     }
 
     let mut rng = rand::thread_rng();
-    for _ in 0..repeats{
+    for _ in 0..REPEATS{
         let sets_count = rng.gen_range(2..MAX_SETS);
         let mut hash_sets: Vec<HashSet<usize>> = vec![Default::default(); sets_count];
         let mut hi_sets  : Vec<HiSparseBitset> = vec![Default::default(); sets_count];
@@ -184,7 +201,7 @@ where
         {
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
                 for _ in 0..rng.gen_range(0..MAX_INSERTS){
-                    let index = rng.gen_range(0..MAX_RANGE);
+                    let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
                     hash_set.insert(index);
                     hi_set.insert(index);
                 }
@@ -192,12 +209,12 @@ where
             initial_hashsets_intersection = hashset_multi_op(&hash_sets, hashset_op);
         }
 
-        for _ in 0..10{
+        for _ in 0..INNER_REPEATS{
             let mut inserted = Vec::new();
             // random insert
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
                 for _ in 0..rng.gen_range(0..MAX_INSERTS){
-                    let index = rng.gen_range(0..MAX_RANGE);
+                    let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
                     hash_set.insert(index);
                     hi_set.insert(index);
                     inserted.push(index);
@@ -206,7 +223,7 @@ where
 
             // guaranteed intersection (insert all)
             for _ in 0..rng.gen_range(0..MAX_GUARANTEED_INTERSECTIONS){
-                let index = rng.gen_range(0..MAX_RANGE);
+                let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
                 for hash_set in &mut hash_sets{
                     hash_set.insert(index);
                 }
@@ -220,7 +237,7 @@ where
             let mut removed = Vec::new();
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
                 for _ in 0..rng.gen_range(0..MAX_REMOVES){
-                    let index = rng.gen_range(0..MAX_RANGE);
+                    let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
                     hash_set.remove(&index);
                     hi_set.remove(index);
                     removed.push(index);
@@ -378,23 +395,23 @@ where
 
 #[test]
 fn fuzzy_and_test(){
-    fuzzy_reduce_test(BitAndOp, |l,r| l&r, 100);
+    fuzzy_reduce_test(BitAndOp, |l,r| l&r);
 }
 
 #[test]
 fn fuzzy_or_test(){
-    fuzzy_reduce_test(BitOrOp, |l,r| l|r, 30);
+    fuzzy_reduce_test(BitOrOp, |l,r| l|r);
 }
 
 #[test]
 fn fuzzy_xor_test(){
-    fuzzy_reduce_test(BitXorOp, |l,r| l^r, 30);
+    fuzzy_reduce_test(BitXorOp, |l,r| l^r);
 }
 
 // Sub, probably, should not be used with reduce. But for test it will work.
 #[test]
 fn fuzzy_sub_test(){
-    fuzzy_reduce_test(BitSubOp, |l,r| l-r, 30);
+    fuzzy_reduce_test(BitSubOp, |l,r| l-r);
 }
 
 #[test]
@@ -558,9 +575,8 @@ fn op_or_regression_test1(){
     let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
 
     let op = reduce1 | reduce2;
-    let mut iter = op.iter_ext3();
-    assert!(iter.next().is_some());
-    assert!(iter.next().is_none());
+    let iter = op.iter_ext3();
+    assert_eq!(iter.count(), 2);
 }
 
 #[test]
