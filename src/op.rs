@@ -4,7 +4,7 @@ use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
 use crate::bit_block::BitBlock;
-use crate::iter::IterExt3;
+use crate::iter::BlockIter;
 use crate::reduce2::Reduce;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3, LevelMasksRef};
 
@@ -28,11 +28,14 @@ where
     S1: LevelMasksExt3,
     S2: LevelMasksExt3<Config = S1::Config>,
 {
+    // TODO: remove from here.
     #[inline]
-    pub fn iter_ext3(self) -> IterExt3<Self> {
-        IterExt3::new(self)
+    pub fn block_iter(self) -> BlockIter<Self> {
+        BlockIter::new(self)
     }
 }
+
+// TODO: IntoIterator for &BitSet
 
 impl<Op, S1, S2> LevelMasks for HiSparseBitsetOp<Op, S1, S2>
 where
@@ -190,7 +193,6 @@ mod test{
     use std::collections::HashSet;
     use itertools::assert_equal;
     use rand::Rng;
-    use rand::seq::IteratorRandom;
     use crate::reduce;
     use super::*;
 
@@ -201,7 +203,7 @@ mod test{
         cfg_if::cfg_if! {
         if #[cfg(miri)] {
             const MAX_RANGE: usize = 10_000;
-            const AMOUNT   : usize = 1;
+            const AMOUNT   : usize = 100;
             const INDEX_MUL: usize = 5;
         } else {
             const MAX_RANGE: usize = 10_000;
@@ -230,10 +232,10 @@ mod test{
         let v4 = (0..MAX_RANGE).map(|i|i*INDEX_MUL).choose_multiple(&mut rng, AMOUNT);
          */
 
-        /*let hiset1: HiSparseBitset = v1.iter().copied().collect();
+        let hiset1: HiSparseBitset = v1.iter().copied().collect();
         let hiset2: HiSparseBitset = v2.iter().copied().collect();
         let hiset3: HiSparseBitset = v3.iter().copied().collect();
-        let hiset4: HiSparseBitset = v4.iter().copied().collect();*/
+        let hiset4: HiSparseBitset = v4.iter().copied().collect();
 
         let set1: HashSet<usize> = v1.iter().copied().collect();
         let set2: HashSet<usize> = v2.iter().copied().collect();
@@ -246,7 +248,7 @@ mod test{
             S1: LevelMasksExt3<Config = S2::Config>,
             S2: LevelMasksExt3,
         {
-            let hv: Vec<usize> = h.iter_ext3()
+            let hv: Vec<usize> = h.block_iter()
                 .flat_map(|block| block.iter())
                 .collect();
 
@@ -255,17 +257,11 @@ mod test{
             assert_equal(hv, s);
         }
 
-        /*// &HiSet <-> &HiSet
+        // &HiSet <-> &HiSet
         test(&hiset1 & &hiset2, &set1 & &set2);
         test(&hiset1 | &hiset2, &set1 | &set2);
         test(&hiset1 ^ &hiset2, &set1 ^ &set2);
-        test(&hiset1 - &hiset2, &set1 - &set2);*/
-
-
-        let hiset1 = HiSparseBitset::from([0]);
-        let hiset2 = HiSparseBitset::from([0]);
-        let hiset3 = HiSparseBitset::from([4096]);
-        let hiset4 = HiSparseBitset::from([4096]);
+        test(&hiset1 - &hiset2, &set1 - &set2);
 
         // Reduce <-> Reduce
         let group1 = [&hiset1, &hiset2];
@@ -274,29 +270,14 @@ mod test{
         let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
         let set_or1 = &set1 | &set2;
         let set_or2 = &set3 | &set4;
-
-
-        {
-            let op = (reduce1.clone() | reduce2.clone());
-            let hv: Vec<usize> = op.iter_ext3()
-                .flat_map(|block| block.iter())
-                .collect();
-
-            //op.iter_ext3().next();
-        }
-
-
-        return;
-        /*test(
+        test(
             reduce1.clone() & reduce2.clone(),
             &set_or1        & &set_or2
-        );*/
+        );
         test(
             reduce1.clone() | reduce2.clone(),
             &set_or1        | &set_or2
         );
-                return;
-
         test(
             reduce1.clone() ^ reduce2.clone(),
             &set_or1        ^ &set_or2
