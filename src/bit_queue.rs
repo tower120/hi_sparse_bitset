@@ -81,15 +81,23 @@ where
 }
 
 pub struct ArrayBitQueue<P, const N: usize>{
+    // TODO: rework to work as one array?
+    active_bit_block_iter: OneBitsIter<P>,
     bit_block_iters: [OneBitsIter<P>; N],
     // TODO: try and bench precomputed u32/usize block_start_index
     bit_block_index: usize,
 }
 
-impl<P, const N: usize> ArrayBitQueue<P, N> {
+impl<P, const N: usize> ArrayBitQueue<P, N>
+where
+    P: MyPrimitive
+{
     #[inline]
     pub fn new(array: [P;N]) -> Self{
         Self{
+            active_bit_block_iter: unsafe{
+                mem::transmute_copy(&ManuallyDrop::new(array[0]))
+            },
             bit_block_iters: unsafe{
                 // transmute is safe since OneBitsIter<P> transparent to P.
                 // Should be just mem::transmute(array).
@@ -107,6 +115,7 @@ where
     #[inline]
     fn empty() -> Self {
         Self{
+            active_bit_block_iter: one_bits_iter(P::zero()),
             bit_block_iters: [one_bits_iter(P::zero()); N],
             bit_block_index: N-1,
         }
@@ -121,6 +130,9 @@ where
 
     #[inline]
     fn mask_out(&mut self, mask: &[P; N]) {
+        // active_bit_block_iter does not taken into account!!
+        unimplemented!();
+
         // compile-time loop
         for i in 0..N{
             let bit_block_iter = &mut self.bit_block_iters[i];
@@ -141,18 +153,16 @@ where
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let bit_block_iter = unsafe {
-                self.bit_block_iters.get_unchecked_mut(self.bit_block_index)
-            };
-
-            if let Some(index) = bit_block_iter.next() {
+            if let Some(index) = self.active_bit_block_iter.next() {
                 return Some(self.bit_block_index * size_of::<P>() * 8 + index);
             }
-
             if self.bit_block_index == N-1 {
                 return None;
             }
             self.bit_block_index += 1;
+            self.active_bit_block_iter = unsafe {
+                *self.bit_block_iters.get_unchecked_mut(self.bit_block_index)
+            };
         }
     }
 }
