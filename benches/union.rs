@@ -40,7 +40,7 @@ fn hi_sparse_bitset_op_or_iter_ext3<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]
     let operation = &sets[0] | &sets[1] | &sets[2];
 
     let mut counter = 0;
-    for block in operation.iter_ext3() {
+    for block in operation.block_iter() {
         block.traverse(|_|{
             counter += 1;
             Continue(())
