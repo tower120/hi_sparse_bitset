@@ -1,7 +1,7 @@
 use std::mem;
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use crate::bit_op;
-use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
+use crate::bit_queue::{ArrayBitQueue, ArrayBitQueue2, ArrayBitQueue3, BitQueue, PrimitiveBitQueue};
 
 // TODO: consider removing copy/clone
 pub trait BitBlock
@@ -113,10 +113,12 @@ impl BitBlock for wide::u64x2{
         bit_op::traverse_array_one_bits(array, f)
     }
 
-    type BitsIter = ArrayBitQueue<u64, 2>;
+    //type BitsIter = ArrayBitQueue<u64, 2>;
+    //type BitsIter = ArrayBitQueue2<u64, 2, 1>;
+    type BitsIter = ArrayBitQueue3<u64, 2>;
     #[inline]
     fn bits_iter(self) -> Self::BitsIter {
-        ArrayBitQueue::new(self.to_array())
+        Self::BitsIter::new(self.to_array())
     }
 
     type AsArray = [u64; 2];

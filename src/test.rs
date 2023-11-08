@@ -4,7 +4,7 @@ use std::iter::zip;
 use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
-use crate::iter::SimpleIter;
+use crate::iter::SimpleBlockIter;
 use crate::op::HiSparseBitsetOp;
 
 use super::*;
@@ -262,7 +262,7 @@ where
             // suspend/resume
             {
                 let mut intersection =
-                    crate::iter::IterExt3
+                    crate::iter::CachingBlockIter
                     //crate::iter::SimpleIter
                         ::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
@@ -332,7 +332,7 @@ where
                     S2: LevelMasksExt3<Config = S1::Config>,
                 {
                     let mut indices2 = Vec::new();
-                    for block in op.iter_ext3(){
+                    for block in op.block_iter(){
                         block.traverse(
                             |index|{
                                 indices2.push(index);
@@ -378,7 +378,7 @@ where
         // consume resumable leftovers
         {
             let intersection =
-                SimpleIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
+                SimpleBlockIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
             for block in intersection{
                 block.traverse(
                     |index|{
@@ -429,7 +429,7 @@ fn one_intersection_test(){
     hi_set.insert(521);
 
     let state = IteratorState::default();
-    let iter = crate::iter::IterExt3::resume(
+    let iter = crate::iter::CachingBlockIter::resume(
         reduce(BitAndOp, [&hi_set].into_iter()).unwrap(),
         state
     );
@@ -475,7 +475,7 @@ fn regression_test1() {
 
     {
         let mut indices2 = Vec::new();
-        let iter = crate::iter::IterExt3::resume(
+        let iter = crate::iter::CachingBlockIter::resume(
             reduce(BitAndOp, hi_sets.iter()).unwrap(),
             IteratorState::default()
         );
@@ -575,7 +575,7 @@ fn op_or_regression_test1(){
     let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
 
     let op = reduce1 | reduce2;
-    let iter = op.iter_ext3();
+    let iter = op.block_iter();
     assert_eq!(iter.count(), 2);
 }
 
@@ -688,7 +688,7 @@ fn op_or_test(){
     let seq3: HiSparseBitset = [5,6,7].into();
 
     let or = &seq1 | &seq2 | &seq3;
-    let or_collected: Vec<_> = or.iter_ext3().flat_map(|block|block.iter()).collect();
+    let or_collected: Vec<_> = or.block_iter().flat_map(|block|block.iter()).collect();
     assert_equal(or_collected, [1,2,3,4,5,6,7]);
 
 }

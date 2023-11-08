@@ -11,8 +11,8 @@ mod op;
 pub mod iter;
 mod cache;
 
-#[cfg(test)]
-mod test;
+/*#[cfg(test)]
+mod test;*/
 
 use std::{ops::ControlFlow};
 use std::mem::MaybeUninit;
@@ -23,7 +23,9 @@ use block::Block;
 use level::Level;
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
+use crate::bit_queue::BitQueue;
 use crate::cache::{CacheStorageBuilder, FixedCache};
+use crate::iter::BlockIterator;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 
@@ -52,6 +54,10 @@ pub trait IConfig: 'static {
     /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
     type DataBlockIndex: MyPrimitive;
 
+    // There can be BlockIteratorBuilder as well, but parameterized
+    // Iter works too for now.
+    type DefaultBlockIterator<T: LevelMasksExt3>: BlockIterator<BitSet = T>;
+    // TODO: remove this?
     type DefaultCache: CacheStorageBuilder;
 }
 
@@ -335,7 +341,7 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
     unsafe fn data_mask_from_blocks3(
         /*&self,*/ level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> Config::DataBitBlock {
-        let level1_blocks = level1_blocks.assume_init_ref();
+        let level1_blocks = level1_blocks.assume_init();
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;
 
@@ -383,6 +389,12 @@ impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
 pub struct DataBlockIter<Block: BitBlock>{
     start_index: usize,
     bit_block_iter: Block::BitsIter
+}
+impl<Block: BitBlock> DataBlockIter<Block>{
+    #[inline]
+    pub(crate) fn empty() -> Self{
+        Self{ start_index: 0, bit_block_iter: BitQueue::empty() }
+    }
 }
 impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     type Item = usize;

@@ -19,6 +19,9 @@ cfg-if = "1"
 # for benchmarks
 hibitset = "0.6.4"
 
+[profile.bench]
+lto = "thin"
+
 [[bench]]
 name = "intersection_bench"
 path = "benches/intersection.rs"

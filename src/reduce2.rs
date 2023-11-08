@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::{CacheStorage, CacheStorageBuilder};
-use crate::iter::{IterExt3, SimpleIter};
+use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};
 
 #[derive(Clone)]
@@ -12,29 +12,28 @@ pub struct Reduce<Op, S, Storage> {
     pub(crate) phantom: PhantomData<(Op, Storage)>
 }
 
-impl<Op, S, Storage> Reduce<Op, S, Storage>
+/*impl<Op, S, Storage> Reduce<Op, S, Storage>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasks,
+    S::Item: LevelMasksExt3,
     Storage: CacheStorageBuilder
 {
     // TODO: This is BLOCK iterator. Make separate iterator for usizes.
     // TODO: Benchmark if there is need for "traverse".
     #[inline]
-    pub fn iter(self) -> SimpleIter<Self> {
-        SimpleIter::new(self)
+    pub fn iter(self) -> SimpleBlockIter<Self> {
+        SimpleBlockIter::new(self)
     }
 
     #[inline]
-    pub fn iter_ext3(self) -> IterExt3<Self>
+    pub fn iter_ext3(self) -> CachingBlockIter<Self>
     where
         S::Item: LevelMasksExt3,
-        S: ExactSizeIterator
     {
-        IterExt3::new(self)
+        CachingBlockIter::new(self)
     }
-}
+}*/
 
 impl<Op, S, Storage> LevelMasks for Reduce<Op, S, Storage>
 where
@@ -87,7 +86,7 @@ where
 impl<Op, S, Storage> LevelMasksExt3 for Reduce<Op, S, Storage>
 where
     Op: BinaryOp,
-    S: ExactSizeIterator + Clone,
+    S: Iterator + Clone,
     S::Item: LevelMasksExt3,
     Storage: CacheStorageBuilder
 {

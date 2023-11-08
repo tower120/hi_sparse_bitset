@@ -6,10 +6,14 @@
 
 use crate::cache::FixedCache;
 use crate::IConfig;
+use crate::iter::CachingBlockIter;
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 /// MAX = 262_144
 #[derive(Default)]
 pub struct _64bit;
+
+// TODO: Use SimpleBlockIter
 
 impl IConfig for _64bit {
     type Level0BitBlock = u64;
@@ -22,6 +26,9 @@ impl IConfig for _64bit {
     type DataBitBlock = u64;
     type DataBlockIndex = u16;
 
+    type DefaultBlockIterator<T: LevelMasksExt3> = CachingBlockIter<T>;
+
+    // TODO: refactor this somehow?
     type DefaultCache = FixedCache<32>;
 }
 
@@ -42,6 +49,7 @@ impl IConfig for _128bit {
     type DataBitBlock = wide::u64x2;
     type DataBlockIndex = u16;
 
+    type DefaultBlockIterator<T: LevelMasksExt3> = CachingBlockIter<T>;
     type DefaultCache = FixedCache<32>;
 }
 

@@ -3,6 +3,7 @@
 //! will never be invalidated during virtual bitset iteration.
 
 use crate::IConfig;
+use crate::iter::{CachingBlockIter, BlockIterator};
 
 pub trait LevelMasks{
     type Config: IConfig;
@@ -111,5 +112,37 @@ impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
         <T as LevelMasksExt3>::data_mask_from_blocks3(
             level1_blocks, level1_index
         )
+    }
+}
+
+
+// TODO: rename to IBitSet? / BitSetInterface
+pub trait VirtualBitSet{
+    type BlockIter: Iterator;
+    fn block_iter(self) -> Self::BlockIter;
+
+    type Iter: Iterator;
+    fn iter(self) -> Self::Iter;
+
+    fn contains(&self, index: usize) -> bool;
+}
+
+impl<T:LevelMasksExt3> VirtualBitSet for T{
+    type BlockIter = <T::Config as IConfig>::DefaultBlockIterator<T>;
+
+    #[inline]
+    fn block_iter(self) -> Self::BlockIter {
+        BlockIterator::new(self)
+    }
+
+    type Iter = <Self::BlockIter as BlockIterator>::IndexIter;
+
+    #[inline]
+    fn iter(self) -> Self::Iter {
+        self.block_iter().as_indices()
+    }
+
+    fn contains(&self, index: usize) -> bool {
+        todo!()
     }
 }

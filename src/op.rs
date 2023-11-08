@@ -4,7 +4,7 @@ use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
 use crate::bit_block::BitBlock;
-use crate::iter::BlockIter;
+use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::reduce2::Reduce;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3, LevelMasksRef};
 
@@ -30,8 +30,8 @@ where
 {
     // TODO: remove from here.
     #[inline]
-    pub fn block_iter(self) -> BlockIter<Self> {
-        BlockIter::new(self)
+    pub fn block_iter(self) -> CachingBlockIter<Self> {
+        CachingBlockIter::new(self)
     }
 }
 
@@ -132,7 +132,6 @@ where
 
 impl<Op, S1, S2> LevelMasksRef for HiSparseBitsetOp<Op, S1, S2>{}
 
-// TODO: move behind default feature flag operations impl?
 // We need this all because RUST still does not support template/generic specialization.
 macro_rules! impl_op {
     ($op_class:ident, $op_fn:ident, $binary_op:ident) => {
