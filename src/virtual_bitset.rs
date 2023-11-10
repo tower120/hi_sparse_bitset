@@ -2,6 +2,7 @@
 //! [LevelMasksExt]. This guarantees that [DataBitBlock] pointers
 //! will never be invalidated during virtual bitset iteration.
 
+use std::mem::MaybeUninit;
 use crate::IConfig;
 use crate::iter::{CachingBlockIter, BlockIterator};
 
@@ -24,28 +25,37 @@ pub trait LevelMasks{
 }
 
 pub trait LevelMasksExt3: LevelMasks{
+    /// Consists from child caches + Self state.
+    /// Fot internal use (ala state).
+    type CacheData;
+
     /// Cached Level1Blocks3 for faster accessing DataBlocks,
     /// without traversing whole hierarchy for getting each block during iteration.
     ///
-    /// Must have fixed structure. (Make once, and do not re-create)
+    /// This may have less elements then sets size, because empty can be skipped.
+    ///
+    /// Must be POD. (Drop will not be called)
     type Level1Blocks3;
 
     /// Could [data_mask_from_blocks3] be called if [update_level1_blocks3]
     /// returned false.
+    ///
+    /// Mainly used by op.
     const EMPTY_LVL1_TOLERANCE: bool;
 
-    /// Make Level1Blocks in a state that can be used in `update_level1_blocks`.
-    ///
-    /// For example, Level1Blocks may be in uninitialized state, if
-    /// `update_level1_blocks` will initialize it any way.
-    fn make_level1_blocks3(&self) -> Self::Level1Blocks3;
+    fn make_cache(&self) -> Self::CacheData;
+
+    fn drop_cache(&self, cache: Self::CacheData);
 
     /// Update `level1_blocks` and
     /// return (Level1Mask, is_not_empty/valid).
     ///
     /// if level0_index valid - update `level1_blocks`.
     unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        &self,
+        cache: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool);
 
     /// # Safety
@@ -91,17 +101,27 @@ impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
 
     const EMPTY_LVL1_TOLERANCE: bool = T::EMPTY_LVL1_TOLERANCE;
 
+    type CacheData = T::CacheData;
+
     #[inline]
-    fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
-        <T as LevelMasksExt3>::make_level1_blocks3(self)
+    fn make_cache(&self) -> Self::CacheData {
+        <T as LevelMasksExt3>::make_cache(self)
+    }
+
+    #[inline]
+    fn drop_cache(&self, cache: Self::CacheData) {
+        <T as LevelMasksExt3>::drop_cache(self, cache)
     }
 
     #[inline]
     unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        &self,
+        cache_data: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         <T as LevelMasksExt3>::update_level1_blocks3(
-            self, level1_blocks, level0_index
+            self, cache_data, level1_blocks, level0_index
         )
     }
 

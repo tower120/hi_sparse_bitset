@@ -11,8 +11,8 @@ mod op;
 pub mod iter;
 mod cache;
 
-/*#[cfg(test)]
-mod test;*/
+#[cfg(test)]
+mod test;
 
 use std::{ops::ControlFlow};
 use std::mem::MaybeUninit;
@@ -315,19 +315,20 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
 
 // Implementing for ref only.
 impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
-    // MaybeUninit is here just to do not write anything during make_level1_blocks3.
-    type Level1Blocks3 = MaybeUninit<(*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>)>;
+    type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
-    #[inline]
-    fn make_level1_blocks3(&self) -> Self::Level1Blocks3{
-        MaybeUninit::uninit()
-    }
+    type CacheData = ();
+    fn make_cache(&self) -> Self::CacheData { () }
+    fn drop_cache(&self, _: Self::CacheData) {}
 
     #[inline]
     unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        &self,
+        _: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);
 
@@ -342,7 +343,6 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
     unsafe fn data_mask_from_blocks3(
         /*&self,*/ level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> Config::DataBitBlock {
-        let level1_blocks = level1_blocks.assume_init();
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;
 

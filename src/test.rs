@@ -6,6 +6,7 @@ use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::iter::SimpleBlockIter;
 use crate::op::HiSparseBitsetOp;
+use crate::virtual_bitset::VirtualBitSet;
 
 use super::*;
 
@@ -140,6 +141,7 @@ fn fuzzy_test(){
         }
     }
 }
+
 fn fuzzy_reduce_test<Op: BinaryOp, H>(hiset_op: Op, hashset_op: H)
 where
     H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>,
@@ -293,25 +295,10 @@ where
                 intersection_state = intersection.suspend();
             }
 
-            // reduce test
-            {
-                let mut indices2 = Vec::new();
-                for block in reduce(hiset_op, hi_sets.iter()).unwrap().iter(){
-                    block.traverse(
-                        |index|{
-                            indices2.push(index);
-                            ControlFlow::Continue(())
-                        }
-                    );
-                }
-                indices2.sort();
-                assert_eq!(hashsets_intersection_vec, indices2);
-            }
-
             // reduce ext3 test
             {
                 let mut indices2 = Vec::new();
-                for block in reduce(hiset_op, hi_sets.iter()).unwrap().iter_ext3(){
+                for block in reduce(hiset_op, hi_sets.iter()).unwrap().block_iter(){
                     block.traverse(
                         |index|{
                             indices2.push(index);
@@ -514,11 +501,11 @@ fn reduce2_test() {
     let hi_set_refs = [&hi_sets[0], &hi_sets[1], &hi_sets[2]];
 
     let result = reduce(BitAndOp, hi_sets.iter()).unwrap();
-    let intersections = result.iter().flat_map(|block|block.iter());
+    let intersections = result.iter();
     assert_equal(intersections, [1,3]);
 
     let result = reduce(BitAndOp, hi_set_refs.iter().copied()).unwrap();
-    let intersections = result.iter().flat_map(|block|block.iter());
+    let intersections = result.iter();
     assert_equal(intersections, [1,3]);
 }
 
@@ -545,7 +532,7 @@ fn reduce_or_test(){
         let union = reduce(BitOrOp, hi_sets.iter().copied()).unwrap();
 
         let mut out = Vec::new();
-        for block in union.iter/*_ext*/(){
+        for block in union.block_iter(){
             for i in block.iter(){
                 out.push(i);
                 println!("{:}", i);
@@ -605,7 +592,7 @@ fn reduce_xor_test(){
         let reduce = reduce(BitXorOp, hi_sets.iter().copied()).unwrap();
 
         let mut out = Vec::new();
-        for block in reduce.iter_ext3(){
+        for block in reduce.block_iter(){
             for i in block.iter(){
                 out.push(i);
                 println!("{:}", i);
@@ -648,7 +635,7 @@ fn multilayer_test(){
 
     let ands = [and1, and2, and3];
     let or = reduce(BitOrOp, ands.iter()).unwrap();
-    let or_collected: Vec<_> = or.iter_ext3().flat_map(|block|block.iter()).collect();
+    let or_collected: Vec<_> = or.block_iter().flat_map(|block|block.iter()).collect();
 
     assert_equal(or_collected, [1,2,3,4,5,6,7]);
 }
@@ -677,7 +664,7 @@ fn multilayer_or_test(){
     let higher_kind = [or1, or2];
     let higher_kind_or = reduce(BitOrOp, higher_kind.iter()).unwrap();
 
-    let or_collected: Vec<_> = higher_kind_or.iter_ext3().flat_map(|block|block.iter()).collect();
+    let or_collected: Vec<_> = higher_kind_or.block_iter().flat_map(|block|block.iter()).collect();
     assert_equal(or_collected, [1,2,3,4,5, offset+1,offset+2,offset+3,offset+4,offset+5]);
 }
 

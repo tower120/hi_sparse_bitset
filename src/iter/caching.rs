@@ -1,3 +1,4 @@
+use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::virtual_bitset::LevelMasksExt3;
@@ -36,7 +37,9 @@ where
 {
     virtual_set: T,
     state: State<T::Config>,
-    level1_blocks: T::Level1Blocks3,
+    cache_data: ManuallyDrop<T::CacheData>,
+    /// Never drop - since we're guaranteed to have them POD.
+    level1_blocks: MaybeUninit<T::Level1Blocks3>,
 }
 
 impl<T> BlockIterator for CachingBlockIter<T>
@@ -52,20 +55,24 @@ where
             level1_iter: BitQueue::empty(),
             level0_index: 0,
         };
-        let level1_blocks = virtual_set.make_level1_blocks3();
+        let cache_data = virtual_set.make_cache();
         Self{
             virtual_set,
             state,
-            level1_blocks
+            cache_data: ManuallyDrop::new(cache_data),
+            level1_blocks: MaybeUninit::uninit()
         }
     }
 
     // TODO: rename, and consider making resume() from State.
     fn resume(virtual_set: T, mut state: State<T::Config>) -> Self {
-        let mut level1_blocks = virtual_set.make_level1_blocks3();
+        let mut cache_data = virtual_set.make_cache();
+        let mut level1_blocks = MaybeUninit::uninit();
         let lvl1_mask_gen = |index| unsafe {
             // Generate both mask and level1_blocks cache
-            let (mask, valid) = virtual_set.update_level1_blocks3(&mut level1_blocks, index);
+            let (mask, valid) = virtual_set.update_level1_blocks3(
+                &mut cache_data, &mut level1_blocks, index
+            );
             if !valid {
                 // level1_mask can not be empty here
                 std::hint::unreachable_unchecked()
@@ -77,13 +84,15 @@ where
         Self{
             virtual_set,
             state,
+            cache_data: ManuallyDrop::new(cache_data),
             level1_blocks
         }
     }
 
     #[inline]
     fn suspend(self) -> State<T::Config> {
-        self.state
+        // drop in usual way, and return state.
+        unsafe { std::ptr::read(&self.state) }
     }
 
     type IndexIter = CachingIndexIter<T>;
@@ -103,7 +112,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let Self{virtual_set, state, level1_blocks, ..} = self;
+        let Self{virtual_set, state, cache_data, level1_blocks} = self;
 
         let level1_index =
             loop{
@@ -115,7 +124,7 @@ where
                         state.level0_index = index;
 
                         let (level1_mask, valid) = unsafe {
-                            virtual_set.update_level1_blocks3(level1_blocks, index)
+                            virtual_set.update_level1_blocks3(cache_data, level1_blocks, index)
                         };
                         if !valid {
                             // level1_mask can not be empty here
@@ -129,7 +138,7 @@ where
             };
 
         let data_intersection = unsafe {
-            T::data_mask_from_blocks3(level1_blocks, level1_index)
+            T::data_mask_from_blocks3(level1_blocks.assume_init_ref(), level1_index)
         };
 
         let block_start_index =
@@ -138,6 +147,17 @@ where
             );
 
         Some(DataBlock{ start_index: block_start_index, bit_block: data_intersection })
+    }
+}
+
+impl<T> Drop for CachingBlockIter<T>
+where
+    T: LevelMasksExt3
+{
+    #[inline]
+    fn drop(&mut self) {
+        let cache_date = unsafe{ ManuallyDrop::take(&mut self.cache_data) };
+        self.virtual_set.drop_cache(cache_date);
     }
 }
 

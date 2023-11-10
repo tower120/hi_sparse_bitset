@@ -3,6 +3,15 @@ use std::mem::{ManuallyDrop, MaybeUninit, size_of};
 use crate::bit_op::{one_bits_iter, OneBitsIter};
 use crate::MyPrimitive;
 
+#[inline]
+fn mask_out<P: MyPrimitive>(bit_block_iter: &mut OneBitsIter<P>, mask: P) {
+    let block: &mut P = unsafe{
+        mem::transmute(bit_block_iter)
+    };
+    *block &= mask;
+}
+
+
 /// Pop one bits. "Consumed" bits replaced with zero.
 pub trait BitQueue: Iterator<Item = usize>{
     /// All bits 0. Iterator returns None.
@@ -59,11 +68,7 @@ where
 
     #[inline]
     fn mask_out(&mut self, mask: &[P; 1]) {
-        let mask = mask[0];
-        let block: &mut P = unsafe{
-            mem::transmute(&mut self.bit_block_iter)
-        };
-        *block &= mask;
+        mask_out(&mut self.bit_block_iter, mask[0]);
     }
 }
 
@@ -318,20 +323,15 @@ where
 
     #[inline]
     fn mask_out(&mut self, mask: &[P; N]) {
-        unimplemented!();
-/*        // compile-time loop
-        for i in 0..N{
-            let bit_block_iter = &mut self.bit_block_iters[i];
-            let bit_block: &mut P = unsafe{
-                mem::transmute(bit_block_iter)
-            };
-            *bit_block &= mask[i];
+        // update active one
+        if self.bit_block_index == 0 {
+            mask_out(&mut self.bit_block_iters[0], mask[0]);
         }
 
-        // update active one
-        self.active_bit_block_iter = unsafe{
-            *self.bit_block_iters.get_unchecked_mut(self.bit_block_index)
-        };*/
+        // compile-time loop
+        for i in 1..N {
+            mask_out(&mut self.bit_block_iters[i], mask[i]);
+        }
     }
 }
 

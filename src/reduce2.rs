@@ -1,6 +1,6 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
-use std::mem;
+use std::{mem, ptr};
 use std::mem::MaybeUninit;
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
@@ -69,14 +69,19 @@ pub trait ReduceCacheImpl
     type Set: LevelMasksExt3<Config = Self::Config>;
     type Sets: Iterator<Item = Self::Set> + Clone;
 
+    type CacheData;
     type Level1Blocks3;
 
     const EMPTY_LVL1_TOLERANCE: bool;
 
-    fn make_level1_blocks3(sets: &Self::Sets) -> Self::Level1Blocks3;
+    fn make_cache(sets: &Self::Sets) -> Self::CacheData;
+    fn drop_cache(sets: &Self::Sets, cache: Self::CacheData);
 
     unsafe fn update_level1_blocks3(
-        sets: &Self::Sets, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        sets: &Self::Sets,
+        cache: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool);
 
     unsafe fn data_mask_from_blocks3(
@@ -106,27 +111,32 @@ where
     type Config = <S::Item as LevelMasks>::Config;
     type Set = S::Item;
     type Sets = S;
+    type CacheData = ();
     type Level1Blocks3 = (S, usize);
 
     /// We always return true.
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
     #[inline]
-    fn make_level1_blocks3(sets: &Self::Sets) -> Self::Level1Blocks3 {
-        (sets.clone(), 0)
-    }
+    fn make_cache(_: &Self::Sets) -> Self::CacheData{ () }
+
+    #[inline]
+    fn drop_cache(sets: &Self::Sets, _: Self::CacheData) {}
 
     #[inline]
     unsafe fn update_level1_blocks3(
-        sets: &Self::Sets, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        sets: &Self::Sets,
+        _: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        *level1_blocks = (sets.clone(), level0_index);
+        level1_blocks.write((sets.clone(), level0_index));
 
         let reduce: &Reduce<Op, S, ()> = mem::transmute(sets);
         (reduce.level1_mask(level0_index), true)
     }
 
-    // TODO: pass level0_index - we always have it during iteration.
+    // TODO: try pass level0_index - we always have it during iteration.
     //      This will allow not to store it in `update_level1_blocks3`
     #[inline]
     unsafe fn data_mask_from_blocks3(
@@ -151,7 +161,8 @@ impl ReduceCacheImplBuilder for NoCache{
 unsafe fn update_level1_blocks3<Op, Config, Sets>(
     _: Op,
     sets: &Sets,
-    level1_blocks_ptr: *mut <Sets::Item as LevelMasksExt3>::Level1Blocks3,
+    cache_ptr: *mut <Sets::Item as LevelMasksExt3>::CacheData,
+    level1_blocks_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt3>::Level1Blocks3>,
     level0_index: usize
 ) -> (<Config as IConfig>::Level1BitBlock, usize/*len*/, bool/*is_empty*/)
 where
@@ -168,37 +179,14 @@ where
     // P.S. should be const, but act as const anyway.
     let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
 
-/*    // This should act the same as a few assumes in default loop,
-    // but I feel safer this way.
-    if TypeId::of::<Op>() == TypeId::of::<BitAndOp>() { /* compile-time check */
-        let mut index = 0;
-        let mask =
-            sets.clone()
-            .map(|set|{
-                let (mask, valid) = set.update_level1_blocks3(
-                    &mut *level1_blocks_ptr.add(index),
-                    level0_index
-                );
-                // assume(valid)
-                if !valid{ std::hint::unreachable_unchecked(); }
-                index += 1;
-                mask
-            })
-            .reduce(Op::hierarchy_op)
-            .unwrap_unchecked();
-
-        if index!=0{
-            std::hint::unreachable_unchecked();
-        }
-        return (mask, index);
-    }*/
-
     // Overwrite only non-empty blocks.
+    let mut cache_index = 0;
     let mut index = 0;
     let mask =
         sets.clone()
         .map(|set|{
             let (level1_mask, valid) = set.update_level1_blocks3(
+                &mut *cache_ptr.add(cache_index),
                 &mut *level1_blocks_ptr.add(index),
                 level0_index
             );
@@ -207,8 +195,10 @@ where
                 // assume(valid)
                 if !valid{ std::hint::unreachable_unchecked(); }
                 index += 1;
+                cache_index = index;
             } else {
                 index += valid as usize;
+                cache_index += 1;
             }
 
             level1_mask
@@ -218,8 +208,8 @@ where
 
     let is_empty =
         if is_intersection{
-            // assume
-            if index!=0 { std::hint::unreachable_unchecked(); }
+            // assume index != 0
+            if index==0 { std::hint::unreachable_unchecked(); }
             true
         } else {
             index!=0
@@ -241,11 +231,6 @@ where
     Set: LevelMasksExt3<Config = Config>,
 {
     unsafe{
-        /*let slice = std::slice::from_raw_parts(
-            level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt3>::Level1Blocks3,
-            level1_blocks.1
-        );*/
-
         slice.iter()
             .map(|set_level1_blocks|
                 <Set as LevelMasksExt3>::data_mask_from_blocks3(
@@ -259,7 +244,13 @@ where
     }
 }
 
-pub struct FixedCacheImpl<Op, T, const N: usize>(PhantomData<(Op, T)>);
+
+pub struct FixedCacheImpl<Op, S, const N: usize>(PhantomData<(Op, S)>)
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S::Item: LevelMasksExt3;
+
 impl<Op, S, const N: usize> ReduceCacheImpl for FixedCacheImpl<Op, S, N>
 where
     Op: BinaryOp,
@@ -270,6 +261,10 @@ where
     type Set = S::Item;
     type Sets = S;
 
+    /// We use Level1Blocks3 directly, but childs may have data.
+    /// Will be ZST, if no-one use. size = sets.len().
+    type CacheData = [MaybeUninit<<Self::Set as LevelMasksExt3>::CacheData>; N];
+
     /// Never drop, since array contain primitives, or array of primitives.
     type Level1Blocks3 = (
         [MaybeUninit<<Self::Set as LevelMasksExt3>::Level1Blocks3>; N],
@@ -279,81 +274,50 @@ where
     const EMPTY_LVL1_TOLERANCE: bool = false;
 
     #[inline]
-    fn make_level1_blocks3(sets: &Self::Sets) -> Self::Level1Blocks3 {
-        let mut storage: [MaybeUninit<<Self::Set as LevelMasksExt3>::Level1Blocks3>; N]
-            = unsafe{ MaybeUninit::uninit().assume_init() };
-
-        // init storage in deep
+    fn make_cache(sets: &Self::Sets) -> Self::CacheData {
         unsafe{
-            let mut index = 0;
-            let elements = storage.as_mut_ptr();
-            for set in sets.clone() {
-                let element = elements.add(index);
-                (*element).write(set.make_level1_blocks3());
-                index += 1;
+            let mut cache_data = MaybeUninit::<Self::CacheData>::uninit().assume_init();
+            let mut cache_data_iter = cache_data.iter_mut();
+            for  set in sets.clone(){
+                let cache_data_element =
+                    cache_data_iter.next().unwrap_unchecked();
+                cache_data_element.write(set.make_cache());
             }
-            assert!(N >= index, "Reduce cache overflow");
+            mem::transmute(cache_data)
+        }
+    }
+
+    #[inline]
+    fn drop_cache(sets: &Self::Sets, cache: Self::CacheData) {
+        if !mem::needs_drop::<Self::CacheData>(){
+            return;
         }
 
-        return (storage, 0);
+        unsafe{
+            let mut cache_data_iter = cache.into_iter();
+            for  set in sets.clone(){
+                let cache_data_element =
+                    cache_data_iter.next().unwrap_unchecked();
+                set.drop_cache(MaybeUninit::assume_init(cache_data_element));
+            }
+        }
     }
 
     #[inline]
     unsafe fn update_level1_blocks3(
-        sets: &Self::Sets, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        sets: &Self::Sets,
+        cache_data: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        let (level1_blocks_storage, level1_blocks_len) = level1_blocks;
-        let level1_blocks_ptr = level1_blocks_storage.as_mut_ptr() as *mut <Self::Set as LevelMasksExt3>::Level1Blocks3;
+        let (level1_blocks_storage, level1_blocks_len) = level1_blocks.assume_init_mut();
+        // assume_init_mut array
+        let cache_ptr = cache_data.as_mut_ptr() as *mut <Self::Set as LevelMasksExt3>::CacheData;
 
         let (mask, len, is_empty) =
-            update_level1_blocks3(Op::default(), sets, level1_blocks_ptr, level0_index);
+            update_level1_blocks3(Op::default(), sets, cache_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
         *level1_blocks_len = len;
         (mask, is_empty)
-
-/*        // This should act the same as a few assumes in default loop,
-        // but I feel safer this way.
-        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>() { /* compile-time check */
-            // intersection case can be optimized, since we know
-            // that with intersection, there can be no
-            // empty masks/blocks queried.
-            let mut index = 0;
-            let mask =
-                sets.clone()
-                .map(|set|{
-                    let (mask, valid) = set.update_level1_blocks3(
-                        &mut *level1_blocks_ptr.add(index),
-                        level0_index
-                    );
-                    // assume(valid)
-                    if !valid{ std::hint::unreachable_unchecked(); }
-                    index += 1;
-                    mask
-                })
-                .reduce(Op::hierarchy_op)
-                .unwrap_unchecked();
-
-            *level1_blocks_len = index;
-            return (mask, true);
-        }
-
-        // Overwrite only non-empty blocks.
-        let mut index = 0;
-
-        let mask_acc =
-            sets.clone()
-            .map(|set|{
-                let (level1_mask, valid) = set.update_level1_blocks3(
-                    &mut *level1_blocks_ptr.add(index),
-                    level0_index
-                );
-                index += valid as usize;
-                level1_mask
-            })
-            .reduce(Op::hierarchy_op)
-            .unwrap_unchecked();
-
-        *level1_blocks_len = index;
-        (mask_acc, index !=0)*/
     }
 
     #[inline]
@@ -364,26 +328,7 @@ where
             level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt3>::Level1Blocks3,
             level1_blocks.1
         );
-
         data_mask_from_blocks3::<Op, Self::Set, Self::Config>(slice, level1_index)
-
-/*        unsafe{
-            let slice = std::slice::from_raw_parts(
-                level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt3>::Level1Blocks3,
-                level1_blocks.1
-            );
-
-            slice.iter()
-                .map(|set_level1_blocks|
-                    <Self::Set as LevelMasksExt3>::data_mask_from_blocks3(
-                        set_level1_blocks, level1_index
-                    )
-                )
-                .reduce(Op::data_op)
-                // level1_blocks can not be empty, since then -
-                // level1 mask will be empty, and there will be nothing to iterate.
-                .unwrap_unchecked()
-        }*/
     }
 }
 
@@ -405,21 +350,31 @@ where
     S::Item: LevelMasksExt3,
     Storage: ReduceCacheImplBuilder
 {
+    type CacheData = <Storage::Impl<Op, S> as ReduceCacheImpl>::CacheData;
     type Level1Blocks3 = <Storage::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;
     const EMPTY_LVL1_TOLERANCE: bool = <Storage::Impl<Op, S> as ReduceCacheImpl>::EMPTY_LVL1_TOLERANCE;
 
     #[inline]
-    fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
+    fn make_cache(&self) -> Self::CacheData {
         <Storage::Impl<Op, S> as ReduceCacheImpl>::
-            make_level1_blocks3(&self.sets)
+            make_cache(&self.sets)
+    }
+
+    #[inline]
+    fn drop_cache(&self, cache: Self::CacheData) {
+        <Storage::Impl<Op, S> as ReduceCacheImpl>::
+            drop_cache(&self.sets, cache)
     }
 
     #[inline]
     unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        &self,
+        cache_data: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         <Storage::Impl<Op, S> as ReduceCacheImpl>::
-            update_level1_blocks3(&self.sets, level1_blocks, level0_index)
+            update_level1_blocks3(&self.sets, cache_data, level1_blocks, level0_index)
     }
 
     #[inline]
@@ -428,129 +383,5 @@ where
             data_mask_from_blocks3(level1_blocks, level1_index)
     }
 }
-
-
-
-/*impl<Op, S, Storage> LevelMasksExt3 for Reduce<Op, S, Storage>
-where
-    Op: BinaryOp,
-    S: Iterator + Clone,
-    S::Item: LevelMasksExt3,
-    Storage: CacheStorageBuilder
-{
-    type Level1Blocks3 = (
-
-        // array of S::LevelMasksExt3
-        //Storage::Level1Blocks3<S>,
-        <Storage as CacheStorageBuilder>::Storage<<S::Item as LevelMasksExt3>::Level1Blocks3>,
-        // len
-        usize
-    );
-
-    const EMPTY_LVL1_TOLERANCE: bool = false;
-
-    #[inline]
-    fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
-        // It should be faster to calculate sets amount in front,
-        // then to relocated Vec with pushes during DynamicCache construction.
-        let sets_count = || self.sets.clone().count();
-
-        let mut storage: <Storage as CacheStorageBuilder>::Storage<<S::Item as LevelMasksExt3>::Level1Blocks3>
-            = Storage::build(sets_count);
-
-        // init storage in deep
-        unsafe{
-            let mut index = 0;
-            let elements = storage.as_mut_ptr();
-            for set in self.sets.clone() {
-                let element = elements.add(index);
-                std::ptr::write(
-                    element,
-                    set.make_level1_blocks3()
-                );
-                index += 1;
-            }
-            assert!(Storage::FIXED_CAPACITY >= index, "Reduce cache overflow");
-        }
-
-        return (storage, 0);
-    }
-
-    #[inline]
-    unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
-    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        let (level1_blocks_storage, level1_blocks_len) = level1_blocks;
-        let level1_blocks_ptr = level1_blocks_storage.as_mut_ptr();
-
-        // This should act the same as a few assumes in default loop,
-        // but I feel safer this way.
-        if TypeId::of::<Op>() == TypeId::of::<BitAndOp>() { /* compile-time check */
-            // intersection case can be optimized, since we know
-            // that with intersection, there can be no
-            // empty masks/blocks queried.
-            let mut index = 0;
-            let mask =
-                self.sets.clone()
-                .map(|set|{
-                    let (mask, valid) = set.update_level1_blocks3(
-                        &mut *level1_blocks_ptr.add(index),
-                        level0_index
-                    );
-                    // assume(valid)
-                    if !valid{ std::hint::unreachable_unchecked(); }
-                    index += 1;
-                    mask
-                })
-                .reduce(Op::hierarchy_op)
-                .unwrap_unchecked();
-
-            *level1_blocks_len = index;
-            return (mask, true);
-        }
-
-        // Overwrite only non-empty blocks.
-        let mut index = 0;
-
-        let mask_acc =
-            self.sets.clone()
-            .map(|set|{
-                let (level1_mask, valid) = set.update_level1_blocks3(
-                    &mut *level1_blocks_ptr.add(index),
-                    level0_index
-                );
-                index += valid as usize;
-                level1_mask
-            })
-            .reduce(Op::hierarchy_op)
-            .unwrap_unchecked();
-
-        *level1_blocks_len = index;
-        (mask_acc, index !=0)
-    }
-
-    #[inline]
-    unsafe fn data_mask_from_blocks3(
-        /*&self, */level1_blocks: &Self::Level1Blocks3, level1_index: usize
-    ) -> <Self::Config as IConfig>::DataBitBlock {
-        unsafe{
-            let slice = std::slice::from_raw_parts(
-                level1_blocks.0.as_ptr(),
-                level1_blocks.1
-            );
-
-            slice.iter()
-                .map(|set_level1_blocks|
-                    <S::Item as LevelMasksExt3>::data_mask_from_blocks3(
-                        set_level1_blocks, level1_index
-                    )
-                )
-                .reduce(Op::data_op)
-                // level1_blocks can not be empty, since then -
-                // level1 mask will be empty, and there will be nothing to iterate.
-                .unwrap_unchecked()
-        }
-    }
-}*/
 
 impl<Op, S, Storage> LevelMasksRef for Reduce<Op, S, Storage>{}

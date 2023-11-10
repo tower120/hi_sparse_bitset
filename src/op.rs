@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
@@ -77,21 +78,37 @@ where
     S1: LevelMasksExt3,
     S2: LevelMasksExt3<Config = S1::Config>,
 {
-    type Level1Blocks3 = (S1::Level1Blocks3, S2::Level1Blocks3, bool, bool);
+    type Level1Blocks3 = (MaybeUninit<S1::Level1Blocks3>, MaybeUninit<S2::Level1Blocks3>, bool, bool);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
+    type CacheData = (S1::CacheData, S2::CacheData);
+
     #[inline]
-    fn make_level1_blocks3(&self) -> Self::Level1Blocks3 {
-        (self.s1.make_level1_blocks3(), self.s2.make_level1_blocks3(), false, false)
+    fn make_cache(&self) -> Self::CacheData {
+        (self.s1.make_cache(), self.s2.make_cache())
+    }
+
+    #[inline]
+    fn drop_cache(&self, cache: Self::CacheData) {
+        self.s1.drop_cache(cache.0);
+        self.s2.drop_cache(cache.1);
     }
 
     #[inline]
     unsafe fn update_level1_blocks3(
-        &self, level1_blocks: &mut Self::Level1Blocks3, level0_index: usize
+        &self,
+        cache_data: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        let (mask1, v1) = self.s1.update_level1_blocks3(&mut level1_blocks.0, level0_index);
-        let (mask2, v2) = self.s2.update_level1_blocks3(&mut level1_blocks.1, level0_index);
+        let level1_blocks = level1_blocks.assume_init_mut();
+        let (mask1, v1) = self.s1.update_level1_blocks3(
+            &mut cache_data.0, &mut level1_blocks.0, level0_index
+        );
+        let (mask2, v2) = self.s2.update_level1_blocks3(
+            &mut cache_data.1, &mut level1_blocks.1, level0_index
+        );
 
         let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
         if !IS_INTERSECTION{
@@ -114,14 +131,14 @@ where
         // intersection can never point to empty blocks.
         let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
 
-        let m0 = if S1::EMPTY_LVL1_TOLERANCE | IS_INTERSECTION | level1_blocks.2{
-            S1::data_mask_from_blocks3(&level1_blocks.0, level1_index)
+        let m0 = if S1::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.2{
+            S1::data_mask_from_blocks3(level1_blocks.0.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
         };
 
-        let m1 = if S2::EMPTY_LVL1_TOLERANCE | IS_INTERSECTION | level1_blocks.3{
-            S2::data_mask_from_blocks3(&level1_blocks.1, level1_index)
+        let m1 = if S2::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.3{
+            S2::data_mask_from_blocks3(level1_blocks.1.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
         };
