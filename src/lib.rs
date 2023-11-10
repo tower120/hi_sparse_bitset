@@ -26,6 +26,7 @@ use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::cache::{CacheStorageBuilder, FixedCache};
 use crate::iter::BlockIterator;
+use crate::reduce2::ReduceCacheImplBuilder;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 
@@ -58,7 +59,7 @@ pub trait IConfig: 'static {
     // Iter works too for now.
     type DefaultBlockIterator<T: LevelMasksExt3>: BlockIterator<BitSet = T>;
     // TODO: remove this?
-    type DefaultCache: CacheStorageBuilder;
+    type DefaultCache: CacheStorageBuilder + ReduceCacheImplBuilder;
 }
 
 // TODO: move somewhere more appropriate

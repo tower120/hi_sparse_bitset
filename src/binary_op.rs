@@ -9,7 +9,7 @@ use crate::bit_block::BitBlock;
 
 // TODO: all operations should accept & instead?
 //       To work with [u64;N] more flawlessly?
-pub trait BinaryOp: Copy + 'static{
+pub trait BinaryOp: Default + Copy + 'static{
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
 
@@ -19,7 +19,7 @@ pub trait BinaryOp: Copy + 'static{
 
 // TODO: rename structs?
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct BitAndOp;
 impl BinaryOp for BitAndOp {
     #[inline]
@@ -33,7 +33,7 @@ impl BinaryOp for BitAndOp {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct BitOrOp;
 impl BinaryOp for BitOrOp {
     #[inline]
@@ -50,7 +50,7 @@ impl BinaryOp for BitOrOp {
 /// Have performance of BitOrOp.
 ///
 /// _Due to fact that hierarchy layers does not take part in culling symmetric difference._
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct BitXorOp;
 impl BinaryOp for BitXorOp {
     #[inline]
@@ -65,7 +65,7 @@ impl BinaryOp for BitXorOp {
 }
 
 /// Have performance of traversing left operand.
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct BitSubOp;
 impl BinaryOp for BitSubOp {
     #[inline]

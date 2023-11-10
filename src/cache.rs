@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 pub trait CacheStorage<T>{
@@ -87,4 +88,36 @@ impl CacheStorageBuilder for DynamicCache{
             DynamicCacheStorage(boxed)
         }
     }
+}
+
+
+/// Act as simple iterator.
+#[derive(Default, Clone, Copy)]
+pub struct NoCache;
+impl CacheStorageBuilder for NoCache{
+    type Storage<T> = NoCacheStorage;
+    const FIXED_CAPACITY: usize = 0;
+    fn build<T, S>(size_getter: S) -> Self::Storage<T> where S: FnMut() -> usize {
+        NoCacheStorage
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct NoCacheStorage;
+impl<T> CacheStorage<T> for NoCacheStorage{
+    fn as_ptr(&self) -> *const T {
+        unreachable!()
+    }
+    fn as_mut_ptr(&mut self) -> *mut T {
+        unreachable!()
+    }
+}
+
+
+
+
+
+pub trait ReduceStorage{
+    const IS_NONE: bool;
+    type Cache;
 }
