@@ -1,10 +1,10 @@
-//! Only &HiSparseBitset, Op, &Op, Reduce, &Reduce implements
-//! [LevelMasksExt]. This guarantees that [DataBitBlock] pointers
-//! will never be invalidated during virtual bitset iteration.
-
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::IConfig;
+use crate::{HiSparseBitset, IConfig, level_indices};
+use crate::binary_op::BinaryOp;
+use crate::bit_block::BitBlock;
 use crate::iter::{CachingBlockIter, BlockIterator};
+use crate::op::HiSparseBitsetOp;
+use crate::reduce2::{Reduce, ReduceCacheImplBuilder};
 
 pub trait LevelMasks{
     type Config: IConfig;
@@ -73,12 +73,7 @@ pub trait LevelMasksExt3: LevelMasks{
     ) -> <Self::Config as IConfig>::DataBitBlock;
 }
 
-/// Marker trait, for implementing LevelMasks for &impl LevelMasks.
-///
-/// This also prevents nested &&&&& auto-implementations.
-pub(crate) trait LevelMasksRef{}
-
-impl<'a, T: LevelMasks + LevelMasksRef> LevelMasks for &'a T {
+impl<'a, T: LevelMasks> LevelMasks for &'a T {
     type Config = T::Config;
 
     #[inline]
@@ -101,7 +96,7 @@ impl<'a, T: LevelMasks + LevelMasksRef> LevelMasks for &'a T {
     }
 }
 
-impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
+impl<'a, T: LevelMasksExt3> LevelMasksExt3 for &'a T {
     type Level1Blocks3 = T::Level1Blocks3;
 
     const EMPTY_LVL1_TOLERANCE: bool = T::EMPTY_LVL1_TOLERANCE;
@@ -142,32 +137,101 @@ impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
 
 
 // TODO: rename to IBitSet? / BitSetInterface
-pub trait VirtualBitSet{
-    type BlockIter: Iterator;
-    fn block_iter(self) -> Self::BlockIter;
+pub trait VirtualBitSet: IntoIterator<Item = usize>{
+    type BlockIter<'a>: Iterator where Self: 'a;
+    fn block_iter(&self) -> Self::BlockIter<'_>;
 
-    type Iter: Iterator;
-    fn iter(self) -> Self::Iter;
+    type Iter<'a>: Iterator<Item = usize> where Self: 'a;
+    fn iter(&self) -> Self::Iter<'_>;
+
+    type IntoBlockIter: Iterator + BlockIterator;
+    fn into_block_iter(self) -> Self::IntoBlockIter;
 
     fn contains(&self, index: usize) -> bool;
 }
 
-impl<T:LevelMasksExt3> VirtualBitSet for T{
-    type BlockIter = <T::Config as IConfig>::DefaultBlockIterator<T>;
+impl<T:LevelMasksExt3> VirtualBitSet for T
+where
+    T: IntoIterator<Item = usize>
+{
+    type BlockIter<'a> = <T::Config as IConfig>::DefaultBlockIterator<&'a T> where Self: 'a;
 
     #[inline]
-    fn block_iter(self) -> Self::BlockIter {
+    fn block_iter(&self) -> Self::BlockIter<'_> {
         BlockIterator::new(self)
     }
 
-    type Iter = <Self::BlockIter as BlockIterator>::IndexIter;
+    type Iter<'a> = <Self::BlockIter<'a> as BlockIterator>::IndexIter where Self: 'a;
 
     #[inline]
-    fn iter(self) -> Self::Iter {
+    fn iter(&self) -> Self::Iter<'_> {
         self.block_iter().as_indices()
     }
 
+    type IntoBlockIter = <T::Config as IConfig>::DefaultBlockIterator<T>;
+
+    #[inline]
+    fn into_block_iter(self) -> Self::IntoBlockIter {
+        BlockIterator::new(self)
+    }
+
+    #[inline]
     fn contains(&self, index: usize) -> bool {
-        todo!()
+        let (level0_index, level1_index, data_index) = level_indices::<T::Config>(index);
+        unsafe{
+            let data_block = self.data_mask(level0_index, level1_index);
+            data_block.get_bit(data_index)
+        }
     }
 }
+
+
+macro_rules! impl_into_iter {
+    (impl <$($bounds:tt),*> for $t:ty where $($where_bounds:tt)*) => {
+        impl<$($bounds),*> IntoIterator for $t
+        where
+            $($where_bounds)*
+        {
+            type Item = usize;
+            type IntoIter = <<Self as VirtualBitSet>::IntoBlockIter as BlockIterator>::IndexIter;
+
+            #[inline]
+            fn into_iter(self) -> Self::IntoIter {
+                self.into_block_iter().as_indices()
+            }
+        }
+    };
+}
+
+impl_into_iter!(impl<Config> for HiSparseBitset<Config> where Config: IConfig );
+impl_into_iter!(impl<'a, Config> for &'a HiSparseBitset<Config> where Config: IConfig );
+impl_into_iter!(
+    impl<Op, S1, S2> for HiSparseBitsetOp<Op, S1, S2>
+    where
+        Op: BinaryOp,
+        S1: LevelMasksExt3<Config = S2::Config>,
+        S2: LevelMasksExt3
+);
+impl_into_iter!(
+    impl<'a, Op, S1, S2> for &'a HiSparseBitsetOp<Op, S1, S2>
+    where
+        Op: BinaryOp,
+        S1: LevelMasksExt3<Config = S2::Config>,
+        S2: LevelMasksExt3
+);
+impl_into_iter!(
+    impl<Op, S, Storage> for Reduce<Op, S, Storage>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt3,
+        Storage: ReduceCacheImplBuilder
+);
+impl_into_iter!(
+    impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt3,
+        Storage: ReduceCacheImplBuilder
+);

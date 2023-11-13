@@ -40,30 +40,31 @@ type IteratorState  = super::iter::State<Config>;
 #[test]
 fn level_indices_test(){
     // assuming all levels with 128bit blocks
-    type HiSparseBitset = super::HiSparseBitset<configs::_128bit>;
+    type Config  = configs::_128bit;
+    type HiSparseBitset = super::HiSparseBitset<Config>;
 
-    let levels = HiSparseBitset::level_indices(0);
+    let levels = level_indices::<Config>(0);
     assert_eq!(levels, (0,0,0));
 
-    let levels = HiSparseBitset::level_indices(10);
+    let levels = level_indices::<Config>(10);
     assert_eq!(levels, (0,0,10));
 
-    let levels = HiSparseBitset::level_indices(128);
+    let levels = level_indices::<Config>(128);
     assert_eq!(levels, (0,1,0));
 
-    let levels = HiSparseBitset::level_indices(130);
+    let levels = level_indices::<Config>(130);
     assert_eq!(levels, (0,1,2));
 
-    let levels = HiSparseBitset::level_indices(130);
+    let levels = level_indices::<Config>(130);
     assert_eq!(levels, (0,1,2));
 
-    let levels = HiSparseBitset::level_indices(128*128);
+    let levels = level_indices::<Config>(128*128);
     assert_eq!(levels, (1,0,0));
 
-    let levels = HiSparseBitset::level_indices(128*128 + 50*128);
+    let levels = level_indices::<Config>(128*128 + 50*128);
     assert_eq!(levels, (1,50,0));
 
-    let levels = HiSparseBitset::level_indices(128*128 + 50*128 + 4);
+    let levels = level_indices::<Config>(128*128 + 50*128 + 4);
     assert_eq!(levels, (1,50,4));
 }
 

@@ -9,7 +9,7 @@ use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::{DynamicCache, FixedCache, NoCache};
 use crate::iter::{CachingBlockIter, BlockIterator};
-use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};
+use crate::virtual_bitset::{LevelMasksExt3};
 
 #[derive(Clone)]
 #[repr(transparent)]
@@ -505,9 +505,6 @@ where
             data_mask_from_blocks3(level1_blocks, level1_index)
     }
 }
-
-impl<Op, S, Storage> LevelMasksRef for Reduce<Op, S, Storage>{}
-
 
 
 

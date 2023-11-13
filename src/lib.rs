@@ -8,7 +8,7 @@ mod bit_op;
 pub mod configs;
 pub mod binary_op;
 mod reduce2;
-mod virtual_bitset;
+pub mod virtual_bitset;
 mod op;
 pub mod iter;
 pub mod cache;
@@ -69,6 +69,31 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
     let level0_offset = level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT);
     let level1_offset = level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT);
     level0_offset + level1_offset
+}
+
+#[inline]
+fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
+    // this should be const and act as const.
+    // const DATA_BLOCK_SIZE:  usize = 1 << DenseBlock::SIZE_POT_EXPONENT;
+    let DATA_BLOCK_CAPACITY_POT_EXP:  usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
+    // const LEVEL1_BLOCK_SIZE: usize = (1 << Level1Mask::SIZE_POT_EXPONENT) * DATA_BLOCK_SIZE;
+    let LEVEL1_BLOCK_CAPACITY_POT_EXP: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
+                                             + Config::DataBitBlock::SIZE_POT_EXPONENT;
+
+    // index / LEVEL1_BLOCK_SIZE
+    let level0 = index >> LEVEL1_BLOCK_CAPACITY_POT_EXP;
+    // TODO: use remainder % trick here
+    // index - (level0 * LEVEL1_BLOCK_SIZE)
+    let level0_remainder = index - (level0 << LEVEL1_BLOCK_CAPACITY_POT_EXP);
+
+    // level0_remainder / DATA_BLOCK_SIZE
+    let level1 = level0_remainder >> DATA_BLOCK_CAPACITY_POT_EXP;
+    // level0_remainder - (level1 * DATA_BLOCK_SIZE)
+    let level1_remainder = level0_remainder - (level1 << DATA_BLOCK_CAPACITY_POT_EXP);
+
+    let data = level1_remainder;
+
+    (level0, level1, data)
 }
 
 pub const fn max_range<Config: IConfig>() -> usize {
@@ -133,31 +158,6 @@ impl<Config: IConfig> HiSparseBitset<Config> {
     }
 
     #[inline]
-    fn level_indices(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
-        // this should be const and act as const.
-        // const DATA_BLOCK_SIZE:  usize = 1 << DenseBlock::SIZE_POT_EXPONENT;
-        let DATA_BLOCK_CAPACITY_POT_EXP:  usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
-        // const LEVEL1_BLOCK_SIZE: usize = (1 << Level1Mask::SIZE_POT_EXPONENT) * DATA_BLOCK_SIZE;
-        let LEVEL1_BLOCK_CAPACITY_POT_EXP: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
-                                                 + Config::DataBitBlock::SIZE_POT_EXPONENT;
-
-        // index / LEVEL1_BLOCK_SIZE
-        let level0 = index >> LEVEL1_BLOCK_CAPACITY_POT_EXP;
-        // TODO: use remainder % trick here
-        // index - (level0 * LEVEL1_BLOCK_SIZE)
-        let level0_remainder = index - (level0 << LEVEL1_BLOCK_CAPACITY_POT_EXP);
-
-        // level0_remainder / DATA_BLOCK_SIZE
-        let level1 = level0_remainder >> DATA_BLOCK_CAPACITY_POT_EXP;
-        // level0_remainder - (level1 * DATA_BLOCK_SIZE)
-        let level1_remainder = level0_remainder - (level1 << DATA_BLOCK_CAPACITY_POT_EXP);
-
-        let data = level1_remainder;
-
-        (level0, level1, data)
-    }
-
-    #[inline]
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
         -> Option<(Config::Level1BlockIndex, Config::DataBlockIndex)>
     {
@@ -182,7 +182,7 @@ impl<Config: IConfig> HiSparseBitset<Config> {
         assert!(Self::is_in_range(index), "index out of range!");
 
         // That's indices to next level
-        let (level0_index, level1_index, data_index) = Self::level_indices(index);
+        let (level0_index, level1_index, data_index) = level_indices::<Config>(index);
 
         // 1. Level0
         let level1_block_index = unsafe{
@@ -209,7 +209,7 @@ impl<Config: IConfig> HiSparseBitset<Config> {
         }
 
         // 1. Resolve indices
-        let (level0_index, level1_index, data_index) = Self::level_indices(index);
+        let (level0_index, level1_index, data_index) = level_indices::<Config>(index);
         let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
             None => return false,
             Some(value) => value,
@@ -254,21 +254,6 @@ impl<Config: IConfig> HiSparseBitset<Config> {
             unsafe{ std::hint::unreachable_unchecked(); }
         }
     }
-
-    // TODO: move to virtual set.
-    pub fn contains(&self, index: usize) -> bool {
-        let (level0_index, level1_index, data_index) = Self::level_indices(index);
-        let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
-            None => return false,
-            Some(value) => value,
-        };
-
-        // 3. Data level
-        unsafe{
-            let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
-            data_block.contains(data_index)
-        }
-    }
 }
 
 impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
@@ -287,8 +272,7 @@ impl<Config: IConfig, const N: usize> From<[usize; N]> for HiSparseBitset<Config
     }
 }
 
-// Implementing for ref only.
-impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
     type Config = Config;
 
     #[inline]
@@ -314,8 +298,8 @@ impl<'a, Config: IConfig> LevelMasks for &'a HiSparseBitset<Config>{
     }
 }
 
-// Implementing for ref only.
-impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasksExt3 for HiSparseBitset<Config>{
+    /// Points to elements in heap.
     type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;

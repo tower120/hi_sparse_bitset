@@ -8,7 +8,7 @@ use crate::{HiSparseBitset, IConfig};
 use crate::bit_block::BitBlock;
 use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::reduce2::Reduce;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt3, LevelMasksRef};
+use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 
 // TODO: rename to something shorter?
 #[derive(Clone)]
@@ -136,8 +136,6 @@ where
         Op::data_op(m0, m1)
     }
 }
-
-impl<Op, S1, S2> LevelMasksRef for HiSparseBitsetOp<Op, S1, S2>{}
 
 // We need this all because RUST still does not support template/generic specialization.
 macro_rules! impl_op {
