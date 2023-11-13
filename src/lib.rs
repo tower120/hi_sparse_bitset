@@ -1,3 +1,5 @@
+#![cfg_attr(miri, feature(alloc_layout_extra) )]
+
 mod block;
 mod level;
 mod bit_block;
@@ -9,13 +11,13 @@ mod reduce2;
 mod virtual_bitset;
 mod op;
 pub mod iter;
-mod cache;
+pub mod cache;
 
 #[cfg(test)]
 mod test;
 
 use std::{ops::ControlFlow};
-use std::mem::MaybeUninit;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAndAssign, BitXorAssign};
 use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
 
@@ -24,7 +26,6 @@ use level::Level;
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::cache::{CacheStorageBuilder, FixedCache};
 use crate::iter::BlockIterator;
 use crate::reduce2::ReduceCacheImplBuilder;
 use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
@@ -55,11 +56,11 @@ pub trait IConfig: 'static {
     /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
     type DataBlockIndex: MyPrimitive;
 
+    // TODO: remove this?
     // There can be BlockIteratorBuilder as well, but parameterized
     // Iter works too for now.
     type DefaultBlockIterator<T: LevelMasksExt3>: BlockIterator<BitSet = T>;
-    // TODO: remove this?
-    type DefaultCache: CacheStorageBuilder + ReduceCacheImplBuilder;
+    type DefaultCache: ReduceCacheImplBuilder;
 }
 
 // TODO: move somewhere more appropriate
@@ -321,7 +322,7 @@ impl<'a, Config: IConfig> LevelMasksExt3 for &'a HiSparseBitset<Config>{
 
     type CacheData = ();
     fn make_cache(&self) -> Self::CacheData { () }
-    fn drop_cache(&self, _: Self::CacheData) {}
+    fn drop_cache(&self, _: &mut ManuallyDrop<Self::CacheData>) {}
 
     #[inline]
     unsafe fn update_level1_blocks3(

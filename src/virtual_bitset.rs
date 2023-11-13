@@ -2,7 +2,7 @@
 //! [LevelMasksExt]. This guarantees that [DataBitBlock] pointers
 //! will never be invalidated during virtual bitset iteration.
 
-use std::mem::MaybeUninit;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::IConfig;
 use crate::iter::{CachingBlockIter, BlockIterator};
 
@@ -45,7 +45,12 @@ pub trait LevelMasksExt3: LevelMasks{
 
     fn make_cache(&self) -> Self::CacheData;
 
-    fn drop_cache(&self, cache: Self::CacheData);
+    /// Having separate function for drop not strictly necessary, since
+    /// CacheData can actually drop itself. But! This allows not to store cache
+    /// size within CacheData. Which makes FixedCache CacheData ZST, if its childs
+    /// ZST, and which makes cache construction and destruction noop. Which is
+    /// important for short iteration sessions.
+    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>);
 
     /// Update `level1_blocks` and
     /// return (Level1Mask, is_not_empty/valid).
@@ -109,7 +114,7 @@ impl<'a, T: LevelMasksExt3 + LevelMasksRef> LevelMasksExt3 for &'a T {
     }
 
     #[inline]
-    fn drop_cache(&self, cache: Self::CacheData) {
+    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>) {
         <T as LevelMasksExt3>::drop_cache(self, cache)
     }
 

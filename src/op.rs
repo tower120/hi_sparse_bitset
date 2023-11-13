@@ -1,6 +1,7 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
+use std::mem;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
@@ -20,19 +21,6 @@ impl<Op, S1, S2> HiSparseBitsetOp<Op, S1, S2>{
     #[inline]
     pub(crate) fn new(_:Op, s1:S1, s2:S2) -> Self{
         HiSparseBitsetOp{ s1, s2, phantom:PhantomData }
-    }
-}
-
-impl<Op, S1, S2> HiSparseBitsetOp<Op, S1, S2>
-where
-    Op: BinaryOp,
-    S1: LevelMasksExt3,
-    S2: LevelMasksExt3<Config = S1::Config>,
-{
-    // TODO: remove from here.
-    #[inline]
-    pub fn block_iter(self) -> CachingBlockIter<Self> {
-        CachingBlockIter::new(self)
     }
 }
 
@@ -78,7 +66,7 @@ where
     S1: LevelMasksExt3,
     S2: LevelMasksExt3<Config = S1::Config>,
 {
-    type Level1Blocks3 = (MaybeUninit<S1::Level1Blocks3>, MaybeUninit<S2::Level1Blocks3>, bool, bool);
+    type Level1Blocks3 = (MaybeUninit<S1::Level1Blocks3>, MaybeUninit<S2::Level1Blocks3>, MaybeUninit<bool>, MaybeUninit<bool>);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
@@ -90,9 +78,11 @@ where
     }
 
     #[inline]
-    fn drop_cache(&self, cache: Self::CacheData) {
-        self.s1.drop_cache(cache.0);
-        self.s2.drop_cache(cache.1);
+    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>) {
+        unsafe{
+            self.s1.drop_cache(mem::transmute(&mut cache.0));
+            self.s2.drop_cache(mem::transmute(&mut cache.1));
+        }
     }
 
     #[inline]
@@ -113,10 +103,10 @@ where
         let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
         if !IS_INTERSECTION{
         if !S1::EMPTY_LVL1_TOLERANCE {
-            level1_blocks.2 = v1;
+            level1_blocks.2.write(v1);
         }
         if !S2::EMPTY_LVL1_TOLERANCE {
-            level1_blocks.3 = v2;
+            level1_blocks.3.write(v2);
         }
         }
 
@@ -131,13 +121,13 @@ where
         // intersection can never point to empty blocks.
         let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
 
-        let m0 = if S1::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.2{
+        let m0 = if S1::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.2.assume_init(){
             S1::data_mask_from_blocks3(level1_blocks.0.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
         };
 
-        let m1 = if S2::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.3{
+        let m1 = if S2::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.3.assume_init(){
             S2::data_mask_from_blocks3(level1_blocks.1.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
@@ -210,6 +200,7 @@ mod test{
     use itertools::assert_equal;
     use rand::Rng;
     use crate::reduce;
+    use crate::virtual_bitset::VirtualBitSet;
     use super::*;
 
     type HiSparseBitset = crate::HiSparseBitset<crate::configs::_64bit>;

@@ -156,8 +156,7 @@ where
 {
     #[inline]
     fn drop(&mut self) {
-        let cache_date = unsafe{ ManuallyDrop::take(&mut self.cache_data) };
-        self.virtual_set.drop_cache(cache_date);
+        self.virtual_set.drop_cache(&mut self.cache_data);
     }
 }
 

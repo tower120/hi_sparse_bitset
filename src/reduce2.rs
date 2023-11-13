@@ -1,10 +1,13 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
-use std::{mem, ptr};
-use std::mem::MaybeUninit;
+use std::{mem, ptr, slice};
+use std::alloc::{dealloc, Layout};
+use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ops::DerefMut;
+use std::ptr::{drop_in_place, NonNull, null_mut};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
-use crate::cache::{CacheStorage, CacheStorageBuilder, FixedCache, FixedCacheStorage, NoCache};
+use crate::cache::{DynamicCache, FixedCache, NoCache};
 use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::virtual_bitset::{LevelMasksExt3, LevelMasksRef};
 
@@ -75,7 +78,7 @@ pub trait ReduceCacheImpl
     const EMPTY_LVL1_TOLERANCE: bool;
 
     fn make_cache(sets: &Self::Sets) -> Self::CacheData;
-    fn drop_cache(sets: &Self::Sets, cache: Self::CacheData);
+    fn drop_cache(sets: &Self::Sets, cache: &mut ManuallyDrop<Self::CacheData>);
 
     unsafe fn update_level1_blocks3(
         sets: &Self::Sets,
@@ -89,7 +92,7 @@ pub trait ReduceCacheImpl
     ) -> <Self::Config as IConfig>::DataBitBlock;
 }
 
-pub trait ReduceCacheImplBuilder{
+pub trait ReduceCacheImplBuilder: Default + 'static{
     type Impl<Op, S>
         : ReduceCacheImpl<
             Sets = S,
@@ -121,7 +124,7 @@ where
     fn make_cache(_: &Self::Sets) -> Self::CacheData{ () }
 
     #[inline]
-    fn drop_cache(sets: &Self::Sets, _: Self::CacheData) {}
+    fn drop_cache(sets: &Self::Sets, _: &mut ManuallyDrop<Self::CacheData>) {}
 
     #[inline]
     unsafe fn update_level1_blocks3(
@@ -244,6 +247,39 @@ where
     }
 }
 
+#[inline]
+unsafe fn construct_child_cache<Sets>(
+    sets: &Sets,
+    cache_data_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt3>::CacheData>
+)
+where
+    Sets: Iterator + Clone,
+    Sets::Item: LevelMasksExt3
+{
+    let mut index = 0;
+    for  set in sets.clone(){
+        let cache_data_element = &mut *cache_data_ptr.add(index);
+        cache_data_element.write(set.make_cache());
+        index += 1;
+    }
+}
+
+#[inline]
+unsafe fn destruct_child_cache<Sets>(
+    sets: &Sets,
+    cache_data_ptr: *mut ManuallyDrop<<Sets::Item as LevelMasksExt3>::CacheData>
+)
+where
+    Sets: Iterator + Clone,
+    Sets::Item: LevelMasksExt3
+{
+    let mut index = 0;
+    for  set in sets.clone(){
+        let cache_data_element = &mut *cache_data_ptr.add(index);
+        set.drop_cache(cache_data_element);
+        index += 1;
+    }
+}
 
 pub struct FixedCacheImpl<Op, S, const N: usize>(PhantomData<(Op, S)>)
 where
@@ -277,29 +313,16 @@ where
     fn make_cache(sets: &Self::Sets) -> Self::CacheData {
         unsafe{
             let mut cache_data = MaybeUninit::<Self::CacheData>::uninit().assume_init();
-            let mut cache_data_iter = cache_data.iter_mut();
-            for  set in sets.clone(){
-                let cache_data_element =
-                    cache_data_iter.next().unwrap_unchecked();
-                cache_data_element.write(set.make_cache());
-            }
+            construct_child_cache(sets, cache_data.as_mut_ptr());
             mem::transmute(cache_data)
         }
     }
 
     #[inline]
-    fn drop_cache(sets: &Self::Sets, cache: Self::CacheData) {
-        if !mem::needs_drop::<Self::CacheData>(){
-            return;
-        }
-
+    fn drop_cache(sets: &Self::Sets, cache: &mut ManuallyDrop<Self::CacheData>) {
         unsafe{
-            let mut cache_data_iter = cache.into_iter();
-            for  set in sets.clone(){
-                let cache_data_element =
-                    cache_data_iter.next().unwrap_unchecked();
-                set.drop_cache(MaybeUninit::assume_init(cache_data_element));
-            }
+            destruct_child_cache(sets, cache.as_mut_ptr() as *mut _);
+            ManuallyDrop::drop(cache);
         }
     }
 
@@ -340,7 +363,106 @@ impl<const N: usize> ReduceCacheImplBuilder for FixedCache<N>{
         S::Item: LevelMasksExt3;
 }
 
-// TODO: DynamicCache too !!
+pub struct DynamicCacheImpl<Op, S>(PhantomData<(Op, S)>);
+impl<Op, S> ReduceCacheImpl for DynamicCacheImpl<Op, S>
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S::Item: LevelMasksExt3
+{
+    type Config =  <S::Item as LevelMasks>::Config;
+    type Set = S::Item;
+    type Sets = S;
+
+    /// Have two separate storages, to keep local storage tight, and fast to iterate
+    type CacheData = (
+        // self storage (POD elements), never drop.
+        // Do not use Box here, since Rust treat Box as &mut
+        UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksExt3>::Level1Blocks3>>,
+
+        // child cache
+        Box<[ManuallyDrop<<Self::Set as LevelMasksExt3>::CacheData>]>,
+    );
+
+    /// raw slice
+    type Level1Blocks3 = (
+        // This points to CacheData heap
+        *const <Self::Set as LevelMasksExt3>::Level1Blocks3,
+        usize
+    );
+
+    const EMPTY_LVL1_TOLERANCE: bool = false;
+
+    #[inline]
+    fn make_cache(sets: &Self::Sets) -> Self::CacheData {
+        let len = sets.clone().count();
+        let mut child_cache = UniqueArrayPtr::new_uninit(len);
+        unsafe{
+            construct_child_cache(sets, child_cache.as_mut_ptr());
+        }
+
+        // recast MaybeUninit -> ManuallyDrop
+        let child_cache = unsafe{
+            let mut storage = ManuallyDrop::new(child_cache);
+            let storage_ptr = storage.as_mut_ptr() as *mut _;
+            Box::from_raw(
+                slice::from_raw_parts_mut(storage_ptr, len)
+            )
+        };
+
+        (UniqueArrayPtr::new_uninit(len), child_cache)
+    }
+
+    #[inline]
+    fn drop_cache(sets: &Self::Sets, cache: &mut ManuallyDrop<Self::CacheData>) {
+        unsafe{
+            destruct_child_cache(sets, cache.1.as_mut_ptr());
+            ManuallyDrop::drop(cache);
+        }
+    }
+
+    #[inline]
+    unsafe fn update_level1_blocks3(
+        sets: &Self::Sets,
+        cache_data: &mut Self::CacheData,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level0_index: usize
+    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
+        let (storage, child_cache) = cache_data;
+
+        // assume_init_mut array
+        let cache_ptr = child_cache.as_mut_ptr() as *mut _;
+
+        let (mask, len, is_empty) =
+            update_level1_blocks3(Op::default(), sets, cache_ptr, storage.as_mut_ptr(), level0_index);
+
+        level1_blocks.write((
+            // assume_init_ref array
+            storage.as_ptr() as *const _,
+            len
+        ));
+
+        (mask, is_empty)
+    }
+
+    #[inline]
+    unsafe fn data_mask_from_blocks3(
+        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    ) -> <Self::Config as IConfig>::DataBitBlock {
+        let slice = std::slice::from_raw_parts(
+            level1_blocks.0, level1_blocks.1
+        );
+        data_mask_from_blocks3::<Op, Self::Set, Self::Config>(slice, level1_index)
+    }
+}
+
+impl ReduceCacheImplBuilder for DynamicCache{
+    type Impl<Op, S> = DynamicCacheImpl<Op, S>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt3;
+}
 
 
 impl<Op, S, Storage> LevelMasksExt3 for Reduce<Op, S, Storage>
@@ -361,7 +483,7 @@ where
     }
 
     #[inline]
-    fn drop_cache(&self, cache: Self::CacheData) {
+    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>) {
         <Storage::Impl<Op, S> as ReduceCacheImpl>::
             drop_cache(&self.sets, cache)
     }
@@ -385,3 +507,100 @@ where
 }
 
 impl<Op, S, Storage> LevelMasksRef for Reduce<Op, S, Storage>{}
+
+
+
+
+#[inline]
+fn dangling(layout: Layout) -> NonNull<u8>{
+    #[cfg(miri)]
+    {
+        layout.dangling()
+    }
+    #[cfg(not(miri))]
+    {
+        unsafe { NonNull::new_unchecked(layout.align() as *mut u8) }
+    }
+}
+
+
+/// Same as Box<[T]>, but aliasable.
+/// See https://github.com/rust-lang/unsafe-code-guidelines/issues/326
+pub struct UniqueArrayPtr<T>(NonNull<T>, usize);
+impl<T> UniqueArrayPtr<T>{
+    #[inline]
+    pub fn new_uninit(len: usize) -> UniqueArrayPtr<MaybeUninit<T>>{
+        // this is const
+        let layout = Layout::array::<MaybeUninit<T>>(len).unwrap();
+        unsafe{
+            let mem =
+                // Do not alloc ZST.
+                if layout.size() == 0{
+                    dangling(layout).as_ptr()
+                } else {
+                    let mem = std::alloc::alloc(layout);
+                    assert!(mem != null_mut(), "Memory allocation fault.");
+                    mem
+                };
+
+            UniqueArrayPtr(
+                NonNull::new_unchecked(mem as *mut MaybeUninit<T>),
+                len
+            )
+        }
+    }
+
+    #[inline]
+    pub fn as_ptr(&self) -> *const T{
+        self.0.as_ptr() as *const T
+    }
+
+    #[inline]
+    pub fn as_mut_ptr(&mut self) -> *mut T{
+        self.0.as_ptr()
+    }
+
+    #[inline]
+    pub fn as_slice(&self) -> &[T]{
+        unsafe{ slice::from_raw_parts(self.0.as_ptr(), self.1) }
+    }
+
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [T]{
+        unsafe{ slice::from_raw_parts_mut(self.0.as_ptr(), self.1) }
+    }
+
+    /// noop
+    #[inline]
+    pub fn into_boxed_slice(mut self) -> Box<[T]>{
+        unsafe{ Box::from_raw(self.as_mut_slice()) }
+    }
+}
+
+impl<T> UniqueArrayPtr<MaybeUninit<T>>{
+    #[inline]
+    pub unsafe fn assume_init(array: UniqueArrayPtr<MaybeUninit<T>>) -> UniqueArrayPtr<T>{
+        let UniqueArrayPtr(mem, len) = array;
+        UniqueArrayPtr(mem.cast(), len)
+    }
+}
+
+impl<T> Drop for UniqueArrayPtr<T>{
+    #[inline]
+    fn drop(&mut self) {
+        // 1. call destructor
+        if mem::needs_drop::<T>(){
+            unsafe{ drop_in_place(self.as_mut_slice()); }
+        }
+
+        // 2. dealloc
+        unsafe{
+            // we constructed with this layout, it MUST be fine.
+            let layout = Layout::array::<T>(self.1).unwrap_unchecked();
+            // Do not dealloc ZST.
+            if layout.size() != 0{
+                dealloc(self.0.as_ptr() as *mut u8, layout);
+            }
+        }
+    }
+}

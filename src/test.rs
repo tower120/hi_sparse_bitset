@@ -4,6 +4,7 @@ use std::iter::zip;
 use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
+use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::SimpleBlockIter;
 use crate::op::HiSparseBitsetOp;
 use crate::virtual_bitset::VirtualBitSet;
@@ -11,12 +12,25 @@ use crate::virtual_bitset::VirtualBitSet;
 use super::*;
 
 cfg_if::cfg_if! {
-    if #[cfg(hisparsebitset_test_64)] {
-        type Config = configs::_64bit;
-    } else if #[cfg(hisparsebitset_test_128)] {
-        type Config = configs::_128bit;
+    if #[cfg(hisparsebitset_test_NoCache)] {
+        type DefaultCache = cache::NoCache;
+    } else if #[cfg(hisparsebitset_test_FixedCache)] {
+        type DefaultCache = cache::FixedCache<32>;
+    } else if #[cfg(hisparsebitset_test_DynamicCache)] {
+        type DefaultCache = cache::DynamicCache<32>;
     } else {
-        type Config = configs::_128bit;
+        //type DefaultCache = cache::FixedCache<32>;
+        type DefaultCache = cache::DynamicCache;
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(hisparsebitset_test_64)] {
+        type Config = configs::base::_64bit<DefaultCache>;
+    } else if #[cfg(hisparsebitset_test_128)] {
+        type Config = configs::base::_128bit<DefaultCache>;
+    } else {
+        type Config = configs::base::_128bit<DefaultCache>;
     }
 }
 
@@ -480,6 +494,25 @@ fn regression_test1() {
 }
 
 #[test]
+fn resume_valid_level1_index_miri_test(){
+    let s1: HiSparseBitset = [1000, 2000, 3000].into();
+    let s2 = s1.clone();
+
+    let mut list = [s1, s2];
+    let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
+    let state = {
+        let mut i =  r.block_iter();
+        i.next().unwrap();
+        i.suspend()
+    };
+
+    let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
+
+    let mut i = crate::iter::CachingBlockIter::resume(r, state);
+    i.next();
+}
+
+#[test]
 fn remove_regression_test1() {
     let mut hi_set = HiSparseBitset::new();
     hi_set.insert(10000);
@@ -678,4 +711,22 @@ fn op_or_test(){
     let or_collected: Vec<_> = or.block_iter().flat_map(|block|block.iter()).collect();
     assert_equal(or_collected, [1,2,3,4,5,6,7]);
 
+}
+
+#[test]
+fn multilayer_fixed_dynamic_cache(){
+    let seq1: HiSparseBitset = [1,2,3].into();
+    let seq2: HiSparseBitset = [3,4,5].into();
+    let seq3: HiSparseBitset = [5,6,7].into();
+    let seq4: HiSparseBitset = [7,8,9].into();
+
+    let group1 = [seq1, seq2];
+    let group2 = [seq3, seq4];
+    let or1 = reduce_w_cache(BitOrOp, group1.iter(), DynamicCache).unwrap();
+    let or2 = reduce_w_cache(BitOrOp, group2.iter(), DynamicCache).unwrap();
+
+    let group_finale = [or1, or2];
+    let and = reduce_w_cache(BitAndOp, group_finale.iter(), FixedCache::<32>).unwrap();
+
+    assert_equal(and.iter(), [5]);
 }
