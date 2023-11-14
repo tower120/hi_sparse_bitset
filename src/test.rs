@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::SimpleBlockIter;
-use crate::op::HiSparseBitsetOp;
+use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 
 use super::*;
@@ -34,14 +34,14 @@ cfg_if::cfg_if! {
     }
 }
 
-type HiSparseBitset = super::HiSparseBitset<Config>;
+type HiSparseBitset = super::BitSet<Config>;
 type IteratorState  = super::iter::State<Config>;
 
 #[test]
 fn level_indices_test(){
     // assuming all levels with 128bit blocks
     type Config  = configs::_128bit;
-    type HiSparseBitset = super::HiSparseBitset<Config>;
+    type HiSparseBitset = super::BitSet<Config>;
 
     let levels = level_indices::<Config>(0);
     assert_eq!(levels, (0,0,0));
@@ -327,7 +327,7 @@ where
 
             // op
             {
-                fn run<Op, S1, S2>(op: HiSparseBitsetOp<Op, S1, S2>) -> Vec<usize>
+                fn run<Op, S1, S2>(op: BitSetOp<Op, S1, S2>) -> Vec<usize>
                 where
                     Op: BinaryOp,
                     S1: LevelMasksExt,
@@ -346,24 +346,24 @@ where
                     indices2
                 }
 
-                let op = HiSparseBitsetOp::new(hiset_op, &hi_sets[0], &hi_sets[1]);
+                let op = BitSetOp::new(hiset_op, &hi_sets[0], &hi_sets[1]);
                 let indices2 = match hi_sets.len(){
                     2 => {
                         Some(run(op))
                     },
                     3 => {
-                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[2]);
+                        let op = BitSetOp::new(hiset_op, op, &hi_sets[2]);
                         Some(run(op))
                     },
                     4 => {
-                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[2]);
-                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[3]);
+                        let op = BitSetOp::new(hiset_op, op, &hi_sets[2]);
+                        let op = BitSetOp::new(hiset_op, op, &hi_sets[3]);
                         Some(run(op))
                     },
                     5 => {
-                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[2]);
-                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[3]);
-                        let op = HiSparseBitsetOp::new(hiset_op, op, &hi_sets[4]);
+                        let op = BitSetOp::new(hiset_op, op, &hi_sets[2]);
+                        let op = BitSetOp::new(hiset_op, op, &hi_sets[3]);
+                        let op = BitSetOp::new(hiset_op, op, &hi_sets[4]);
                         Some(run(op))
                     },
                     _ => {
@@ -546,7 +546,7 @@ fn reduce2_test() {
 
 #[test]
 fn reduce_or_test(){
-    type HiSparseBitset = super::HiSparseBitset<configs::_64bit>;
+    type HiSparseBitset = super::BitSet<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -584,7 +584,7 @@ fn reduce_or_test(){
 
 #[test]
 fn op_or_regression_test1(){
-    type HiSparseBitset = crate::HiSparseBitset<crate::configs::_64bit>;
+    type HiSparseBitset = crate::BitSet<crate::configs::_64bit>;
     let h1 = HiSparseBitset::from([0]);
     let h2 = HiSparseBitset::from([0]);
     let h3 = HiSparseBitset::from([4096]);
@@ -602,7 +602,7 @@ fn op_or_regression_test1(){
 
 #[test]
 fn reduce_xor_test(){
-    type HiSparseBitset = super::HiSparseBitset<configs::_64bit>;
+    type HiSparseBitset = super::BitSet<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -676,7 +676,7 @@ fn multilayer_test(){
 
 #[test]
 fn multilayer_or_test(){
-    type HiSparseBitset = super::HiSparseBitset<configs::_64bit>;
+    type HiSparseBitset = super::BitSet<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;

@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::{mem, ptr, slice};
 use std::alloc::{dealloc, Layout};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::DerefMut;
 use std::ptr::{drop_in_place, NonNull, null_mut};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
@@ -11,14 +10,17 @@ use crate::cache::{DynamicCache, FixedCache, NoCache};
 use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::bitset_interface::{LevelMasksExt};
 
+/// Sets reduction, as virtual bitset.
+///
+/// Constructed by [reduce()] and [reduce_w_cache()].
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct Reduce<Op, S, Storage> {
+pub struct Reduce<Op, S, Cache> {
     pub(crate) sets: S,
-    pub(crate) phantom: PhantomData<(Op, Storage)>
+    pub(crate) phantom: PhantomData<(Op, Cache)>
 }
 
-impl<Op, S, Storage> LevelMasks for Reduce<Op, S, Storage>
+impl<Op, S, Cache> LevelMasks for Reduce<Op, S, Cache>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
@@ -465,26 +467,26 @@ impl ReduceCacheImplBuilder for DynamicCache{
 }
 
 
-impl<Op, S, Storage> LevelMasksExt for Reduce<Op, S, Storage>
+impl<Op, S, Cache> LevelMasksExt for Reduce<Op, S, Cache>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
-    Storage: ReduceCacheImplBuilder
+    Cache: ReduceCacheImplBuilder
 {
-    type CacheData = <Storage::Impl<Op, S> as ReduceCacheImpl>::CacheData;
-    type Level1Blocks = <Storage::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;
-    const EMPTY_LVL1_TOLERANCE: bool = <Storage::Impl<Op, S> as ReduceCacheImpl>::EMPTY_LVL1_TOLERANCE;
+    type CacheData = <Cache::Impl<Op, S> as ReduceCacheImpl>::CacheData;
+    type Level1Blocks = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;
+    const EMPTY_LVL1_TOLERANCE: bool = <Cache::Impl<Op, S> as ReduceCacheImpl>::EMPTY_LVL1_TOLERANCE;
 
     #[inline]
     fn make_cache(&self) -> Self::CacheData {
-        <Storage::Impl<Op, S> as ReduceCacheImpl>::
+        <Cache::Impl<Op, S> as ReduceCacheImpl>::
             make_cache(&self.sets)
     }
 
     #[inline]
     fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>) {
-        <Storage::Impl<Op, S> as ReduceCacheImpl>::
+        <Cache::Impl<Op, S> as ReduceCacheImpl>::
             drop_cache(&self.sets, cache)
     }
 
@@ -495,13 +497,13 @@ where
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
-        <Storage::Impl<Op, S> as ReduceCacheImpl>::
+        <Cache::Impl<Op, S> as ReduceCacheImpl>::
             update_level1_blocks3(&self.sets, cache_data, level1_blocks, level0_index)
     }
 
     #[inline]
     unsafe fn data_mask_from_blocks(level1_blocks: &Self::Level1Blocks, level1_index: usize) -> <Self::Config as IConfig>::DataBitBlock {
-        <Storage::Impl<Op, S> as ReduceCacheImpl>::
+        <Cache::Impl<Op, S> as ReduceCacheImpl>::
             data_mask_from_blocks3(level1_blocks, level1_index)
     }
 }

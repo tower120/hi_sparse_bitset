@@ -1,9 +1,9 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::{HiSparseBitset, IConfig, level_indices};
+use crate::{BitSet, IConfig, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::iter::{CachingBlockIter, BlockIterator};
-use crate::op::HiSparseBitsetOp;
+use crate::op::BitSetOp;
 use crate::reduce::{Reduce, ReduceCacheImplBuilder};
 
 /// Basic interface for accessing block masks. Can work with [SimpleIter].
@@ -143,7 +143,10 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
 }
 
 
-pub trait BitSetInterface: IntoIterator<Item = usize>{
+// User-side interface
+pub trait BitSetInterface: IntoIterator<Item = usize> + LevelMasksExt{
+    type Config: IConfig;
+
     type BlockIter<'a>: Iterator where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
@@ -160,6 +163,7 @@ impl<T: LevelMasksExt> BitSetInterface for T
 where
     T: IntoIterator<Item = usize>
 {
+    type Config = T::Config;
     type BlockIter<'a> = <T::Config as IConfig>::DefaultBlockIterator<&'a T> where Self: 'a;
 
     #[inline]
@@ -209,17 +213,17 @@ macro_rules! impl_into_iter {
     };
 }
 
-impl_into_iter!(impl<Config> for HiSparseBitset<Config> where Config: IConfig );
-impl_into_iter!(impl<'a, Config> for &'a HiSparseBitset<Config> where Config: IConfig );
+impl_into_iter!(impl<Config> for BitSet<Config> where Config: IConfig );
+impl_into_iter!(impl<'a, Config> for &'a BitSet<Config> where Config: IConfig );
 impl_into_iter!(
-    impl<Op, S1, S2> for HiSparseBitsetOp<Op, S1, S2>
+    impl<Op, S1, S2> for BitSetOp<Op, S1, S2>
     where
         Op: BinaryOp,
         S1: LevelMasksExt<Config = S2::Config>,
         S2: LevelMasksExt
 );
 impl_into_iter!(
-    impl<'a, Op, S1, S2> for &'a HiSparseBitsetOp<Op, S1, S2>
+    impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2>
     where
         Op: BinaryOp,
         S1: LevelMasksExt<Config = S2::Config>,

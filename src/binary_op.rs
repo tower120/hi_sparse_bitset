@@ -1,14 +1,27 @@
+//! Operations for [apply] and [reduce].
+//!
 //! [BitAndOp] is the only operation that can early discard
 //! hierarchy/tree travers. Complexity-wise this is the fastest operation.
 //!
 //! All others does not discard hierarchical tree early.
 //! _[BitOrOp] does not need to discard anything._
+//!
+//! You can make your own operation by implementing [BinaryOp].
+//!
+//! [apply]: crate::apply()
+//! [reduce]: crate::reduce()
 
 use std::ops::{BitAnd, BitOr, BitXor};
 use crate::bit_block::BitBlock;
 
 // TODO: all operations should accept & instead?
 //       To work with [u64;N] more flawlessly?
+/// Binary operation interface for [BitSetInterface]s.
+///
+/// Implement this trait for creating your own operation.
+/// Pay attention to hierarchical nature of `hi_sparse_bitset` - you
+/// may need to apply "broader" operations to "hierarchical blocks", then
+/// to "data blocks".
 pub trait BinaryOp: Default + Copy + 'static{
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;

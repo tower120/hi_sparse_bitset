@@ -4,29 +4,27 @@ use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
-use crate::{HiSparseBitset, IConfig};
+use crate::{BitSet, IConfig};
 use crate::bit_block::BitBlock;
 use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::reduce::Reduce;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
-// TODO: rename to something shorter?
+/// Binary operation application, as virtual set.
 #[derive(Clone)]
-pub struct HiSparseBitsetOp<Op, S1, S2>{
+pub struct BitSetOp<Op, S1, S2>{
     pub(crate) s1: S1,
     pub(crate) s2: S2,
     pub(crate) phantom: PhantomData<Op>
 }
-impl<Op, S1, S2> HiSparseBitsetOp<Op, S1, S2>{
+impl<Op, S1, S2> BitSetOp<Op, S1, S2>{
     #[inline]
     pub(crate) fn new(_:Op, s1:S1, s2:S2) -> Self{
-        HiSparseBitsetOp{ s1, s2, phantom:PhantomData }
+        BitSetOp { s1, s2, phantom:PhantomData }
     }
 }
 
-// TODO: IntoIterator for &BitSet
-
-impl<Op, S1, S2> LevelMasks for HiSparseBitsetOp<Op, S1, S2>
+impl<Op, S1, S2> LevelMasks for BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: LevelMasks,
@@ -60,7 +58,7 @@ where
     }
 }
 
-impl<Op, S1, S2> LevelMasksExt for HiSparseBitsetOp<Op, S1, S2>
+impl<Op, S1, S2> LevelMasksExt for BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: LevelMasksExt,
@@ -140,48 +138,48 @@ where
 // We need this all because RUST still does not support template/generic specialization.
 macro_rules! impl_op {
     ($op_class:ident, $op_fn:ident, $binary_op:ident) => {
-        impl<'a, Config: IConfig, Rhs> $op_class<Rhs> for &'a HiSparseBitset<Config> {
-            type Output = HiSparseBitsetOp<$binary_op, &'a HiSparseBitset<Config>, Rhs>;
+        impl<'a, Config: IConfig, Rhs> $op_class<Rhs> for &'a BitSet<Config> {
+            type Output = BitSetOp<$binary_op, &'a BitSet<Config>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                HiSparseBitsetOp::new($binary_op, self, rhs)
+                BitSetOp::new($binary_op, self, rhs)
             }
         }
 
-        impl<Op, S1, S2, Rhs> $op_class<Rhs> for HiSparseBitsetOp<Op, S1, S2> {
-            type Output = HiSparseBitsetOp<$binary_op, HiSparseBitsetOp<Op, S1, S2>, Rhs>;
+        impl<Op, S1, S2, Rhs> $op_class<Rhs> for BitSetOp<Op, S1, S2> {
+            type Output = BitSetOp<$binary_op, BitSetOp<Op, S1, S2>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                HiSparseBitsetOp::new($binary_op, self, rhs)
+                BitSetOp::new($binary_op, self, rhs)
             }
         }
 
-        impl<'a, Op, S1, S2, Rhs> $op_class<Rhs> for &'a HiSparseBitsetOp<Op, S1, S2> {
-            type Output = HiSparseBitsetOp<$binary_op, &'a HiSparseBitsetOp<Op, S1, S2>, Rhs>;
+        impl<'a, Op, S1, S2, Rhs> $op_class<Rhs> for &'a BitSetOp<Op, S1, S2> {
+            type Output = BitSetOp<$binary_op, &'a BitSetOp<Op, S1, S2>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                HiSparseBitsetOp::new($binary_op, self, rhs)
+                BitSetOp::new($binary_op, self, rhs)
             }
         }
 
         impl<Op, S, Rhs, Storage> $op_class<Rhs> for Reduce<Op, S, Storage> {
-            type Output = HiSparseBitsetOp<$binary_op, Reduce<Op, S, Storage>, Rhs>;
+            type Output = BitSetOp<$binary_op, Reduce<Op, S, Storage>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                HiSparseBitsetOp::new($binary_op, self, rhs)
+                BitSetOp::new($binary_op, self, rhs)
             }
         }
 
         impl<'a, Op, S, Rhs, Storage> $op_class<Rhs> for &'a Reduce<Op, S, Storage> {
-            type Output = HiSparseBitsetOp<$binary_op, &'a Reduce<Op, S, Storage>, Rhs>;
+            type Output = BitSetOp<$binary_op, &'a Reduce<Op, S, Storage>, Rhs>;
 
             #[inline]
             fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                HiSparseBitsetOp::new($binary_op, self, rhs)
+                BitSetOp::new($binary_op, self, rhs)
             }
         }
     }
@@ -201,7 +199,7 @@ mod test{
     use crate::bitset_interface::BitSetInterface;
     use super::*;
 
-    type HiSparseBitset = crate::HiSparseBitset<crate::configs::_64bit>;
+    type HiSparseBitset = crate::BitSet<crate::configs::_64bit>;
 
     #[test]
     fn ops_test(){
@@ -247,7 +245,7 @@ mod test{
         let set3: HashSet<usize> = v3.iter().copied().collect();
         let set4: HashSet<usize> = v4.iter().copied().collect();
 
-        fn test<Op, S1, S2>(h: HiSparseBitsetOp<Op, S1, S2>, s: HashSet<usize>)
+        fn test<Op, S1, S2>(h: BitSetOp<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BinaryOp,
             S1: LevelMasksExt<Config = S2::Config>,

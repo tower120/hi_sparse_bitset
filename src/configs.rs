@@ -1,8 +1,12 @@
+//! Configurations for [BitSet].
+//!
 //! The smaller the block size - the lower `HiSparseBitset` memory footprint.
 //!
 //! For your task, you can make specialized config. For example, if you're
 //! not limited by MAX index, and know that your indices will be dense,
 //! you can try 64/64/256 bit levels.
+//!
+//! [BitSet]: crate::BitSet
 
 use crate::cache;
 use crate::IConfig;

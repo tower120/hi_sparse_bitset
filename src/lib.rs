@@ -31,6 +31,8 @@ use crate::reduce::ReduceCacheImplBuilder;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use bitset_interface::BitSetInterface;
+pub use op::BitSetOp;
+pub use reduce::Reduce;
 
 
 /// Use any other operation then intersection(and) require
@@ -98,10 +100,20 @@ fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*leve
     (level0, level1, data)
 }
 
+/// Max usize, [BitSet] with `Config` can hold.
 pub const fn max_range<Config: IConfig>() -> usize {
-    (1 << Config::Level0BitBlock::SIZE_POT_EXPONENT)
-    * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
-    * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT)
+    let mut max_range = (1 << Config::Level0BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT);
+
+    if !INTERSECTION_ONLY{
+        // We occupy one block for "empty" at each level, except root.
+        max_range
+            - (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
+            - (1 << Config::DataBitBlock::SIZE_POT_EXPONENT);
+    }
+
+    max_range
 }
 
 type Level1Block<Config> = Block<
@@ -114,20 +126,22 @@ type LevelDataBlock<Config> = Block<
     <Config as IConfig>::DataBitBlock, usize, [usize;0]
 >;
 
-/// Hierarchical sparse bitset. Tri-level hierarchy. Highest uint it can hold
+/// Hierarchical sparse bitset.
+///
+/// Tri-level hierarchy. Highest uint it can hold
 /// is Level0Mask * Level1Mask * DenseBlock.
 ///
 /// Only last level contains blocks of actual data. Empty(skipped) data blocks
 /// are not allocated.
 ///
 /// Structure optimized for intersection speed. Insert/remove/contains is fast O(1) too.
-pub struct HiSparseBitset<Config: IConfig>{
+pub struct BitSet<Config: IConfig>{
     level0: Block<Config::Level0BitBlock, Config::Level1BlockIndex, Config::Level0BlockIndices>,
     level1: Level<Level1Block<Config>,    Config::Level1BlockIndex>,
     data  : Level<LevelDataBlock<Config>, Config::DataBlockIndex>,
 }
 
-impl<Config: IConfig> Default for HiSparseBitset<Config> {
+impl<Config: IConfig> Default for BitSet<Config> {
     #[inline]
     fn default() -> Self{
         Self{
@@ -138,7 +152,7 @@ impl<Config: IConfig> Default for HiSparseBitset<Config> {
     }
 }
 
-impl<Config: IConfig> Clone for HiSparseBitset<Config> {
+impl<Config: IConfig> Clone for BitSet<Config> {
     fn clone(&self) -> Self {
         Self{
             level0: self.level0.clone(),
@@ -148,7 +162,7 @@ impl<Config: IConfig> Clone for HiSparseBitset<Config> {
     }
 }
 
-impl<Config: IConfig> HiSparseBitset<Config> {
+impl<Config: IConfig> BitSet<Config> {
     #[inline]
     pub fn new() -> Self{
         Self::default()
@@ -258,7 +272,7 @@ impl<Config: IConfig> HiSparseBitset<Config> {
     }
 }
 
-impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
+impl<Config: IConfig> FromIterator<usize> for BitSet<Config> {
     fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
         let mut this = Self::default();
         for i in iter{
@@ -268,13 +282,13 @@ impl<Config: IConfig> FromIterator<usize> for HiSparseBitset<Config> {
     }
 }
 
-impl<Config: IConfig, const N: usize> From<[usize; N]> for HiSparseBitset<Config> {
+impl<Config: IConfig, const N: usize> From<[usize; N]> for BitSet<Config> {
     fn from(value: [usize; N]) -> Self {
         Self::from_iter(value.into_iter())
     }
 }
 
-impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasks for BitSet<Config>{
     type Config = Config;
 
     #[inline]
@@ -300,7 +314,7 @@ impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
     }
 }
 
-impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasksExt for BitSet<Config>{
     /// Points to elements in heap.
     type Level1Blocks = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
 
@@ -393,8 +407,28 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     }
 }
 
-/// `sets` iterator must be cheap to clone.
-/// It will be cloned AT LEAST once for each returned block during iteration.
+/// Creates a virtual bitset, as [BinaryOp] application between two sets.
+#[inline]
+pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetOp<Op, S1, S2>
+where
+    Op: BinaryOp,
+    S1: BitSetInterface,
+    S2: BitSetInterface<Config = <S1 as BitSetInterface>::Config>,
+{
+    BitSetOp::new(op, s1, s2)
+}
+
+/// Creates a virtual bitset, as sets iterator reduction.
+///
+/// If the `sets` is empty - returns `None`; otherwise - returns the resulting
+/// virtual bitset.
+///
+/// `sets` iterator must be cheap to clone (slice iterator is good example).
+/// It will be cloned AT LEAST once for each returned [DataBlock] during iteration.
+///
+/// # Safety
+///
+/// Panics during iteration, if [Config::DefaultCache] is smaller then sets len.
 #[inline]
 pub fn reduce<Config, Op, S>(op: Op, sets: S)
     -> Option<reduce::Reduce<Op, S, Config::DefaultCache>>
@@ -402,35 +436,30 @@ where
     Config:IConfig,
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasks/*Ext*/<Config = Config>,
+    S::Item: BitSetInterface<Config = Config>,
 {
     reduce_w_cache(op, sets, Default::default())
 }
 
-/// Reduce using specific Cache type for iteration.
+/// [reduce], using specific `Cache` for iteration.
 ///
-/// Presumably, you only need this if you working with large number of sets, and you
-/// don't fit in default cache constraints (you want to increase cache size).
-/// Or if you somehow have deep hierarchy of reduces (reduce on reduce on reduce, and so on)
-/// and you're out of stack space (you want to decrease cache size).
+/// Cache applied to current operation only, so you can combine different cache
+/// types. Alternatively, you can change [Config::DefaultCache] and use [reduce()].
 ///
-/// Cache applied to current sets only, so you can combine different cache
-/// types.
-///
-/// TODO: See cache.
+/// See [mod@cache].
 ///
 /// # Safety
 ///
 /// Panics during iteration, if Cache is smaller then sets len.
 ///
-/// TODO: Move that check into construction?
+/// [reduce]: reduce()
 #[inline]
 pub fn reduce_w_cache<Op, S, Cache>(_: Op, sets: S, _: Cache)
     -> Option<reduce::Reduce<Op, S, Cache>>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasks/*Ext*/,
+    S::Item: BitSetInterface,
 {
     if sets.clone().next().is_none(){
         return None;
