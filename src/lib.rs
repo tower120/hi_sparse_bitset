@@ -7,8 +7,8 @@ mod bit_queue;
 mod bit_op;
 pub mod configs;
 pub mod binary_op;
-mod reduce2;
-pub mod virtual_bitset;
+mod reduce;
+mod bitset_interface;
 mod op;
 pub mod iter;
 pub mod cache;
@@ -27,8 +27,10 @@ use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::iter::BlockIterator;
-use crate::reduce2::ReduceCacheImplBuilder;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
+use crate::reduce::ReduceCacheImplBuilder;
+use crate::bitset_interface::{LevelMasks, LevelMasksExt};
+
+pub use bitset_interface::BitSetInterface;
 
 
 /// Use any other operation then intersection(and) require
@@ -37,8 +39,8 @@ use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
 /// Second variant in use now.
 const INTERSECTION_ONLY: bool = false;
 
-pub trait MyPrimitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
-impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> MyPrimitive for T{}
+pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
+impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> Primitive for T{}
 
 pub trait IConfig: 'static {
     type Level0BitBlock: BitBlock + Default;
@@ -47,19 +49,19 @@ pub trait IConfig: 'static {
     type Level0BlockIndices: AsRef<[Self::Level1BlockIndex]> + AsMut<[Self::Level1BlockIndex]> + Clone;
 
     type Level1BitBlock: BitBlock + Default;
-    type Level1BlockIndex: MyPrimitive;
+    type Level1BlockIndex: Primitive;
     /// Must be big enough to accommodate at least Level1BitBlock::SIZE.
     /// Must be [Self::DataBlockIndex; 1 << Level1BitBlock::SIZE_POT_EXPONENT]
     type Level1BlockIndices: AsRef<[Self::DataBlockIndex]> + AsMut<[Self::DataBlockIndex]> + Clone;
 
     type DataBitBlock: BitBlock + Default;
     /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
-    type DataBlockIndex: MyPrimitive;
+    type DataBlockIndex: Primitive;
 
     // TODO: remove this?
     // There can be BlockIteratorBuilder as well, but parameterized
     // Iter works too for now.
-    type DefaultBlockIterator<T: LevelMasksExt3>: BlockIterator<BitSet = T>;
+    type DefaultBlockIterator<T: LevelMasksExt>: BlockIterator<BitSet = T>;
     type DefaultCache: ReduceCacheImplBuilder;
 }
 
@@ -298,9 +300,9 @@ impl<Config: IConfig> LevelMasks for HiSparseBitset<Config>{
     }
 }
 
-impl<Config: IConfig> LevelMasksExt3 for HiSparseBitset<Config>{
+impl<Config: IConfig> LevelMasksExt for HiSparseBitset<Config>{
     /// Points to elements in heap.
-    type Level1Blocks3 = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
+    type Level1Blocks = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
@@ -309,10 +311,10 @@ impl<Config: IConfig> LevelMasksExt3 for HiSparseBitset<Config>{
     fn drop_cache(&self, _: &mut ManuallyDrop<Self::CacheData>) {}
 
     #[inline]
-    unsafe fn update_level1_blocks3(
+    unsafe fn update_level1_blocks(
         &self,
         _: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);
@@ -325,8 +327,8 @@ impl<Config: IConfig> LevelMasksExt3 for HiSparseBitset<Config>{
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks3(
-        /*&self,*/ level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    unsafe fn data_mask_from_blocks(
+        /*&self,*/ level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> Config::DataBitBlock {
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;
@@ -395,7 +397,7 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
 /// It will be cloned AT LEAST once for each returned block during iteration.
 #[inline]
 pub fn reduce<Config, Op, S>(op: Op, sets: S)
-    -> Option<reduce2::Reduce<Op, S, Config::DefaultCache>>
+    -> Option<reduce::Reduce<Op, S, Config::DefaultCache>>
 where
     Config:IConfig,
     Op: BinaryOp,
@@ -424,7 +426,7 @@ where
 /// TODO: Move that check into construction?
 #[inline]
 pub fn reduce_w_cache<Op, S, Cache>(_: Op, sets: S, _: Cache)
-    -> Option<reduce2::Reduce<Op, S, Cache>>
+    -> Option<reduce::Reduce<Op, S, Cache>>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
@@ -433,7 +435,7 @@ where
     if sets.clone().next().is_none(){
         return None;
     }
-    Some(reduce2::Reduce{ sets, phantom: Default::default() })
+    Some(reduce::Reduce{ sets, phantom: Default::default() })
 }
 
 // TODO: Do we need fold as well?

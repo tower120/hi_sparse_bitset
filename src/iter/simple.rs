@@ -3,9 +3,11 @@ use super::*;
 /// Simple iterator - access each data block, by traversing all hierarchy
 /// levels indirections each time.
 ///
-/// Does not cache intermediate level1 position - hence have MUCH smaller size.
-/// May have similar to [IndexIter] performance on very sparse sets.
+/// Does not cache intermediate level1 position - hence have smaller size.
+/// All Cache parameters will be ignored. Consider using [CachingIterator]
+/// with [cache::NoCache] instead.
 ///
+/// May have similar to [CachingIterator] performance on very sparse sets.
 pub struct SimpleBlockIter<T>
 where
     T: LevelMasks,
@@ -16,7 +18,7 @@ where
 
 impl<T> BlockIterator for SimpleBlockIter<T>
 where
-    T: LevelMasksExt3
+    T: LevelMasksExt
 {
     type BitSet = T;
 

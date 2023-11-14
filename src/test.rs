@@ -7,7 +7,7 @@ use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::SimpleBlockIter;
 use crate::op::HiSparseBitsetOp;
-use crate::virtual_bitset::VirtualBitSet;
+use crate::bitset_interface::BitSetInterface;
 
 use super::*;
 
@@ -330,8 +330,8 @@ where
                 fn run<Op, S1, S2>(op: HiSparseBitsetOp<Op, S1, S2>) -> Vec<usize>
                 where
                     Op: BinaryOp,
-                    S1: LevelMasksExt3,
-                    S2: LevelMasksExt3<Config = S1::Config>,
+                    S1: LevelMasksExt,
+                    S2: LevelMasksExt<Config = S1::Config>,
                 {
                     let mut indices2 = Vec::new();
                     for block in op.block_iter(){

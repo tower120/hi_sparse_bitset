@@ -1,10 +1,10 @@
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit, size_of};
 use crate::bit_op::{one_bits_iter, OneBitsIter};
-use crate::MyPrimitive;
+use crate::Primitive;
 
 #[inline]
-fn mask_out<P: MyPrimitive>(bit_block_iter: &mut OneBitsIter<P>, mask: P) {
+fn mask_out<P: Primitive>(bit_block_iter: &mut OneBitsIter<P>, mask: P) {
     let block: &mut P = unsafe{
         mem::transmute(bit_block_iter)
     };
@@ -52,7 +52,7 @@ impl<P> PrimitiveBitQueue<P>{
 
 impl<P> BitQueue for PrimitiveBitQueue<P>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     fn empty() -> Self {
@@ -75,7 +75,7 @@ where
 
 impl<P> Iterator for PrimitiveBitQueue<P>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     type Item = usize;
 
@@ -97,7 +97,7 @@ pub struct ArrayBitQueue<P, const N: usize>{
 
 impl<P, const N: usize> ArrayBitQueue<P, N>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     pub fn new(array: [P;N]) -> Self{
@@ -117,7 +117,7 @@ where
 
 impl<P, const N: usize> BitQueue for ArrayBitQueue<P, N>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     fn empty() -> Self {
@@ -157,7 +157,7 @@ where
 
 impl<P, const N: usize> Iterator for ArrayBitQueue<P, N>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     type Item = usize;
 
@@ -192,7 +192,7 @@ pub struct ArrayBitQueue2<P, const N: usize, const N_1: usize>{
 
 impl<P, const N: usize, const N_1: usize> ArrayBitQueue2<P, N, N_1>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     pub fn new(array: [P;N]) -> Self{
@@ -214,7 +214,7 @@ where
 
 impl<P, const N: usize, const N_1: usize> BitQueue for ArrayBitQueue2<P, N, N_1>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     fn empty() -> Self {
@@ -255,7 +255,7 @@ where
 
 impl<P, const N: usize, const N_1: usize> Iterator for ArrayBitQueue2<P, N, N_1>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     type Item = usize;
 
@@ -285,7 +285,7 @@ pub struct ArrayBitQueue3<P, const N: usize>{
 
 impl<P, const N: usize> ArrayBitQueue3<P, N>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     pub fn new(array: [P;N]) -> Self{
@@ -302,7 +302,7 @@ where
 
 impl<P, const N: usize> BitQueue for ArrayBitQueue3<P, N>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     #[inline]
     fn empty() -> Self {
@@ -337,7 +337,7 @@ where
 
 impl<P, const N: usize> Iterator for ArrayBitQueue3<P, N>
 where
-    P: MyPrimitive
+    P: Primitive
 {
     type Item = usize;
 

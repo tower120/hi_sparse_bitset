@@ -1,8 +1,10 @@
 use std::ops::ControlFlow;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use hibitset::BitSetLike;
 use hi_sparse_bitset::{HiSparseBitset, IConfig, reduce};
 use hi_sparse_bitset::binary_op::*;
-use hi_sparse_bitset::iter::SimpleBlockIter;
+use hi_sparse_bitset::iter::{BlockIterator, SimpleBlockIter};
+use hi_sparse_bitset::BitSetInterface;
 
 fn hi_sparse_bitset_reduce_or_iter<Conf: IConfig>(sets: &[HiSparseBitset<Conf>]) -> usize {
     use ControlFlow::*;

@@ -7,8 +7,8 @@ use crate::binary_op::*;
 use crate::{HiSparseBitset, IConfig};
 use crate::bit_block::BitBlock;
 use crate::iter::{CachingBlockIter, BlockIterator};
-use crate::reduce2::Reduce;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
+use crate::reduce::Reduce;
+use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 // TODO: rename to something shorter?
 #[derive(Clone)]
@@ -60,13 +60,13 @@ where
     }
 }
 
-impl<Op, S1, S2> LevelMasksExt3 for HiSparseBitsetOp<Op, S1, S2>
+impl<Op, S1, S2> LevelMasksExt for HiSparseBitsetOp<Op, S1, S2>
 where
     Op: BinaryOp,
-    S1: LevelMasksExt3,
-    S2: LevelMasksExt3<Config = S1::Config>,
+    S1: LevelMasksExt,
+    S2: LevelMasksExt<Config = S1::Config>,
 {
-    type Level1Blocks3 = (MaybeUninit<S1::Level1Blocks3>, MaybeUninit<S2::Level1Blocks3>, MaybeUninit<bool>, MaybeUninit<bool>);
+    type Level1Blocks = (MaybeUninit<S1::Level1Blocks>, MaybeUninit<S2::Level1Blocks>, MaybeUninit<bool>, MaybeUninit<bool>);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
@@ -86,17 +86,17 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_blocks3(
+    unsafe fn update_level1_blocks(
         &self,
         cache_data: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         let level1_blocks = level1_blocks.assume_init_mut();
-        let (mask1, v1) = self.s1.update_level1_blocks3(
+        let (mask1, v1) = self.s1.update_level1_blocks(
             &mut cache_data.0, &mut level1_blocks.0, level0_index
         );
-        let (mask2, v2) = self.s2.update_level1_blocks3(
+        let (mask2, v2) = self.s2.update_level1_blocks(
             &mut cache_data.1, &mut level1_blocks.1, level0_index
         );
 
@@ -115,20 +115,20 @@ where
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks3(
-        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    unsafe fn data_mask_from_blocks(
+        level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock {
         // intersection can never point to empty blocks.
         let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
 
         let m0 = if S1::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.2.assume_init(){
-            S1::data_mask_from_blocks3(level1_blocks.0.assume_init_ref(), level1_index)
+            S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
         };
 
         let m1 = if S2::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.3.assume_init(){
-            S2::data_mask_from_blocks3(level1_blocks.1.assume_init_ref(), level1_index)
+            S2::data_mask_from_blocks(level1_blocks.1.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
         };
@@ -198,7 +198,7 @@ mod test{
     use itertools::assert_equal;
     use rand::Rng;
     use crate::reduce;
-    use crate::virtual_bitset::VirtualBitSet;
+    use crate::bitset_interface::BitSetInterface;
     use super::*;
 
     type HiSparseBitset = crate::HiSparseBitset<crate::configs::_64bit>;
@@ -250,8 +250,8 @@ mod test{
         fn test<Op, S1, S2>(h: HiSparseBitsetOp<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BinaryOp,
-            S1: LevelMasksExt3<Config = S2::Config>,
-            S2: LevelMasksExt3,
+            S1: LevelMasksExt<Config = S2::Config>,
+            S2: LevelMasksExt,
         {
             let hv: Vec<usize> = h.block_iter()
                 .flat_map(|block| block.iter())

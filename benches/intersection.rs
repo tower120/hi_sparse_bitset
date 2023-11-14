@@ -189,7 +189,6 @@ pub fn bench_iter(c: &mut Criterion) {
 
     c.bench_function("hi_sparse_bitset_op_and_simple_iter", |b| b.iter(|| hi_sparse_bitset_op_and_simple_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_op_and_caching_iter", |b| b.iter(|| hi_sparse_bitset_op_and_caching_iter(black_box(&hi_sparse_sets))));
-    return;
 
     c.bench_function("hi_sparse_bitset_reduce_and_simple_block_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_simple_block_iter(black_box(&hi_sparse_sets))));
     c.bench_function("hi_sparse_bitset_reduce_and_block_caching_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_block_caching_iter(black_box(&hi_sparse_sets))));

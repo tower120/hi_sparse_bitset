@@ -9,7 +9,7 @@ use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::{DynamicCache, FixedCache, NoCache};
 use crate::iter::{CachingBlockIter, BlockIterator};
-use crate::virtual_bitset::{LevelMasksExt3};
+use crate::bitset_interface::{LevelMasksExt};
 
 #[derive(Clone)]
 #[repr(transparent)]
@@ -69,7 +69,7 @@ where
 pub trait ReduceCacheImpl
 {
     type Config: IConfig;
-    type Set: LevelMasksExt3<Config = Self::Config>;
+    type Set: LevelMasksExt<Config = Self::Config>;
     type Sets: Iterator<Item = Self::Set> + Clone;
 
     type CacheData;
@@ -101,7 +101,7 @@ pub trait ReduceCacheImplBuilder: Default + 'static{
     where
         Op: BinaryOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt3;
+        S::Item: LevelMasksExt;
 }
 
 pub struct NonCachedImpl<Op, T>(PhantomData<(Op, T)>);
@@ -109,7 +109,7 @@ impl<Op, S> ReduceCacheImpl for NonCachedImpl<Op, S>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasksExt3,
+    S::Item: LevelMasksExt,
 {
     type Config = <S::Item as LevelMasks>::Config;
     type Set = S::Item;
@@ -157,22 +157,22 @@ impl ReduceCacheImplBuilder for NoCache{
     where
         Op: BinaryOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt3;
+        S::Item: LevelMasksExt;
 }
 
 #[inline(always)]
 unsafe fn update_level1_blocks3<Op, Config, Sets>(
     _: Op,
     sets: &Sets,
-    cache_ptr: *mut <Sets::Item as LevelMasksExt3>::CacheData,
-    level1_blocks_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt3>::Level1Blocks3>,
+    cache_ptr: *mut <Sets::Item as LevelMasksExt>::CacheData,
+    level1_blocks_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt>::Level1Blocks>,
     level0_index: usize
 ) -> (<Config as IConfig>::Level1BitBlock, usize/*len*/, bool/*is_empty*/)
 where
     Op: BinaryOp,
     Config: IConfig,
     Sets: Iterator + Clone,
-    Sets::Item: LevelMasksExt3<Config = Config>,
+    Sets::Item: LevelMasksExt<Config = Config>,
 {
     // TODO: try actual const.
     // intersection case can be optimized, since we know
@@ -188,7 +188,7 @@ where
     let mask =
         sets.clone()
         .map(|set|{
-            let (level1_mask, valid) = set.update_level1_blocks3(
+            let (level1_mask, valid) = set.update_level1_blocks(
                 &mut *cache_ptr.add(cache_index),
                 &mut *level1_blocks_ptr.add(index),
                 level0_index
@@ -225,18 +225,18 @@ where
 #[inline]
 unsafe fn data_mask_from_blocks3<Op, Set, Config>(
     //_: Op,
-    slice: &[Set::Level1Blocks3],
+    slice: &[Set::Level1Blocks],
     level1_index: usize
 ) -> <Config as IConfig>::DataBitBlock
 where
     Op: BinaryOp,
     Config: IConfig,
-    Set: LevelMasksExt3<Config = Config>,
+    Set: LevelMasksExt<Config = Config>,
 {
     unsafe{
         slice.iter()
             .map(|set_level1_blocks|
-                <Set as LevelMasksExt3>::data_mask_from_blocks3(
+                <Set as LevelMasksExt>::data_mask_from_blocks(
                     set_level1_blocks, level1_index
                 )
             )
@@ -250,11 +250,11 @@ where
 #[inline]
 unsafe fn construct_child_cache<Sets>(
     sets: &Sets,
-    cache_data_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt3>::CacheData>
+    cache_data_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt>::CacheData>
 )
 where
     Sets: Iterator + Clone,
-    Sets::Item: LevelMasksExt3
+    Sets::Item: LevelMasksExt
 {
     let mut index = 0;
     for  set in sets.clone(){
@@ -267,11 +267,11 @@ where
 #[inline]
 unsafe fn destruct_child_cache<Sets>(
     sets: &Sets,
-    cache_data_ptr: *mut ManuallyDrop<<Sets::Item as LevelMasksExt3>::CacheData>
+    cache_data_ptr: *mut ManuallyDrop<<Sets::Item as LevelMasksExt>::CacheData>
 )
 where
     Sets: Iterator + Clone,
-    Sets::Item: LevelMasksExt3
+    Sets::Item: LevelMasksExt
 {
     let mut index = 0;
     for  set in sets.clone(){
@@ -285,13 +285,13 @@ pub struct FixedCacheImpl<Op, S, const N: usize>(PhantomData<(Op, S)>)
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasksExt3;
+    S::Item: LevelMasksExt;
 
 impl<Op, S, const N: usize> ReduceCacheImpl for FixedCacheImpl<Op, S, N>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasksExt3,
+    S::Item: LevelMasksExt,
 {
     type Config = <S::Item as LevelMasks>::Config;
     type Set = S::Item;
@@ -299,11 +299,11 @@ where
 
     /// We use Level1Blocks3 directly, but childs may have data.
     /// Will be ZST, if no-one use. size = sets.len().
-    type CacheData = [MaybeUninit<<Self::Set as LevelMasksExt3>::CacheData>; N];
+    type CacheData = [MaybeUninit<<Self::Set as LevelMasksExt>::CacheData>; N];
 
     /// Never drop, since array contain primitives, or array of primitives.
     type Level1Blocks3 = (
-        [MaybeUninit<<Self::Set as LevelMasksExt3>::Level1Blocks3>; N],
+        [MaybeUninit<<Self::Set as LevelMasksExt>::Level1Blocks>; N],
         usize
     );
 
@@ -335,7 +335,7 @@ where
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         let (level1_blocks_storage, level1_blocks_len) = level1_blocks.assume_init_mut();
         // assume_init_mut array
-        let cache_ptr = cache_data.as_mut_ptr() as *mut <Self::Set as LevelMasksExt3>::CacheData;
+        let cache_ptr = cache_data.as_mut_ptr() as *mut <Self::Set as LevelMasksExt>::CacheData;
 
         let (mask, len, is_empty) =
             update_level1_blocks3(Op::default(), sets, cache_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
@@ -348,7 +348,7 @@ where
         level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
-            level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt3>::Level1Blocks3,
+            level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt>::Level1Blocks,
             level1_blocks.1
         );
         data_mask_from_blocks3::<Op, Self::Set, Self::Config>(slice, level1_index)
@@ -360,7 +360,7 @@ impl<const N: usize> ReduceCacheImplBuilder for FixedCache<N>{
     where
         Op: BinaryOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt3;
+        S::Item: LevelMasksExt;
 }
 
 pub struct DynamicCacheImpl<Op, S>(PhantomData<(Op, S)>);
@@ -368,7 +368,7 @@ impl<Op, S> ReduceCacheImpl for DynamicCacheImpl<Op, S>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasksExt3
+    S::Item: LevelMasksExt
 {
     type Config =  <S::Item as LevelMasks>::Config;
     type Set = S::Item;
@@ -378,16 +378,16 @@ where
     type CacheData = (
         // self storage (POD elements), never drop.
         // Do not use Box here, since Rust treat Box as &mut
-        UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksExt3>::Level1Blocks3>>,
+        UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksExt>::Level1Blocks>>,
 
         // child cache
-        Box<[ManuallyDrop<<Self::Set as LevelMasksExt3>::CacheData>]>,
+        Box<[ManuallyDrop<<Self::Set as LevelMasksExt>::CacheData>]>,
     );
 
     /// raw slice
     type Level1Blocks3 = (
         // This points to CacheData heap
-        *const <Self::Set as LevelMasksExt3>::Level1Blocks3,
+        *const <Self::Set as LevelMasksExt>::Level1Blocks,
         usize
     );
 
@@ -461,19 +461,19 @@ impl ReduceCacheImplBuilder for DynamicCache{
     where
         Op: BinaryOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt3;
+        S::Item: LevelMasksExt;
 }
 
 
-impl<Op, S, Storage> LevelMasksExt3 for Reduce<Op, S, Storage>
+impl<Op, S, Storage> LevelMasksExt for Reduce<Op, S, Storage>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: LevelMasksExt3,
+    S::Item: LevelMasksExt,
     Storage: ReduceCacheImplBuilder
 {
     type CacheData = <Storage::Impl<Op, S> as ReduceCacheImpl>::CacheData;
-    type Level1Blocks3 = <Storage::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;
+    type Level1Blocks = <Storage::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;
     const EMPTY_LVL1_TOLERANCE: bool = <Storage::Impl<Op, S> as ReduceCacheImpl>::EMPTY_LVL1_TOLERANCE;
 
     #[inline]
@@ -489,10 +489,10 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_blocks3(
+    unsafe fn update_level1_blocks(
         &self,
         cache_data: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
         <Storage::Impl<Op, S> as ReduceCacheImpl>::
@@ -500,7 +500,7 @@ where
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks3(level1_blocks: &Self::Level1Blocks3, level1_index: usize) -> <Self::Config as IConfig>::DataBitBlock {
+    unsafe fn data_mask_from_blocks(level1_blocks: &Self::Level1Blocks, level1_index: usize) -> <Self::Config as IConfig>::DataBitBlock {
         <Storage::Impl<Op, S> as ReduceCacheImpl>::
             data_mask_from_blocks3(level1_blocks, level1_index)
     }

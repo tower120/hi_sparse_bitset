@@ -6,7 +6,7 @@ use crate::{data_block_start_index, DataBlock, DataBlockIter, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::block::Block;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
+use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use caching::{CachingBlockIter, CachingIndexIter};
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
@@ -80,7 +80,7 @@ pub trait BlockIterator
     + Sized
 {
     // TODO: rename latter
-    type BitSet: LevelMasksExt3;
+    type BitSet: LevelMasksExt;
 
     fn new(virtual_set: Self::BitSet) -> Self;
 

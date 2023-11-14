@@ -1,7 +1,7 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::virtual_bitset::LevelMasksExt3;
+use crate::bitset_interface::LevelMasksExt;
 use super::*;
 
 /// Caching iterator.
@@ -11,6 +11,8 @@ use super::*;
 /// (See [binary_op] - this have no effect for AND operation, but can speed up all other)
 ///
 /// # Real performance
+///
+/// ?? Inaccurate data ??
 ///
 /// Thou, this iterator has algorithmically lower complexity, then [SimpleBlockIter],
 /// due to the fact that modern processors are able to cache and access 1-indirection
@@ -33,18 +35,18 @@ use super::*;
 /// [reduce cache]: crate::cache
 pub struct CachingBlockIter<T>
 where
-    T: LevelMasksExt3,
+    T: LevelMasksExt,
 {
     virtual_set: T,
     state: State<T::Config>,
     cache_data: ManuallyDrop<T::CacheData>,
     /// Never drop - since we're guaranteed to have them POD.
-    level1_blocks: MaybeUninit<T::Level1Blocks3>,
+    level1_blocks: MaybeUninit<T::Level1Blocks>,
 }
 
 impl<T> BlockIterator for CachingBlockIter<T>
 where
-    T: LevelMasksExt3,
+    T: LevelMasksExt,
 {
     type BitSet = T;
 
@@ -70,7 +72,7 @@ where
         let mut level1_blocks = MaybeUninit::uninit();
         let lvl1_mask_gen = |index| unsafe {
             // Generate both mask and level1_blocks cache
-            let (mask, valid) = virtual_set.update_level1_blocks3(
+            let (mask, valid) = virtual_set.update_level1_blocks(
                 &mut cache_data, &mut level1_blocks, index
             );
             if !valid {
@@ -106,7 +108,7 @@ where
 
 impl<T> Iterator for CachingBlockIter<T>
 where
-    T: LevelMasksExt3,
+    T: LevelMasksExt,
 {
     type Item = DataBlock<<T::Config as IConfig>::DataBitBlock>;
 
@@ -124,7 +126,7 @@ where
                         state.level0_index = index;
 
                         let (level1_mask, valid) = unsafe {
-                            virtual_set.update_level1_blocks3(cache_data, level1_blocks, index)
+                            virtual_set.update_level1_blocks(cache_data, level1_blocks, index)
                         };
                         if !valid {
                             // level1_mask can not be empty here
@@ -138,7 +140,7 @@ where
             };
 
         let data_intersection = unsafe {
-            T::data_mask_from_blocks3(level1_blocks.assume_init_ref(), level1_index)
+            T::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
         };
 
         let block_start_index =
@@ -152,7 +154,7 @@ where
 
 impl<T> Drop for CachingBlockIter<T>
 where
-    T: LevelMasksExt3
+    T: LevelMasksExt
 {
     #[inline]
     fn drop(&mut self) {

@@ -7,17 +7,17 @@
 use crate::cache;
 use crate::IConfig;
 use crate::iter::CachingBlockIter;
-use crate::virtual_bitset::{LevelMasks, LevelMasksExt3};
+use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 type DefaultCache = cache::FixedCache<32>;
 
 // TODO: rename to with_cache?
 pub mod base{
     use std::marker::PhantomData;
-    use crate::reduce2::ReduceCacheImplBuilder;
+    use crate::reduce::ReduceCacheImplBuilder;
     use crate::IConfig;
     use crate::iter::CachingBlockIter;
-    use crate::virtual_bitset::LevelMasksExt3;
+    use crate::bitset_interface::LevelMasksExt;
 
     #[derive(Default)]
     pub struct _64bit<DefaultCache: ReduceCacheImplBuilder>(PhantomData<DefaultCache>);
@@ -32,7 +32,7 @@ pub mod base{
         type DataBitBlock = u64;
         type DataBlockIndex = u16;
 
-        type DefaultBlockIterator<T: LevelMasksExt3> = CachingBlockIter<T>;
+        type DefaultBlockIterator<T: LevelMasksExt> = CachingBlockIter<T>;
 
         // TODO: refactor this somehow?
         type DefaultCache = DefaultCache;
@@ -53,7 +53,7 @@ pub mod base{
         type DataBitBlock = wide::u64x2;
         type DataBlockIndex = u16;
 
-        type DefaultBlockIterator<T: LevelMasksExt3> = CachingBlockIter<T>;
+        type DefaultBlockIterator<T: LevelMasksExt> = CachingBlockIter<T>;
         type DefaultCache = DefaultCache;
     }
 }
