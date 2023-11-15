@@ -404,7 +404,7 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     }
 }
 
-/// Creates a virtual bitset, as [BinaryOp] application between two sets.
+/// Creates a lazy bitset, as [BinaryOp] application between two bitsets.
 #[inline]
 pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetOp<Op, S1, S2>
 where
@@ -415,17 +415,19 @@ where
     BitSetOp::new(op, s1, s2)
 }
 
-/// Creates a virtual bitset, as sets iterator reduction.
+/// Creates a lazy bitset, as bitsets iterator reduction.
+///
+/// "Reduce" term used in Rust's [Iterator::reduce] sense.
 ///
 /// If the `sets` is empty - returns `None`; otherwise - returns the resulting
-/// virtual bitset.
+/// lazy bitset.
 ///
-/// `sets` iterator must be cheap to clone (slice iterator is good example).
+/// `sets` iterator must be cheap to clone (slice iterator is a good example).
 /// It will be cloned AT LEAST once for each returned [DataBlock] during iteration.
 ///
 /// # Safety
 ///
-/// Panics during iteration, if [Config::DefaultCache] is smaller then sets len.
+/// Panics, if [Config::DefaultCache] capacity is smaller then sets len.
 #[inline]
 pub fn reduce<Config, Op, S>(op: Op, sets: S)
     -> Option<reduce::Reduce<Op, S, Config::DefaultCache>>
@@ -447,7 +449,7 @@ where
 ///
 /// # Safety
 ///
-/// Panics during iteration, if Cache is smaller then sets len.
+/// Panics, if `Cache` capacity is smaller then sets len.
 ///
 /// [reduce]: reduce()
 #[inline]
@@ -457,10 +459,21 @@ where
     Op: BinaryOp,
     S: Iterator + Clone,
     S::Item: BitSetInterface,
+    Cache: ReduceCache
 {
-    if sets.clone().next().is_none(){
-        return None;
+    // Compile-time if
+    if Cache::MAX_LEN != usize::MAX{
+        let len = sets.clone().count();
+        assert!(len<=Cache::MAX_LEN, "Cache is too small for this iterator.");
+        if len == 0{
+            return None;
+        }
+    } else {
+        if sets.clone().next().is_none(){
+            return None;
+        }
     }
+
     Some(reduce::Reduce{ sets, phantom: Default::default() })
 }
 

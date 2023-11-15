@@ -18,8 +18,8 @@ pub use simple::{SimpleBlockIter, SimpleIndexIter};
 /// Allows to resume iteration from the last position, even if
 /// source was mutated. Both suspending and resuming operations are very fast.
 ///
-/// Can be used with ALL virtual sets.
-/// Default constructed State will traverse virtual set from the very begin.
+/// Can be used with any [BitSetInterface].
+/// Default constructed State will traverse bitset from the very begin.
 ///
 /// # Resume
 ///
@@ -59,7 +59,7 @@ pub struct State<Config: IConfig> {
 impl<Config: IConfig> Default for State<Config>{
     /// Iteration will start from the very begin.
     ///
-    /// It is safe to use any virtual sets with default constructed `State`.
+    /// It is safe to use any [BitSetInterface] with default constructed `State`.
     #[inline]
     fn default() -> Self {
         Self {

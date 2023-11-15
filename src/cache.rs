@@ -12,7 +12,7 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 
 /// Cache is not used.
 ///
-/// This also discards cache usage for all underlying virtual sets.
+/// This also discards cache usage for all underlying [reduce] operations.
 /// Cache still can be applied on top of NoCache operation.
 ///
 /// # Example
@@ -41,6 +41,8 @@ pub struct FixedCache<const N:usize>;
 pub struct DynamicCache;
 
 pub trait ReduceCache: Default + 'static{
+    /// usize::MAX - if unlimited.
+    const MAX_LEN: usize;
     type Impl<Op, S>
         : ReduceCacheImpl<
             Sets = S,
@@ -53,6 +55,7 @@ pub trait ReduceCache: Default + 'static{
 }
 
 impl ReduceCache for NoCache{
+    const MAX_LEN: usize = usize::MAX;
     type Impl<Op, S> = NonCachedImpl<Op, S>
     where
         Op: BinaryOp,
@@ -61,6 +64,7 @@ impl ReduceCache for NoCache{
 }
 
 impl<const N: usize> ReduceCache for FixedCache<N>{
+    const MAX_LEN: usize = N;
     type Impl<Op, S> = FixedCacheImpl<Op, S, N>
     where
         Op: BinaryOp,
@@ -69,6 +73,7 @@ impl<const N: usize> ReduceCache for FixedCache<N>{
 }
 
 impl ReduceCache for DynamicCache{
+    const MAX_LEN: usize = usize::MAX;
     type Impl<Op, S> = DynamicCacheImpl<Op, S>
     where
         Op: BinaryOp,

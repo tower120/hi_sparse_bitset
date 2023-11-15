@@ -10,7 +10,7 @@ use crate::cache::ReduceCache;
 use crate::iter::BlockIterator;
 use crate::bitset_interface::LevelMasksExt;
 
-/// Sets reduction, as virtual bitset.
+/// Bitsets iterator reduction, as lazy bitset.
 ///
 /// Constructed by [reduce()] and [reduce_w_cache()].
 #[derive(Clone)]

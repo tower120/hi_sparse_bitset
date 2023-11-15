@@ -10,7 +10,7 @@ use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::reduce::Reduce;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
-/// Binary operation application, as virtual set.
+/// Binary operation application, as lazy bitset.
 ///
 /// Created by [apply], or by performing [BitOr], [BitAnd], [BitXor],
 /// [Sub] operations on [BitSetInterface]s.
