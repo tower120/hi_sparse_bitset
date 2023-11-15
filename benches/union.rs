@@ -1,4 +1,5 @@
-use std::ops::ControlFlow;
+mod common;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput, PlotConfiguration, AxisScale};
 use criterion::measurement::Measurement;
 use hibitset::BitSetLike;
@@ -6,6 +7,7 @@ use hi_sparse_bitset::{BitSet, IConfig, reduce};
 use hi_sparse_bitset::binary_op::*;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
 use hi_sparse_bitset::BitSetInterface;
+use crate::common::bench;
 
 
 // ---- REDUCE ----
@@ -100,25 +102,6 @@ pub fn bench_iter(c: &mut Criterion) {
         }
 
         (hi_sparse_sets, hibitsets)
-    }
-
-    fn bench<'a, M, P, I, F, R>(
-        group: &mut criterion::BenchmarkGroup<'a, M>,
-        case: &str,
-        param: P,
-        input: &I,
-        f: F
-    ) where
-        M: Measurement,
-        P: std::fmt::Display,
-        I: ?Sized,
-        F: Fn(&I) -> R,
-    {
-        group.bench_with_input(
-            BenchmarkId::new(case, param),
-            input,
-            |b, i| b.iter(|| f(black_box(i)))
-        );
     }
 
     fn do_bench<'a, M: Measurement>(group: &mut criterion::BenchmarkGroup<'a, M>, index_mul: usize){

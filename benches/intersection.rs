@@ -1,11 +1,15 @@
+mod common;
+
 use std::ops::ControlFlow;
 use std::collections::HashSet;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, PlotConfiguration, AxisScale};
 use hibitset::BitSetLike;
 use hi_sparse_bitset::{BitSet, IConfig, iter, reduce};
 use hi_sparse_bitset::binary_op::BitAndOp;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
+use criterion::measurement::Measurement;
+use crate::common::bench;
 
 // TODO: consider bench different Cache modes instead.
 
@@ -121,7 +125,7 @@ fn hibitset_intersection(sets: &[hibitset::BitSet]) -> usize{
     counter
 }
 
-fn hashset_intersection(sets: &Vec<HashSet<usize>>) -> usize {
+fn hashset_intersection(sets: &[HashSet<usize>]) -> usize {
     let mut counter = 0;
 
     let (first, other) = sets.split_first().unwrap();
@@ -142,74 +146,106 @@ fn hashset_intersection(sets: &Vec<HashSet<usize>>) -> usize {
     counter
 }
 
-// TODO : Bench with worst-case parameters
 pub fn bench_iter(c: &mut Criterion) {
     type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::configs::_128bit>;
-    //type HiSparseBitset = hi_sparse_bitset::HiSparseBitset<hi_sparse_bitset::configs::u64s>;
-    const SIZE: usize = 10000;
-    const INDEX_MUL: usize = 20;
     const SETS: usize = 5;
 
-    let mut random_indices = [[0; SIZE]; SETS];
-    for s in 0..SETS{
-        for i in 0..SIZE{
-            random_indices[s][i] = i*INDEX_MUL;
+    fn generate_data(size: usize, index_mul: usize, sets: usize)
+        -> (Vec<HiSparseBitset>, Vec<hibitset::BitSet>, Vec<HashSet<usize>>)
+    {
+        let mut random_indices: Vec<Vec<usize>> = Default::default();
+        for s in 0..sets{
+            random_indices.push(Default::default());
+            let random_indices = random_indices.last_mut().unwrap();
+            for i in 0..size{
+                random_indices.push(i*index_mul);
+            }
+        }
+
+        let mut hi_sparse_sets = Vec::new();
+        for set_indices in &random_indices{
+            let mut set = HiSparseBitset::default();
+            for &index in set_indices.iter(){
+                set.insert(index);
+            }
+            hi_sparse_sets.push(set);
+        }
+
+        let mut hibitsets = Vec::new();
+        for set_indices in &random_indices{
+            let mut set = hibitset::BitSet::default();
+            for &index in set_indices.iter(){
+                set.add(index as _);
+            }
+            hibitsets.push(set);
+        }
+
+        let mut hash_sets = Vec::new();
+        for set_indices in &random_indices{
+            let mut set: HashSet<usize> = HashSet::default();
+            for &index in set_indices.iter(){
+                set.insert(index);
+            }
+            hash_sets.push(set);
+        }
+
+        (hi_sparse_sets, hibitsets, hash_sets)
+    }
+
+    fn do_bench<'a, M: Measurement>(group: &mut criterion::BenchmarkGroup<'a, M>, index_mul: usize){
+        let datas = [
+            (100, generate_data(100, index_mul, SETS)),
+            (1000, generate_data(1000, index_mul, SETS)),
+            (4000, generate_data(4000, index_mul, SETS)),
+        ];
+
+        for (name, (hi_sparse_sets, hibitsets, hash_sets)) in &datas {
+            let hi_sparse_sets = hi_sparse_sets.as_slice();
+            let hibitsets = hibitsets.as_slice();
+            let hash_sets = hash_sets.as_slice();
+
+            // ---- REDUCE ----
+            // === Block iter ===
+            bench(group, "hi_sparse_bitset_reduce_and_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_simple_block_iter);
+            bench(group, "hi_sparse_bitset_reduce_and_caching_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_caching_block_iter);
+            // === Traverse ===
+            bench(group, "hi_sparse_bitset_reduce_and_simple_traverse", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_simple_traverse);
+            bench(group, "hi_sparse_bitset_reduce_and_caching_traverse", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_caching_traverse);
+            // === Iter ===
+            bench(group, "hi_sparse_bitset_reduce_and_simple_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_simple_iter);
+            bench(group, "hi_sparse_bitset_reduce_and_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_caching_iter);
+
+            // ---- OP ----
+            // === Block iter ===
+            bench(group, "hi_sparse_bitset_op_and_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_simple_block_iter);
+            bench(group, "hi_sparse_bitset_op_and_caching_block_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_block_iter);
+            // === Traverse ===
+            bench(group, "hi_sparse_bitset_op_and_simple_traverse", name, hi_sparse_sets, hi_sparse_bitset_op_and_simple_traverse);
+            bench(group, "hi_sparse_bitset_op_and_caching_traverse", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_traverse);
+            // === Iter ===
+            bench(group, "hi_sparse_bitset_op_and_simple_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_simple_iter);
+            bench(group, "hi_sparse_bitset_op_and_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_iter);
+
+            // ---- Third party ----
+            bench(group, "hibitset_intersection", name, hibitsets, hibitset_intersection);
+            bench(group, "hashset_intersection", name, hash_sets, hashset_intersection);
         }
     }
 
-    let mut hi_sparse_sets = Vec::new();
-    for set_indices in &random_indices{
-        let mut set = HiSparseBitset::default();
-        for &index in set_indices.iter(){
-            set.insert(index);
-        }
-        hi_sparse_sets.push(set);
+    {
+        let mut group = c.benchmark_group("Intersection - index step 20");
+        group.plot_config(
+            PlotConfiguration::default().summary_scale(AxisScale::Logarithmic)
+        );
+        do_bench(&mut group, 20);
     }
-
-    let mut hibitsets = Vec::new();
-    for set_indices in &random_indices{
-        let mut set = hibitset::BitSet::default();
-        for &index in set_indices.iter(){
-            set.add(index as _);
-        }
-        hibitsets.push(set);
+    {
+        let mut group = c.benchmark_group("Intersection - index step 200");
+        group.plot_config(
+            PlotConfiguration::default().summary_scale(AxisScale::Logarithmic)
+        );
+        do_bench(&mut group, 200);
     }
-
-    let mut hash_sets = Vec::new();
-    for set_indices in &random_indices{
-        let mut set: HashSet<usize> = HashSet::default();
-        for &index in set_indices.iter(){
-            set.insert(index);
-        }
-        hash_sets.push(set);
-    }
-
-
-    // ---- REDUCE -----
-    // === Block iter ===
-    c.bench_function("hi_sparse_bitset_reduce_and_simple_block_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_simple_block_iter(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_reduce_and_caching_block_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_caching_block_iter(black_box(&hi_sparse_sets))));
-    // === Traverse ===
-    c.bench_function("hi_sparse_bitset_reduce_and_simple_traverse", |b| b.iter(|| hi_sparse_bitset_reduce_and_simple_traverse(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_reduce_and_caching_traverse", |b| b.iter(|| hi_sparse_bitset_reduce_and_caching_traverse(black_box(&hi_sparse_sets))));
-    // === Iter ===
-    c.bench_function("hi_sparse_bitset_reduce_and_simple_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_simple_iter(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_reduce_and_caching_iter", |b| b.iter(|| hi_sparse_bitset_reduce_and_caching_iter(black_box(&hi_sparse_sets))));
-
-    // ---- OP -----
-    // === Block iter ===
-    c.bench_function("hi_sparse_bitset_op_and_simple_block_iter", |b| b.iter(|| hi_sparse_bitset_op_and_simple_block_iter(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_op_and_caching_block_iter", |b| b.iter(|| hi_sparse_bitset_op_and_caching_block_iter(black_box(&hi_sparse_sets))));
-    // === Traverse ===
-    c.bench_function("hi_sparse_bitset_op_and_simple_traverse", |b| b.iter(|| hi_sparse_bitset_op_and_simple_traverse(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_op_and_caching_traverse", |b| b.iter(|| hi_sparse_bitset_op_and_caching_traverse(black_box(&hi_sparse_sets))));
-    // === Iter ===
-    c.bench_function("hi_sparse_bitset_op_and_simple_iter", |b| b.iter(|| hi_sparse_bitset_op_and_simple_iter(black_box(&hi_sparse_sets))));
-    c.bench_function("hi_sparse_bitset_op_and_caching_iter", |b| b.iter(|| hi_sparse_bitset_op_and_caching_iter(black_box(&hi_sparse_sets))));
-
-    // ---- Third party ----
-    c.bench_function("hibitset_intersection", |b| b.iter(|| hibitset_intersection(black_box(&hibitsets))));
-    c.bench_function("hashset_intersection",  |b| b.iter(|| hashset_intersection(black_box(&hash_sets))));
 }
 
 criterion_group!(benches_iter, bench_iter);
