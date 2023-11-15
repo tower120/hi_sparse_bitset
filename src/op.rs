@@ -11,6 +11,9 @@ use crate::reduce::Reduce;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 /// Binary operation application, as virtual set.
+///
+/// Created by [apply], or by performing [BitOr], [BitAnd], [BitXor],
+/// [Sub] operations on [BitSetInterface]s.
 #[derive(Clone)]
 pub struct BitSetOp<Op, S1, S2>{
     pub(crate) s1: S1,

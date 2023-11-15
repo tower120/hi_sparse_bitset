@@ -1,14 +1,14 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
-use std::{mem, ptr, slice};
+use std::{mem, slice};
 use std::alloc::{dealloc, Layout};
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::{drop_in_place, NonNull, null_mut};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
-use crate::cache::{DynamicCache, FixedCache, NoCache};
-use crate::iter::{CachingBlockIter, BlockIterator};
-use crate::bitset_interface::{LevelMasksExt};
+use crate::cache::ReduceCache;
+use crate::iter::BlockIterator;
+use crate::bitset_interface::LevelMasksExt;
 
 /// Sets reduction, as virtual bitset.
 ///
@@ -67,7 +67,10 @@ where
     }
 }
 
-
+/// We need this layer of indirection in form of intermediate trait,
+/// because of RUST not having template/generics specialization.
+/// Otherwise - we would have LevelMasksExt specializations for each
+/// cache type.
 pub trait ReduceCacheImpl
 {
     type Config: IConfig;
@@ -92,18 +95,6 @@ pub trait ReduceCacheImpl
     unsafe fn data_mask_from_blocks3(
         level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock;
-}
-
-pub trait ReduceCacheImplBuilder: Default + 'static{
-    type Impl<Op, S>
-        : ReduceCacheImpl<
-            Sets = S,
-            Config = <S::Item as LevelMasks>::Config
-        >
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S::Item: LevelMasksExt;
 }
 
 pub struct NonCachedImpl<Op, T>(PhantomData<(Op, T)>);
@@ -152,14 +143,6 @@ where
         let reduce: &Reduce<Op, S, ()> = mem::transmute(sets);
         reduce.data_mask(*level0_index, level1_index)
     }
-}
-
-impl ReduceCacheImplBuilder for NoCache{
-    type Impl<Op, S> = NonCachedImpl<Op, S>
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S::Item: LevelMasksExt;
 }
 
 #[inline(always)]
@@ -357,14 +340,6 @@ where
     }
 }
 
-impl<const N: usize> ReduceCacheImplBuilder for FixedCache<N>{
-    type Impl<Op, S> = FixedCacheImpl<Op, S, N>
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S::Item: LevelMasksExt;
-}
-
 pub struct DynamicCacheImpl<Op, S>(PhantomData<(Op, S)>);
 impl<Op, S> ReduceCacheImpl for DynamicCacheImpl<Op, S>
 where
@@ -458,21 +433,13 @@ where
     }
 }
 
-impl ReduceCacheImplBuilder for DynamicCache{
-    type Impl<Op, S> = DynamicCacheImpl<Op, S>
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S::Item: LevelMasksExt;
-}
-
 
 impl<Op, S, Cache> LevelMasksExt for Reduce<Op, S, Cache>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
-    Cache: ReduceCacheImplBuilder
+    Cache: ReduceCache
 {
     type CacheData = <Cache::Impl<Op, S> as ReduceCacheImpl>::CacheData;
     type Level1Blocks = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;

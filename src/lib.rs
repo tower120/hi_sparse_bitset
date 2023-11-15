@@ -27,7 +27,7 @@ use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::iter::BlockIterator;
-use crate::reduce::ReduceCacheImplBuilder;
+use cache::ReduceCache;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use bitset_interface::BitSetInterface;
@@ -44,6 +44,7 @@ const INTERSECTION_ONLY: bool = false;
 pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> Primitive for T{}
 
+// TODO: consider moving to mod@config
 pub trait IConfig: 'static {
     type Level0BitBlock: BitBlock + Default;
     /// Must be big enough to accommodate at least Level0BitBlock::SIZE
@@ -60,11 +61,7 @@ pub trait IConfig: 'static {
     /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
     type DataBlockIndex: Primitive;
 
-    // TODO: remove this?
-    // There can be BlockIteratorBuilder as well, but parameterized
-    // Iter works too for now.
-    type DefaultBlockIterator<T: LevelMasksExt>: BlockIterator<BitSet = T>;
-    type DefaultCache: ReduceCacheImplBuilder;
+    type DefaultCache: ReduceCache;
 }
 
 // TODO: move somewhere more appropriate

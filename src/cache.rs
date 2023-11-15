@@ -6,6 +6,10 @@
 //!
 //! [reduce]: crate::reduce()
 
+use crate::binary_op::BinaryOp;
+use crate::bitset_interface::{LevelMasks, LevelMasksExt};
+use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCacheImpl};
+
 /// Cache is not used.
 ///
 /// This also discards cache usage for all underlying virtual sets.
@@ -35,3 +39,39 @@ pub struct FixedCache<const N:usize>;
 /// can use [NoCache].
 #[derive(Default, Copy, Clone)]
 pub struct DynamicCache;
+
+pub trait ReduceCache: Default + 'static{
+    type Impl<Op, S>
+        : ReduceCacheImpl<
+            Sets = S,
+            Config = <S::Item as LevelMasks>::Config
+        >
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt;
+}
+
+impl ReduceCache for NoCache{
+    type Impl<Op, S> = NonCachedImpl<Op, S>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt;
+}
+
+impl<const N: usize> ReduceCache for FixedCache<N>{
+    type Impl<Op, S> = FixedCacheImpl<Op, S, N>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt;
+}
+
+impl ReduceCache for DynamicCache{
+    type Impl<Op, S> = DynamicCacheImpl<Op, S>
+    where
+        Op: BinaryOp,
+        S: Iterator + Clone,
+        S::Item: LevelMasksExt;
+}

@@ -2,9 +2,11 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::{BitSet, IConfig, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
-use crate::iter::{CachingBlockIter, BlockIterator};
+use crate::cache::ReduceCache;
+use crate::configs::DefaultBlockIterator;
+use crate::iter::BlockIterator;
 use crate::op::BitSetOp;
-use crate::reduce::{Reduce, ReduceCacheImplBuilder};
+use crate::reduce::Reduce;
 
 /// Basic interface for accessing block masks. Can work with [SimpleIter].
 pub trait LevelMasks{
@@ -147,13 +149,13 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
 pub trait BitSetInterface: IntoIterator<Item = usize> + LevelMasksExt{
     type Config: IConfig;
 
-    type BlockIter<'a>: Iterator where Self: 'a;
+    type BlockIter<'a>: BlockIterator where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
     type Iter<'a>: Iterator<Item = usize> where Self: 'a;
     fn iter(&self) -> Self::Iter<'_>;
 
-    type IntoBlockIter: Iterator + BlockIterator;
+    type IntoBlockIter: BlockIterator;
     fn into_block_iter(self) -> Self::IntoBlockIter;
 
     fn contains(&self, index: usize) -> bool;
@@ -164,7 +166,7 @@ where
     T: IntoIterator<Item = usize>
 {
     type Config = T::Config;
-    type BlockIter<'a> = <T::Config as IConfig>::DefaultBlockIterator<&'a T> where Self: 'a;
+    type BlockIter<'a> = DefaultBlockIterator<&'a T> where Self: 'a;
 
     #[inline]
     fn block_iter(&self) -> Self::BlockIter<'_> {
@@ -178,7 +180,7 @@ where
         self.block_iter().as_indices()
     }
 
-    type IntoBlockIter = <T::Config as IConfig>::DefaultBlockIterator<T>;
+    type IntoBlockIter = DefaultBlockIterator<T>;
 
     #[inline]
     fn into_block_iter(self) -> Self::IntoBlockIter {
@@ -235,7 +237,7 @@ impl_into_iter!(
         Op: BinaryOp,
         S: Iterator + Clone,
         S::Item: LevelMasksExt,
-        Storage: ReduceCacheImplBuilder
+        Storage: ReduceCache
 );
 impl_into_iter!(
     impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
@@ -243,5 +245,5 @@ impl_into_iter!(
         Op: BinaryOp,
         S: Iterator + Clone,
         S::Item: LevelMasksExt,
-        Storage: ReduceCacheImplBuilder
+        Storage: ReduceCache
 );
