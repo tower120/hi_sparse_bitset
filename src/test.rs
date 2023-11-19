@@ -8,6 +8,7 @@ use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::SimpleBlockIter;
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
+use crate::iter::BlockIterator;
 
 use super::*;
 

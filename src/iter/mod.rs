@@ -2,13 +2,20 @@ mod caching;
 mod simple;
 
 use num_traits::AsPrimitive;
-use crate::{data_block_start_index, DataBlock, DataBlockIter, IConfig};
+use crate::{DataBlock, DataBlockIter, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use caching::{CachingBlockIter, CachingIndexIter};
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
+
+#[inline]
+fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: usize) -> usize{
+    let level0_offset = level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT);
+    let level1_offset = level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT);
+    level0_offset + level1_offset
+}
 
 // TODO: Clone -able.
 // TODO: Looks like State for IndexIter possible too. Do we need it?

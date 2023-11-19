@@ -63,33 +63,28 @@ pub trait IConfig: 'static {
     type DefaultCache: ReduceCache;
 }
 
-// TODO: move somewhere more appropriate
-#[inline]
-fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: usize) -> usize{
-    let level0_offset = level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT);
-    let level1_offset = level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT);
-    level0_offset + level1_offset
-}
-
 #[inline]
 fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
     // this should be const and act as const.
-    // const DATA_BLOCK_SIZE:  usize = 1 << DenseBlock::SIZE_POT_EXPONENT;
-    let data_block_capacity_pot_exp  : usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
-    // const LEVEL1_BLOCK_SIZE: usize = (1 << Level1Mask::SIZE_POT_EXPONENT) * DATA_BLOCK_SIZE;
-    let level1_block_capacity_pot_exp: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
-                                             + Config::DataBitBlock::SIZE_POT_EXPONENT;
+    /*const*/ let data_block_capacity_pot_exp  : usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
+    /*const*/ let data_block_capacity          : usize = 1 << data_block_capacity_pot_exp;
 
-    // index / LEVEL1_BLOCK_SIZE
+    /*const*/ let level1_block_capacity_pot_exp: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
+                                                       + Config::DataBitBlock::SIZE_POT_EXPONENT;
+    /*const*/ let level1_block_capacity        : usize = 1 << level1_block_capacity_pot_exp;
+
+    // index / LEVEL1_BLOCK_CAP
     let level0 = index >> level1_block_capacity_pot_exp;
-    // TODO: use remainder % trick here
-    // index - (level0 * LEVEL1_BLOCK_SIZE)
-    let level0_remainder = index - (level0 << level1_block_capacity_pot_exp);
+    // index % LEVEL1_BLOCK_CAP
+    let level0_remainder = index & (level1_block_capacity - 1);
 
-    // level0_remainder / DATA_BLOCK_SIZE
+    // level0_remainder / DATA_BLOCK_CAP
     let level1 = level0_remainder >> data_block_capacity_pot_exp;
-    // level0_remainder - (level1 * DATA_BLOCK_SIZE)
-    let level1_remainder = level0_remainder - (level1 << data_block_capacity_pot_exp);
+
+    // level0_remainder % DATA_BLOCK_CAP = index % LEVEL1_BLOCK_CAP % DATA_BLOCK_CAP
+    let level1_remainder = index & (
+        (level1_block_capacity-1) & (data_block_capacity-1)
+    );
 
     let data = level1_remainder;
 
