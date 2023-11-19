@@ -111,10 +111,11 @@ to make index iterators suspend-resume-able too. Fill an issue, if you need this
    It is orders of magnitude slower for inter-bitset operations.
    And "just" slower for the rest ones.
 
-*  [roaring](https://crates.io/crates/roaring) - does not have means of intersecting multiple
+*  [roaring](https://crates.io/crates/roaring) - compressed bitset. It does not have means of intersecting multiple
    sets at once, only through intermediate bitset. So you can't directly do the same things in `roaring`.
    As for comparing things that possible (like intersection count). In ideal (against hierarchical bitset) 
    for `roaring` scenario (all elements intersects): on quite sparse bitsets roaring is somewhat faster, on denser - slower. 
    That will vary from actual dataset to dataset. Probably the less the percentage of intersected 
-   elements - the bigger `hi_sparse_bitset` performance gains against `roaring`. Memory-wise `roaring`
-   should have smaller footprint. _DISCLAIMER: It was not benchmarked head-to-head thoroughly_ 
+   elements - the bigger `hi_sparse_bitset` performance gains against `roaring`.
+   The main selling point of `roaring` against `hi_sparse_bitset` should be the fact that `roaring`, being
+   compressed bitset can store MUCH bigger indices in set. _DISCLAIMER: It was not benchmarked head-to-head thoroughly_ 
