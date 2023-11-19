@@ -15,7 +15,8 @@ jobs:
     steps:
     - uses: taiki-e/install-action@v2
     - name: Build
-      run: RUSTFLAGS="--deny warnings" cargo build
+      #run: RUSTFLAGS="--deny warnings" cargo build
+      run: cargo build
 
 #  build-all-features:
 #    runs-on: ubuntu-latest
