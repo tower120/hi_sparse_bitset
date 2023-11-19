@@ -21,6 +21,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
+    - uses: dtolnay/rust-toolchain@nightly
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-careful
