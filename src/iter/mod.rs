@@ -5,7 +5,6 @@ use num_traits::AsPrimitive;
 use crate::{data_block_start_index, DataBlock, DataBlockIter, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::block::Block;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use caching::{CachingBlockIter, CachingIndexIter};

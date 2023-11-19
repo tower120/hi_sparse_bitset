@@ -7,7 +7,6 @@ use std::ptr::{drop_in_place, NonNull, null_mut};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::ReduceCache;
-use crate::iter::BlockIterator;
 use crate::bitset_interface::LevelMasksExt;
 
 /// Bitsets iterator reduction, as lazy bitset.

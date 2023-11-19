@@ -26,7 +26,6 @@ use level::Level;
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::iter::BlockIterator;
 use cache::ReduceCache;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 

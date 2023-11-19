@@ -6,7 +6,6 @@ use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{BitSet, IConfig};
 use crate::bit_block::BitBlock;
-use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::reduce::Reduce;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
