@@ -18,7 +18,6 @@ pub trait BitBlock
 
     fn get_bit(&self, bit_index: usize) -> bool;
 
-    // TODO: consider removing
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;

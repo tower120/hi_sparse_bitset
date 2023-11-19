@@ -18,9 +18,10 @@ criterion = "0.5.1"
 cfg-if = "1"
 # for benchmarks
 hibitset = "0.6.4"
+roaring = "0.10.2"
 
-[profile.bench]
-lto = "thin"
+#[profile.bench]
+#lto = "thin"
 
 [[bench]]
 name = "intersection_bench"

@@ -9,6 +9,7 @@ use hi_sparse_bitset::binary_op::BitAndOp;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
+use roaring::RoaringBitmap;
 use crate::common::bench;
 
 // TODO: consider bench different Cache modes instead.
@@ -146,12 +147,26 @@ fn hashset_intersection(sets: &[HashSet<usize>]) -> usize {
     counter
 }
 
+fn roaring_intersection(roarings: &[RoaringBitmap]) -> usize{
+    // There is no equivalent in RoaringBitmap for multiple set intersection.
+    // Constructing a new one for each intersection would not be fare for the underlying algorithm.
+    // This is probably the closest one computation-wise, since all input sets actually fully intersects.
+
+    let len =
+    roarings[0].intersection_len(&roarings[1]) +
+    roarings[0].intersection_len(&roarings[2]) +
+    roarings[0].intersection_len(&roarings[3]) +
+    roarings[0].intersection_len(&roarings[4]);
+
+    len as usize
+}
+
 pub fn bench_iter(c: &mut Criterion) {
     type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::configs::_128bit>;
     const SETS: usize = 5;
 
     fn generate_data(size: usize, index_mul: usize, sets: usize)
-        -> (Vec<HiSparseBitset>, Vec<hibitset::BitSet>, Vec<HashSet<usize>>)
+        -> (Vec<HiSparseBitset>, Vec<hibitset::BitSet>, Vec<HashSet<usize>>, Vec<RoaringBitmap>)
     {
         let mut random_indices: Vec<Vec<usize>> = Default::default();
         for s in 0..sets{
@@ -189,7 +204,16 @@ pub fn bench_iter(c: &mut Criterion) {
             hash_sets.push(set);
         }
 
-        (hi_sparse_sets, hibitsets, hash_sets)
+        let mut roarings = Vec::new();
+        for set_indices in &random_indices{
+            let mut set: RoaringBitmap = Default::default();
+            for &index in set_indices.iter(){
+                set.insert(index as u32);
+            }
+            roarings.push(set);
+        }
+
+        (hi_sparse_sets, hibitsets, hash_sets, roarings)
     }
 
     fn do_bench<'a, M: Measurement>(group: &mut criterion::BenchmarkGroup<'a, M>, index_mul: usize){
@@ -199,10 +223,8 @@ pub fn bench_iter(c: &mut Criterion) {
             (4000, generate_data(4000, index_mul, SETS)),
         ];
 
-        for (name, (hi_sparse_sets, hibitsets, hash_sets)) in &datas {
+        for (name, (hi_sparse_sets, hibitsets, hash_sets, roarings)) in &datas {
             let hi_sparse_sets = hi_sparse_sets.as_slice();
-            let hibitsets = hibitsets.as_slice();
-            let hash_sets = hash_sets.as_slice();
 
             // ---- REDUCE ----
             // === Block iter ===
@@ -227,8 +249,9 @@ pub fn bench_iter(c: &mut Criterion) {
             bench(group, "hi_sparse_bitset_op_and_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_iter);
 
             // ---- Third party ----
-            bench(group, "hibitset_intersection", name, hibitsets, hibitset_intersection);
-            bench(group, "hashset_intersection", name, hash_sets, hashset_intersection);
+            bench(group, "hibitset_intersection", name, hibitsets.as_slice(), hibitset_intersection);
+            bench(group, "hashset_intersection", name, hash_sets.as_slice(), hashset_intersection);
+            bench(group, "roaring_intersection", name, roarings.as_slice(), roaring_intersection);
         }
     }
 

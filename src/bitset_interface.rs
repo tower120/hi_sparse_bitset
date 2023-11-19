@@ -199,8 +199,8 @@ where
 
 
 macro_rules! impl_into_iter {
-    (impl <$($bounds:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($bounds),*> IntoIterator for $t
+    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
+        impl<$($generics),*> IntoIterator for $t
         where
             $($where_bounds)*
         {
