@@ -10,10 +10,9 @@
 
 use crate::cache;
 use crate::iter::CachingBlockIter;
-use crate::bitset_interface::{LevelMasksExt};
 
 type DefaultCache = cache::FixedCache<32>;
-pub(crate) type DefaultBlockIterator<T: LevelMasksExt> = CachingBlockIter<T>;
+pub(crate) type DefaultBlockIterator<T> = CachingBlockIter<T>;
 
 // TODO: rename to with_cache?
 pub mod base{

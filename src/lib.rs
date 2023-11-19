@@ -75,21 +75,21 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
 fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
     // this should be const and act as const.
     // const DATA_BLOCK_SIZE:  usize = 1 << DenseBlock::SIZE_POT_EXPONENT;
-    let DATA_BLOCK_CAPACITY_POT_EXP:  usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
+    let data_block_capacity_pot_exp  : usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
     // const LEVEL1_BLOCK_SIZE: usize = (1 << Level1Mask::SIZE_POT_EXPONENT) * DATA_BLOCK_SIZE;
-    let LEVEL1_BLOCK_CAPACITY_POT_EXP: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
+    let level1_block_capacity_pot_exp: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
                                              + Config::DataBitBlock::SIZE_POT_EXPONENT;
 
     // index / LEVEL1_BLOCK_SIZE
-    let level0 = index >> LEVEL1_BLOCK_CAPACITY_POT_EXP;
+    let level0 = index >> level1_block_capacity_pot_exp;
     // TODO: use remainder % trick here
     // index - (level0 * LEVEL1_BLOCK_SIZE)
-    let level0_remainder = index - (level0 << LEVEL1_BLOCK_CAPACITY_POT_EXP);
+    let level0_remainder = index - (level0 << level1_block_capacity_pot_exp);
 
     // level0_remainder / DATA_BLOCK_SIZE
-    let level1 = level0_remainder >> DATA_BLOCK_CAPACITY_POT_EXP;
+    let level1 = level0_remainder >> data_block_capacity_pot_exp;
     // level0_remainder - (level1 * DATA_BLOCK_SIZE)
-    let level1_remainder = level0_remainder - (level1 << DATA_BLOCK_CAPACITY_POT_EXP);
+    let level1_remainder = level0_remainder - (level1 << data_block_capacity_pot_exp);
 
     let data = level1_remainder;
 
@@ -104,7 +104,7 @@ pub const fn max_range<Config: IConfig>() -> usize {
 
     if !INTERSECTION_ONLY{
         // We occupy one block for "empty" at each level, except root.
-        max_range
+        max_range = max_range
             - (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
             - (1 << Config::DataBitBlock::SIZE_POT_EXPONENT);
     }

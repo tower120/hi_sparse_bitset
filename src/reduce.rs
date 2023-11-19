@@ -76,21 +76,20 @@ pub trait ReduceCacheImpl
     type Set: LevelMasksExt<Config = Self::Config>;
     type Sets: Iterator<Item = Self::Set> + Clone;
 
-    type CacheData;
-    type Level1Blocks3;
-
     const EMPTY_LVL1_TOLERANCE: bool;
 
+    /// Cache only used by DynamicCache
+    type CacheData;
     fn make_cache(sets: &Self::Sets) -> Self::CacheData;
     fn drop_cache(sets: &Self::Sets, cache: &mut ManuallyDrop<Self::CacheData>);
 
+    type Level1Blocks3;
     unsafe fn update_level1_blocks3(
         sets: &Self::Sets,
         cache: &mut Self::CacheData,
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
         level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool);
-
     unsafe fn data_mask_from_blocks3(
         level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock;
@@ -116,7 +115,7 @@ where
     fn make_cache(_: &Self::Sets) -> Self::CacheData{ () }
 
     #[inline]
-    fn drop_cache(sets: &Self::Sets, _: &mut ManuallyDrop<Self::CacheData>) {}
+    fn drop_cache(_: &Self::Sets, _: &mut ManuallyDrop<Self::CacheData>) {}
 
     #[inline]
     unsafe fn update_level1_blocks3(
