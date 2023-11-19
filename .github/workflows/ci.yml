@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     #- uses: taiki-e/install-action@v2
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       #run: RUSTFLAGS="--deny warnings" cargo build
-      run: cargo build
+      - run: cargo build
 
 #  build-all-features:
 #    runs-on: ubuntu-latest
