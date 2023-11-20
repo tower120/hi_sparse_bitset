@@ -37,11 +37,11 @@ jobs:
       with:
         tool: cargo-careful
     - uses: actions/checkout@v4
+    # cargo +nightly careful test --all-features
     - run: RUSTFLAGS="
              --deny warnings 
              --cfg ${{ matrix.cache_type_flag }} ${{ matrix.config_type_flag }}
-           " # cargo +nightly careful test --all-features
-             cargo test --all-features
+           " cargo test --all-features
 
   miri:
     name: miri tests
