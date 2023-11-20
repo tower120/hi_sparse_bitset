@@ -1,9 +1,7 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 use std::{mem, slice};
-use std::alloc::{dealloc, Layout};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::{drop_in_place, NonNull, null_mut};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::ReduceCache;
@@ -474,96 +472,103 @@ where
 }
 
 
+use unique_ptr::UniqueArrayPtr;
 
-#[inline]
-fn dangling(layout: Layout) -> NonNull<u8>{
-    #[cfg(miri)]
-    {
-        layout.dangling()
-    }
-    #[cfg(not(miri))]
-    {
-        unsafe { NonNull::new_unchecked(layout.align() as *mut u8) }
-    }
-}
+mod unique_ptr{
+    use std::alloc::{dealloc, Layout};
+    use std::mem::MaybeUninit;
+    use std::ptr::{drop_in_place, NonNull, null_mut};
+    use std::{mem, slice};
 
-
-/// Same as Box<[T]>, but aliasable.
-/// See https://github.com/rust-lang/unsafe-code-guidelines/issues/326
-pub struct UniqueArrayPtr<T>(NonNull<T>, usize);
-impl<T> UniqueArrayPtr<T>{
     #[inline]
-    pub fn new_uninit(len: usize) -> UniqueArrayPtr<MaybeUninit<T>>{
-        // this is const
-        let layout = Layout::array::<MaybeUninit<T>>(len).unwrap();
-        unsafe{
-            let mem =
-                // Do not alloc ZST.
-                if layout.size() == 0{
-                    dangling(layout).as_ptr()
-                } else {
-                    let mem = std::alloc::alloc(layout);
-                    assert!(mem != null_mut(), "Memory allocation fault.");
-                    mem
-                };
-
-            UniqueArrayPtr(
-                NonNull::new_unchecked(mem as *mut MaybeUninit<T>),
-                len
-            )
+    fn dangling(layout: Layout) -> NonNull<u8>{
+        #[cfg(miri)]
+        {
+            layout.dangling()
+        }
+        #[cfg(not(miri))]
+        {
+            unsafe { NonNull::new_unchecked(layout.align() as *mut u8) }
         }
     }
 
-    #[inline]
-    pub fn as_ptr(&self) -> *const T{
-        self.0.as_ptr() as *const T
-    }
+    /// Same as Box<[T]>, but aliasable.
+    /// See https://github.com/rust-lang/unsafe-code-guidelines/issues/326
+    pub struct UniqueArrayPtr<T>(NonNull<T>, usize);
+    impl<T> UniqueArrayPtr<T>{
+        #[inline]
+        pub fn new_uninit(len: usize) -> UniqueArrayPtr<MaybeUninit<T>>{
+            // this is const
+            let layout = Layout::array::<MaybeUninit<T>>(len).unwrap();
+            unsafe{
+                let mem =
+                    // Do not alloc ZST.
+                    if layout.size() == 0{
+                        dangling(layout).as_ptr()
+                    } else {
+                        let mem = std::alloc::alloc(layout);
+                        assert!(mem != null_mut(), "Memory allocation fault.");
+                        mem
+                    };
 
-    #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut T{
-        self.0.as_ptr()
-    }
-
-    #[inline]
-    pub fn as_slice(&self) -> &[T]{
-        unsafe{ slice::from_raw_parts(self.0.as_ptr(), self.1) }
-    }
-
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [T]{
-        unsafe{ slice::from_raw_parts_mut(self.0.as_ptr(), self.1) }
-    }
-
-    /// noop
-    #[inline]
-    pub fn into_boxed_slice(mut self) -> Box<[T]>{
-        unsafe{ Box::from_raw(self.as_mut_slice()) }
-    }
-}
-
-impl<T> UniqueArrayPtr<MaybeUninit<T>>{
-    #[inline]
-    pub unsafe fn assume_init(array: UniqueArrayPtr<MaybeUninit<T>>) -> UniqueArrayPtr<T>{
-        let UniqueArrayPtr(mem, len) = array;
-        UniqueArrayPtr(mem.cast(), len)
-    }
-}
-
-impl<T> Drop for UniqueArrayPtr<T>{
-    #[inline]
-    fn drop(&mut self) {
-        // 1. call destructor
-        if mem::needs_drop::<T>(){
-            unsafe{ drop_in_place(self.as_mut_slice()); }
+                UniqueArrayPtr(
+                    NonNull::new_unchecked(mem as *mut MaybeUninit<T>),
+                    len
+                )
+            }
         }
 
-        // 2. dealloc
-        unsafe{
-            // we constructed with this layout, it MUST be fine.
-            let layout = Layout::array::<T>(self.1).unwrap_unchecked();
-            // Do not dealloc ZST.
-            if layout.size() != 0{
-                dealloc(self.0.as_ptr() as *mut u8, layout);
+        #[inline]
+        pub fn as_ptr(&self) -> *const T{
+            self.0.as_ptr() as *const T
+        }
+
+        #[inline]
+        pub fn as_mut_ptr(&mut self) -> *mut T{
+            self.0.as_ptr()
+        }
+
+        #[inline]
+        pub fn as_slice(&self) -> &[T]{
+            unsafe{ slice::from_raw_parts(self.0.as_ptr(), self.1) }
+        }
+
+        #[inline]
+        pub fn as_mut_slice(&mut self) -> &mut [T]{
+            unsafe{ slice::from_raw_parts_mut(self.0.as_ptr(), self.1) }
+        }
+
+        /// noop
+        #[inline]
+        pub fn into_boxed_slice(mut self) -> Box<[T]>{
+            unsafe{ Box::from_raw(self.as_mut_slice()) }
+        }
+    }
+
+    impl<T> UniqueArrayPtr<MaybeUninit<T>>{
+        #[inline]
+        pub unsafe fn assume_init(array: UniqueArrayPtr<MaybeUninit<T>>) -> UniqueArrayPtr<T>{
+            let UniqueArrayPtr(mem, len) = array;
+            UniqueArrayPtr(mem.cast(), len)
+        }
+    }
+
+    impl<T> Drop for UniqueArrayPtr<T>{
+        #[inline]
+        fn drop(&mut self) {
+            // 1. call destructor
+            if mem::needs_drop::<T>(){
+                unsafe{ drop_in_place(self.as_mut_slice()); }
+            }
+
+            // 2. dealloc
+            unsafe{
+                // we constructed with this layout, it MUST be fine.
+                let layout = Layout::array::<T>(self.1).unwrap_unchecked();
+                // Do not dealloc ZST.
+                if layout.size() != 0{
+                    dealloc(self.0.as_ptr() as *mut u8, layout);
+                }
             }
         }
     }
