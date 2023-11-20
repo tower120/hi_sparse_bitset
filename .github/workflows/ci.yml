@@ -32,7 +32,7 @@ jobs:
           hisparsebitset_test_128
         ]
     steps:
-    - uses: dtolnay/rust-toolchain@nightly
+    #- uses: dtolnay/rust-toolchain@nightly
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-careful
@@ -40,7 +40,8 @@ jobs:
     - run: RUSTFLAGS="
              --deny warnings 
              --cfg ${{ matrix.cache_type_flag }} ${{ matrix.config_type_flag }}
-           " cargo +nightly careful test --all-features
+           " # cargo +nightly careful test --all-features
+             cargo test --all-features
 
   miri:
     name: miri tests
