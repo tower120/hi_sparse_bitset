@@ -27,10 +27,10 @@ jobs:
           hisparsebitset_test_FixedCache,
           hisparsebitset_test_DynamicCache
         ]
-#        config_type_flag: [
-#          hisparsebitset_test_64,
-#          hisparsebitset_test_128
-#        ]
+        config_type_flag: [
+          hisparsebitset_test_64,
+          hisparsebitset_test_128
+        ]
     steps:
     #- uses: dtolnay/rust-toolchain@nightly
     - uses: taiki-e/install-action@v2
@@ -42,6 +42,7 @@ jobs:
     - run: RUSTFLAGS="
              --deny warnings 
              --cfg ${{ matrix.cache_type_flag }}
+             --cfg ${{ matrix.config_type_flag }}
            " cargo test --all-features
 
   miri:

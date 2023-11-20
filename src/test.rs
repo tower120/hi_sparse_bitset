@@ -18,7 +18,7 @@ cfg_if::cfg_if! {
     } else if #[cfg(hisparsebitset_test_FixedCache)] {
         type DefaultCache = cache::FixedCache<32>;
     } else if #[cfg(hisparsebitset_test_DynamicCache)] {
-        type DefaultCache = cache::DynamicCache<32>;
+        type DefaultCache = cache::DynamicCache;
     } else {
         //type DefaultCache = cache::FixedCache<32>;
         type DefaultCache = cache::DynamicCache;
