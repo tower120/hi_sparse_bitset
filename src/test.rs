@@ -274,12 +274,10 @@ where
                 }
             }
 
-            // TODO: Same for SimpleIter
             // suspend/resume
             {
                 let mut intersection =
                     crate::iter::CachingBlockIter
-                    //crate::iter::SimpleIter
                         ::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 

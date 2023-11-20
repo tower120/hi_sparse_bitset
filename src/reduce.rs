@@ -5,7 +5,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::ReduceCache;
-use crate::bitset_interface::LevelMasksExt;
+use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 
 /// Bitsets iterator reduction, as lazy bitset.
 ///
@@ -17,14 +17,21 @@ pub struct Reduce<Op, S, Cache> {
     pub(crate) phantom: PhantomData<(Op, Cache)>
 }
 
+impl<Op, S, Cache> BitSetBase for Reduce<Op, S, Cache>
+where
+    Op: BinaryOp,
+    S: Iterator + Clone,
+    S::Item: LevelMasks
+{
+    type Config = <S::Item as BitSetBase>::Config;
+}
+
 impl<Op, S, Cache> LevelMasks for Reduce<Op, S, Cache>
 where
     Op: BinaryOp,
     S: Iterator + Clone,
     S::Item: LevelMasks
 {
-    type Config = <S::Item as LevelMasks>::Config;
-
     #[inline]
     fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
         unsafe{
@@ -100,7 +107,7 @@ where
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
 {
-    type Config = <S::Item as LevelMasks>::Config;
+    type Config = <S::Item as BitSetBase>::Config;
     type Set = S::Item;
     type Sets = S;
     type CacheData = ();
@@ -274,7 +281,7 @@ where
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
 {
-    type Config = <S::Item as LevelMasks>::Config;
+    type Config = <S::Item as BitSetBase>::Config;
     type Set = S::Item;
     type Sets = S;
 
@@ -343,7 +350,7 @@ where
     S: Iterator + Clone,
     S::Item: LevelMasksExt
 {
-    type Config =  <S::Item as LevelMasks>::Config;
+    type Config =  <S::Item as BitSetBase>::Config;
     type Set = S::Item;
     type Sets = S;
 

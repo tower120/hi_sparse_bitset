@@ -8,10 +8,13 @@ use crate::iter::BlockIterator;
 use crate::op::BitSetOp;
 use crate::reduce::Reduce;
 
-/// Basic interface for accessing block masks. Can work with [SimpleIter].
-pub trait LevelMasks{
+// We have this separate trait with Config, to avoid making LevelMasks public.
+pub trait BitSetBase {
     type Config: IConfig;
+}
 
+/// Basic interface for accessing block masks. Can work with [SimpleIter].
+pub trait LevelMasks: BitSetBase{
     fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock;
 
     /// # Safety
@@ -82,9 +85,10 @@ pub trait LevelMasksExt: LevelMasks{
     ) -> <Self::Config as IConfig>::DataBitBlock;
 }
 
-impl<'a, T: LevelMasks> LevelMasks for &'a T {
+impl<'a, T: LevelMasks> BitSetBase for &'a T {
     type Config = T::Config;
-
+}
+impl<'a, T: LevelMasks> LevelMasks for &'a T {
     #[inline]
     fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
         <T as LevelMasks>::level0_mask(self)
@@ -146,9 +150,7 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
 
 
 // User-side interface
-pub trait BitSetInterface: IntoIterator<Item = usize> + LevelMasksExt{
-    type Config: IConfig;
-
+pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksExt {
     type BlockIter<'a>: BlockIterator where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
@@ -165,7 +167,6 @@ impl<T: LevelMasksExt> BitSetInterface for T
 where
     T: IntoIterator<Item = usize>
 {
-    type Config = T::Config;
     type BlockIter<'a> = DefaultBlockIterator<&'a T> where Self: 'a;
 
     #[inline]

@@ -2,13 +2,14 @@ mod caching;
 mod simple;
 
 use num_traits::AsPrimitive;
-use crate::{DataBlock, DataBlockIter, IConfig};
+use crate::{BitSetInterface, DataBlock, DataBlockIter, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::bitset_interface::{LevelMasks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
 
 pub use caching::{CachingBlockIter, CachingIndexIter};
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
+use crate::configs::DefaultBlockIterator;
 
 #[inline]
 fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: usize) -> usize{
@@ -74,14 +75,27 @@ impl<Config: IConfig> Default for State<Config>{
             level0_index: 0
         }
     }
-
-    // TODO: consider returning "resume()" here back to DefaultIterator
 }
 
+impl<Config: IConfig> State<Config>{
+    /// Make block iterator from this State.
+    ///
+    /// # Safety
+    ///
+    /// Resuming with `bit_set` different from the suspended one is safe,
+    /// and will return valid items during iteration, but "skipped" items
+    /// are unspecified.
+    #[inline]
+    pub fn resume<T: BitSetInterface<Config = Config>>(self, bit_set: T)
+        -> DefaultBlockIterator<T>
+    {
+        DefaultBlockIterator::resume(bit_set, self)
+    }
+}
 
 pub trait BlockIterator
     : Iterator<Item = DataBlock<
-        <<Self::BitSet as LevelMasks>::Config as IConfig>::DataBitBlock
+        <<Self::BitSet as BitSetBase>::Config as IConfig>::DataBitBlock
     >>
     + Sized
 {
@@ -92,10 +106,10 @@ pub trait BlockIterator
 
     fn resume(
         virtual_set: Self::BitSet,
-        state: State<<Self::BitSet as LevelMasks>::Config>
+        state: State<<Self::BitSet as BitSetBase>::Config>
     ) -> Self;
 
-    fn suspend(self) -> State<<Self::BitSet as LevelMasks>::Config>;
+    fn suspend(self) -> State<<Self::BitSet as BitSetBase>::Config>;
 
     type IndexIter: IndexIterator<BlockIter = Self>;
 
@@ -146,7 +160,7 @@ where
     T: BlockIterator
 {
     block_iter: T,
-    data_block_iter: DataBlockIter<<<T::BitSet as LevelMasks>::Config as IConfig>::DataBitBlock>,
+    data_block_iter: DataBlockIter<<<T::BitSet as BitSetBase>::Config as IConfig>::DataBitBlock>,
 }
 
 impl<T> IndexIter<T>

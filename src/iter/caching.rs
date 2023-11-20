@@ -1,7 +1,7 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::bitset_interface::LevelMasksExt;
+use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use super::*;
 
 /// Caching iterator.
@@ -144,7 +144,7 @@ where
         };
 
         let block_start_index =
-            data_block_start_index::<<T as LevelMasks>::Config>(
+            data_block_start_index::<<T as BitSetBase>::Config>(
                 state.level0_index, level1_index
             );
 

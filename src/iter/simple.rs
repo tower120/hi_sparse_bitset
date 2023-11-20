@@ -1,3 +1,4 @@
+use crate::bitset_interface::BitSetBase;
 use super::*;
 
 /// Simple iterator - access each data block, by traversing all hierarchy
@@ -64,7 +65,7 @@ impl<T> Iterator for SimpleBlockIter<T>
 where
     T: LevelMasks,
 {
-    type Item = DataBlock<<<T as LevelMasks>::Config as IConfig>::DataBitBlock>;
+    type Item = DataBlock<<<T as BitSetBase>::Config as IConfig>::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -95,7 +96,7 @@ where
         };
 
         let block_start_index =
-            data_block_start_index::<<T as LevelMasks>::Config>(
+            data_block_start_index::<<T as BitSetBase>::Config>(
                 state.level0_index, level1_index
             );
 

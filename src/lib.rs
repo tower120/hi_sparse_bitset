@@ -29,7 +29,7 @@ use crate::bit_queue::BitQueue;
 use cache::ReduceCache;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
-pub use bitset_interface::BitSetInterface;
+pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use op::BitSetOp;
 pub use reduce::Reduce;
 
@@ -279,8 +279,12 @@ impl<Config: IConfig, const N: usize> From<[usize; N]> for BitSet<Config> {
     }
 }
 
-impl<Config: IConfig> LevelMasks for BitSet<Config>{
+impl<Config: IConfig> BitSetBase for BitSet<Config>{
     type Config = Config;
+}
+
+impl<Config: IConfig> LevelMasks for BitSet<Config>{
+    //type Config = Config;
 
     #[inline]
     fn level0_mask(&self) -> Config::Level0BitBlock {
@@ -404,7 +408,7 @@ pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: BitSetInterface,
-    S2: BitSetInterface<Config = <S1 as BitSetInterface>::Config>,
+    S2: BitSetInterface<Config = <S1 as BitSetBase>::Config>,
 {
     BitSetOp::new(op, s1, s2)
 }

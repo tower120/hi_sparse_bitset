@@ -7,7 +7,7 @@
 //! [reduce]: crate::reduce()
 
 use crate::binary_op::BinaryOp;
-use crate::bitset_interface::{LevelMasks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCacheImpl};
 
 /// Cache is not used.
@@ -46,7 +46,7 @@ pub trait ReduceCache: Default + 'static{
     type Impl<Op, S>
         : ReduceCacheImpl<
             Sets = S,
-            Config = <S::Item as LevelMasks>::Config
+            Config = <S::Item as BitSetBase>::Config
         >
     where
         Op: BinaryOp,
