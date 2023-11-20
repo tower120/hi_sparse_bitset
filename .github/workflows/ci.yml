@@ -11,14 +11,15 @@ env:
 
 jobs:
   build:
-    name: Build
+    name: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: RUSTFLAGS="--deny warnings" cargo build
 
+  # TODO: in matrix for all configs
   tests:
-    name: Tests
+    name: careful tests
     runs-on: ubuntu-latest
     steps:
     - uses: dtolnay/rust-toolchain@nightly
@@ -27,6 +28,18 @@ jobs:
         tool: cargo-careful
     - uses: actions/checkout@v4
     - run: RUSTFLAGS="--deny warnings" cargo +nightly careful test --all-features
+
+  miri:
+    name: miri tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dtolnay/rust-toolchain@nightly
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+    - uses: actions/checkout@v4
+    - run: RUSTFLAGS="--deny warnings" cargo +nightly miri nextest run -j6 --all-features
+
 
 #  build-all-features:
 #    runs-on: ubuntu-latest

@@ -471,9 +471,7 @@ where
     }
 }
 
-
 use unique_ptr::UniqueArrayPtr;
-
 // Some methods not used by library.
 #[allow(dead_code)]
 mod unique_ptr{
