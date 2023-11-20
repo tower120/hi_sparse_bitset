@@ -6,7 +6,6 @@ use std::ops::{BitOr, BitAnd, BitXor, Sub};
 use crate::binary_op::*;
 use crate::{BitSet, IConfig};
 use crate::bit_block::BitBlock;
-use crate::iter::{CachingBlockIter, BlockIterator};
 use crate::reduce::Reduce;
 use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 
@@ -101,8 +100,8 @@ where
             &mut cache_data.1, &mut level1_blocks.1, level0_index
         );
 
-        let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
-        if !IS_INTERSECTION{
+        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+        if !is_intersection {
         if !S1::EMPTY_LVL1_TOLERANCE {
             level1_blocks.2.write(v1);
         }
@@ -120,15 +119,15 @@ where
         level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock {
         // intersection can never point to empty blocks.
-        let IS_INTERSECTION = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
 
-        let m0 = if S1::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.2.assume_init(){
+        let m0 = if S1::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.2.assume_init(){
             S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()
         };
 
-        let m1 = if S2::EMPTY_LVL1_TOLERANCE || IS_INTERSECTION || level1_blocks.3.assume_init(){
+        let m1 = if S2::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.3.assume_init(){
             S2::data_mask_from_blocks(level1_blocks.1.assume_init_ref(), level1_index)
         } else {
             <Self::Config as IConfig>::DataBitBlock::zero()

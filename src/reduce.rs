@@ -1,13 +1,10 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 use std::{mem, slice};
-use std::alloc::{dealloc, Layout};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::{drop_in_place, NonNull, null_mut};
 use crate::{IConfig, LevelMasks};
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::ReduceCache;
-use crate::iter::BlockIterator;
 use crate::bitset_interface::LevelMasksExt;
 
 /// Bitsets iterator reduction, as lazy bitset.
@@ -77,21 +74,20 @@ pub trait ReduceCacheImpl
     type Set: LevelMasksExt<Config = Self::Config>;
     type Sets: Iterator<Item = Self::Set> + Clone;
 
-    type CacheData;
-    type Level1Blocks3;
-
     const EMPTY_LVL1_TOLERANCE: bool;
 
+    /// Cache only used by DynamicCache
+    type CacheData;
     fn make_cache(sets: &Self::Sets) -> Self::CacheData;
     fn drop_cache(sets: &Self::Sets, cache: &mut ManuallyDrop<Self::CacheData>);
 
+    type Level1Blocks3;
     unsafe fn update_level1_blocks3(
         sets: &Self::Sets,
         cache: &mut Self::CacheData,
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
         level0_index: usize
     ) -> (<Self::Config as IConfig>::Level1BitBlock, bool);
-
     unsafe fn data_mask_from_blocks3(
         level1_blocks: &Self::Level1Blocks3, level1_index: usize
     ) -> <Self::Config as IConfig>::DataBitBlock;
@@ -117,7 +113,7 @@ where
     fn make_cache(_: &Self::Sets) -> Self::CacheData{ () }
 
     #[inline]
-    fn drop_cache(sets: &Self::Sets, _: &mut ManuallyDrop<Self::CacheData>) {}
+    fn drop_cache(_: &Self::Sets, _: &mut ManuallyDrop<Self::CacheData>) {}
 
     #[inline]
     unsafe fn update_level1_blocks3(
@@ -475,97 +471,104 @@ where
     }
 }
 
+use unique_ptr::UniqueArrayPtr;
+// Some methods not used by library.
+#[allow(dead_code)]
+mod unique_ptr{
+    use std::alloc::{dealloc, Layout};
+    use std::mem::MaybeUninit;
+    use std::ptr::{drop_in_place, NonNull, null_mut};
+    use std::{mem, slice};
 
-
-#[inline]
-fn dangling(layout: Layout) -> NonNull<u8>{
-    #[cfg(miri)]
-    {
-        layout.dangling()
-    }
-    #[cfg(not(miri))]
-    {
-        unsafe { NonNull::new_unchecked(layout.align() as *mut u8) }
-    }
-}
-
-
-/// Same as Box<[T]>, but aliasable.
-/// See https://github.com/rust-lang/unsafe-code-guidelines/issues/326
-pub struct UniqueArrayPtr<T>(NonNull<T>, usize);
-impl<T> UniqueArrayPtr<T>{
     #[inline]
-    pub fn new_uninit(len: usize) -> UniqueArrayPtr<MaybeUninit<T>>{
-        // this is const
-        let layout = Layout::array::<MaybeUninit<T>>(len).unwrap();
-        unsafe{
-            let mem =
-                // Do not alloc ZST.
-                if layout.size() == 0{
-                    dangling(layout).as_ptr()
-                } else {
-                    let mem = std::alloc::alloc(layout);
-                    assert!(mem != null_mut(), "Memory allocation fault.");
-                    mem
-                };
-
-            UniqueArrayPtr(
-                NonNull::new_unchecked(mem as *mut MaybeUninit<T>),
-                len
-            )
+    fn dangling(layout: Layout) -> NonNull<u8>{
+        #[cfg(miri)]
+        {
+            layout.dangling()
+        }
+        #[cfg(not(miri))]
+        {
+            unsafe { NonNull::new_unchecked(layout.align() as *mut u8) }
         }
     }
 
-    #[inline]
-    pub fn as_ptr(&self) -> *const T{
-        self.0.as_ptr() as *const T
-    }
+    /// Same as Box<[T]>, but aliasable.
+    /// See https://github.com/rust-lang/unsafe-code-guidelines/issues/326
+    pub struct UniqueArrayPtr<T>(NonNull<T>, usize);
+    impl<T> UniqueArrayPtr<T>{
+        #[inline]
+        pub fn new_uninit(len: usize) -> UniqueArrayPtr<MaybeUninit<T>>{
+            // this is const
+            let layout = Layout::array::<MaybeUninit<T>>(len).unwrap();
+            unsafe{
+                let mem =
+                    // Do not alloc ZST.
+                    if layout.size() == 0{
+                        dangling(layout).as_ptr()
+                    } else {
+                        let mem = std::alloc::alloc(layout);
+                        assert!(mem != null_mut(), "Memory allocation fault.");
+                        mem
+                    };
 
-    #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut T{
-        self.0.as_ptr()
-    }
-
-    #[inline]
-    pub fn as_slice(&self) -> &[T]{
-        unsafe{ slice::from_raw_parts(self.0.as_ptr(), self.1) }
-    }
-
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [T]{
-        unsafe{ slice::from_raw_parts_mut(self.0.as_ptr(), self.1) }
-    }
-
-    /// noop
-    #[inline]
-    pub fn into_boxed_slice(mut self) -> Box<[T]>{
-        unsafe{ Box::from_raw(self.as_mut_slice()) }
-    }
-}
-
-impl<T> UniqueArrayPtr<MaybeUninit<T>>{
-    #[inline]
-    pub unsafe fn assume_init(array: UniqueArrayPtr<MaybeUninit<T>>) -> UniqueArrayPtr<T>{
-        let UniqueArrayPtr(mem, len) = array;
-        UniqueArrayPtr(mem.cast(), len)
-    }
-}
-
-impl<T> Drop for UniqueArrayPtr<T>{
-    #[inline]
-    fn drop(&mut self) {
-        // 1. call destructor
-        if mem::needs_drop::<T>(){
-            unsafe{ drop_in_place(self.as_mut_slice()); }
+                UniqueArrayPtr(
+                    NonNull::new_unchecked(mem as *mut MaybeUninit<T>),
+                    len
+                )
+            }
         }
 
-        // 2. dealloc
-        unsafe{
-            // we constructed with this layout, it MUST be fine.
-            let layout = Layout::array::<T>(self.1).unwrap_unchecked();
-            // Do not dealloc ZST.
-            if layout.size() != 0{
-                dealloc(self.0.as_ptr() as *mut u8, layout);
+        #[inline]
+        pub fn as_ptr(&self) -> *const T{
+            self.0.as_ptr() as *const T
+        }
+
+        #[inline]
+        pub fn as_mut_ptr(&mut self) -> *mut T{
+            self.0.as_ptr()
+        }
+
+        #[inline]
+        pub fn as_slice(&self) -> &[T]{
+            unsafe{ slice::from_raw_parts(self.0.as_ptr(), self.1) }
+        }
+
+        #[inline]
+        pub fn as_mut_slice(&mut self) -> &mut [T]{
+            unsafe{ slice::from_raw_parts_mut(self.0.as_ptr(), self.1) }
+        }
+
+        /// noop
+        #[inline]
+        pub fn into_boxed_slice(mut self) -> Box<[T]>{
+            unsafe{ Box::from_raw(self.as_mut_slice()) }
+        }
+    }
+
+    impl<T> UniqueArrayPtr<MaybeUninit<T>>{
+        #[inline]
+        pub unsafe fn assume_init(array: UniqueArrayPtr<MaybeUninit<T>>) -> UniqueArrayPtr<T>{
+            let UniqueArrayPtr(mem, len) = array;
+            UniqueArrayPtr(mem.cast(), len)
+        }
+    }
+
+    impl<T> Drop for UniqueArrayPtr<T>{
+        #[inline]
+        fn drop(&mut self) {
+            // 1. call destructor
+            if mem::needs_drop::<T>(){
+                unsafe{ drop_in_place(self.as_mut_slice()); }
+            }
+
+            // 2. dealloc
+            unsafe{
+                // we constructed with this layout, it MUST be fine.
+                let layout = Layout::array::<T>(self.1).unwrap_unchecked();
+                // Do not dealloc ZST.
+                if layout.size() != 0{
+                    dealloc(self.0.as_ptr() as *mut u8, layout);
+                }
             }
         }
     }

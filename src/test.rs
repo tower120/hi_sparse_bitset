@@ -8,6 +8,7 @@ use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::SimpleBlockIter;
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
+use crate::iter::BlockIterator;
 
 use super::*;
 
@@ -17,7 +18,7 @@ cfg_if::cfg_if! {
     } else if #[cfg(hisparsebitset_test_FixedCache)] {
         type DefaultCache = cache::FixedCache<32>;
     } else if #[cfg(hisparsebitset_test_DynamicCache)] {
-        type DefaultCache = cache::DynamicCache<32>;
+        type DefaultCache = cache::DynamicCache;
     } else {
         //type DefaultCache = cache::FixedCache<32>;
         type DefaultCache = cache::DynamicCache;
@@ -39,9 +40,7 @@ type IteratorState  = super::iter::State<Config>;
 
 #[test]
 fn level_indices_test(){
-    // assuming all levels with 128bit blocks
     type Config  = configs::_128bit;
-    type HiSparseBitset = super::BitSet<Config>;
 
     let levels = level_indices::<Config>(0);
     assert_eq!(levels, (0,0,0));
@@ -499,7 +498,7 @@ fn resume_valid_level1_index_miri_test(){
     let s1: HiSparseBitset = [1000, 2000, 3000].into();
     let s2 = s1.clone();
 
-    let mut list = [s1, s2];
+    let list = [s1, s2];
     let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
     let state = {
         let mut i =  r.block_iter();
@@ -550,7 +549,6 @@ fn reduce_or_test(){
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
-    const LEVEL_1: usize = BLOCK_SIZE;
 
     // Different level 0
     {
@@ -606,7 +604,6 @@ fn reduce_xor_test(){
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
-    const LEVEL_1: usize = BLOCK_SIZE;
 
     // Different level 0
     {
@@ -679,7 +676,6 @@ fn multilayer_or_test(){
     type HiSparseBitset = super::BitSet<configs::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
-    const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
     const LEVEL_1: usize = BLOCK_SIZE;
 
     let sets1 = [

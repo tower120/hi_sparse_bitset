@@ -1,12 +1,10 @@
 mod common;
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput, PlotConfiguration, AxisScale};
+use criterion::{criterion_group, criterion_main, Criterion, PlotConfiguration, AxisScale};
 use criterion::measurement::Measurement;
-use hibitset::BitSetLike;
 use hi_sparse_bitset::{BitSet, IConfig, reduce};
 use hi_sparse_bitset::binary_op::*;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
-use hi_sparse_bitset::BitSetInterface;
 use crate::common::bench;
 
 

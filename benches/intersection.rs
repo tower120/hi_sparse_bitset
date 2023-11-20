@@ -2,9 +2,8 @@ mod common;
 
 use std::ops::ControlFlow;
 use std::collections::HashSet;
-use criterion::{black_box, criterion_group, criterion_main, Criterion, PlotConfiguration, AxisScale};
-use hibitset::BitSetLike;
-use hi_sparse_bitset::{BitSet, IConfig, iter, reduce};
+use criterion::{criterion_group, criterion_main, Criterion, PlotConfiguration, AxisScale};
+use hi_sparse_bitset::{BitSet, IConfig, reduce};
 use hi_sparse_bitset::binary_op::BitAndOp;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
@@ -169,7 +168,7 @@ pub fn bench_iter(c: &mut Criterion) {
         -> (Vec<HiSparseBitset>, Vec<hibitset::BitSet>, Vec<HashSet<usize>>, Vec<RoaringBitmap>)
     {
         let mut random_indices: Vec<Vec<usize>> = Default::default();
-        for s in 0..sets{
+        for _ in 0..sets{
             random_indices.push(Default::default());
             let random_indices = random_indices.last_mut().unwrap();
             for i in 0..size{
