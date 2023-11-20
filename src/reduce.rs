@@ -474,6 +474,8 @@ where
 
 use unique_ptr::UniqueArrayPtr;
 
+// Some methods not used by library.
+#[allow(dead_code)]
 mod unique_ptr{
     use std::alloc::{dealloc, Layout};
     use std::mem::MaybeUninit;
