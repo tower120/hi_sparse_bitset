@@ -32,22 +32,31 @@ jobs:
           hisparsebitset_test_128
         ]
     steps:
-    #- uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@nightly
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-careful
     - uses: actions/checkout@v4
-    # cargo +nightly careful test --all-features
-    #    --cfg ${{ matrix.cache_type_flag }} ${{ matrix.config_type_flag }}
     - run: RUSTFLAGS="
              --deny warnings 
              --cfg ${{ matrix.cache_type_flag }}
              --cfg ${{ matrix.config_type_flag }}
-           " cargo test --all-features
+           " cargo +nightly careful test --all-features
 
   miri:
     name: miri tests
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cache_type_flag: [
+          hisparsebitset_test_NoCache,
+          hisparsebitset_test_FixedCache,
+          hisparsebitset_test_DynamicCache
+        ]
+        config_type_flag: [
+          hisparsebitset_test_64,
+          hisparsebitset_test_128
+        ]
     steps:
     - uses: dtolnay/rust-toolchain@nightly
       with:
@@ -57,7 +66,11 @@ jobs:
       with:
         tool: cargo-nextest
     - uses: actions/checkout@v4
-    - run: RUSTFLAGS="--deny warnings" cargo +nightly miri nextest run -j6 --all-features
+    - run: RUSTFLAGS="
+             --deny warnings
+             --cfg ${{ matrix.cache_type_flag }}
+             --cfg ${{ matrix.config_type_flag }}        
+           " cargo +nightly miri nextest run -j6 --all-features
 
 
 #  build-all-features:
