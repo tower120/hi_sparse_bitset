@@ -34,6 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: miri
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-nextest
