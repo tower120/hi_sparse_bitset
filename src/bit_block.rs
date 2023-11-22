@@ -22,7 +22,7 @@ pub trait BitBlock
     where
         F: FnMut(usize) -> ControlFlow<()>;
 
-    type BitsIter: BitQueue<Mask = Self::AsArray>;
+    type BitsIter: BitQueue;
     fn bits_iter(self) -> Self::BitsIter;
 
     type AsArray: AsRef<[u64]>;

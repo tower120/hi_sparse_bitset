@@ -7,7 +7,7 @@ use crate::binary_op::*;
 use crate::{BitSet, IConfig};
 use crate::bit_block::BitBlock;
 use crate::reduce::Reduce;
-use crate::bitset_interface::{LevelMasks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
 
 /// Binary operation application, as lazy bitset.
 ///
@@ -26,14 +26,21 @@ impl<Op, S1, S2> BitSetOp<Op, S1, S2>{
     }
 }
 
-impl<Op, S1, S2> LevelMasks for BitSetOp<Op, S1, S2>
+impl<Op, S1, S2> BitSetBase for BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: LevelMasks,
     S2: LevelMasks<Config = S1::Config>,
 {
     type Config = S1::Config;
+}
 
+impl<Op, S1, S2> LevelMasks for BitSetOp<Op, S1, S2>
+where
+    Op: BinaryOp,
+    S1: LevelMasks,
+    S2: LevelMasks<Config = S1::Config>,
+{
     #[inline]
     fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
         Op::hierarchy_op(self.s1.level0_mask(), self.s2.level0_mask())

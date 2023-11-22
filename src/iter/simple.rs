@@ -1,3 +1,4 @@
+use crate::bitset_interface::BitSetBase;
 use super::*;
 
 /// Simple iterator - access each data block, by traversing all hierarchy
@@ -35,20 +36,12 @@ where
         }
     }
 
-    fn resume(virtual_set: T, mut state: State<T::Config>) -> Self {
-        let lvl1_mask_gen = |index| unsafe {
-            virtual_set.level1_mask(index)
-        };
-        patch_state(&mut state, &virtual_set, lvl1_mask_gen);
-        Self{
-            virtual_set,
-            state,
-        }
-    }
-
     #[inline]
-    fn suspend(self) -> State<T::Config> {
-        self.state
+    fn cursor(&self) -> BlockIterCursor {
+        BlockIterCursor{
+            level0_index: self.state.level0_index,
+            level1_index: self.state.level1_iter.current(),
+        }
     }
 
     type IndexIter = SimpleIndexIter<T>;
@@ -57,6 +50,10 @@ where
     fn as_indices(self) -> Self::IndexIter {
         SimpleIndexIter::new(self)
     }
+
+    fn skip_to(&mut self, _cursor: BlockIterCursor) {
+        unimplemented!()
+    }
 }
 
 
@@ -64,7 +61,7 @@ impl<T> Iterator for SimpleBlockIter<T>
 where
     T: LevelMasks,
 {
-    type Item = DataBlock<<<T as LevelMasks>::Config as IConfig>::DataBitBlock>;
+    type Item = DataBlock<<<T as BitSetBase>::Config as IConfig>::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -95,7 +92,7 @@ where
         };
 
         let block_start_index =
-            data_block_start_index::<<T as LevelMasks>::Config>(
+            data_block_start_index::<<T as BitSetBase>::Config>(
                 state.level0_index, level1_index
             );
 

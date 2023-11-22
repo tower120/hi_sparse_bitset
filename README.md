@@ -63,7 +63,13 @@ This is important addition, since as result you have the same type,
 regardless of bitsets count. And of course, you can have reduce on 
 reduce on reduce...
 
+# Ordered/sorted
+
+Iteration always return sorted sequences.
+
 # Suspend-resume
+
+TODO: outdated!!
 
 Iterators of `BitSetInterface` (any kind of bitset) can be suspended and resumed.
 This means that you can have intersection between several bitset, iterate it

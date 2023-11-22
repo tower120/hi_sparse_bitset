@@ -5,7 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::SimpleBlockIter;
+use crate::iter::{BlockIterCursor};
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -36,7 +36,7 @@ cfg_if::cfg_if! {
 }
 
 type HiSparseBitset = super::BitSet<Config>;
-type IteratorState  = super::iter::State<Config>;
+//type IteratorState  = super::iter::State<Config>;
 
 #[test]
 fn level_indices_test(){
@@ -212,7 +212,7 @@ where
         // non removed initial intersection set.
 
         // initial insert
-        let mut intersection_state = IteratorState::default();
+        let mut intersection_cursor = BlockIterCursor::default();
         let mut initial_hashsets_intersection;
         {
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
@@ -274,13 +274,10 @@ where
                 }
             }
 
-            // TODO: Same for SimpleIter
             // suspend/resume
             {
-                let mut intersection =
-                    crate::iter::CachingBlockIter
-                    //crate::iter::SimpleIter
-                        ::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
+                let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
+                intersection.skip_to(intersection_cursor);
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
                 // all intersections must be valid
@@ -306,7 +303,7 @@ where
                     }
                 }
 
-                intersection_state = intersection.suspend();
+                intersection_cursor = intersection.cursor();
             }
 
             // reduce ext3 test
@@ -378,8 +375,8 @@ where
 
         // consume resumable leftovers
         {
-            let intersection =
-                SimpleBlockIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
+            let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
+            intersection.skip_to(intersection_cursor);
             for block in intersection{
                 block.traverse(
                     |index|{
@@ -429,11 +426,9 @@ fn one_intersection_test(){
     hi_set.insert(8760);
     hi_set.insert(521);
 
-    let state = IteratorState::default();
-    let iter = crate::iter::CachingBlockIter::resume(
-        reduce(BitAndOp, [&hi_set].into_iter()).unwrap(),
-        state
-    );
+    let cursor = BlockIterCursor::default();
+    let mut iter = reduce(BitAndOp, [&hi_set].into_iter()).unwrap().into_block_iter();
+    iter.skip_to(cursor);
 
     let mut intersection = Vec::new();
     for block in iter{
@@ -476,10 +471,8 @@ fn regression_test1() {
 
     {
         let mut indices2 = Vec::new();
-        let iter = crate::iter::CachingBlockIter::resume(
-            reduce(BitAndOp, hi_sets.iter()).unwrap(),
-            IteratorState::default()
-        );
+        let mut iter = reduce(BitAndOp, hi_sets.iter()).unwrap().into_block_iter();
+        iter.skip_to(BlockIterCursor::default());
         for block in iter{
             block.traverse(
                 |index|{
@@ -500,15 +493,16 @@ fn resume_valid_level1_index_miri_test(){
 
     let list = [s1, s2];
     let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
-    let state = {
+    let cursor = {
         let mut i =  r.block_iter();
         i.next().unwrap();
-        i.suspend()
+        i.cursor()
     };
 
     let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
 
-    let mut i = crate::iter::CachingBlockIter::resume(r, state);
+    let mut i = r.block_iter();
+    i.skip_to(cursor);
     i.next();
 }
 
@@ -726,4 +720,62 @@ fn multilayer_fixed_dynamic_cache(){
     let and = reduce_w_cache(BitAndOp, group_finale.iter(), FixedCache::<32>).unwrap();
 
     assert_equal(and.iter(), [5]);
+}
+
+#[test]
+fn cursor_test(){
+    let seq: HiSparseBitset = [1000, 2000, 3000, 4000, 5000, 6000].into();
+    let mut iter = seq.block_iter();
+
+    iter.next();
+    iter.next();
+    assert_equal(iter.next().unwrap().iter(), [3000]);
+
+    let c = iter.cursor();
+
+    let mut iter = seq.block_iter();
+    iter.skip_to(c);
+    assert_equal(iter.next().unwrap().iter(), [4000]);
+}
+
+#[test]
+fn cursor_test2(){
+    type HiSparseBitset = BitSet<configs::_64bit>;
+    let seq: HiSparseBitset = [0, 64, 128, 192, 256].into();
+    let mut iter = seq.block_iter();
+
+    iter.next();
+    iter.next();
+    assert_equal(iter.next().unwrap().iter(), [128]);
+
+    let c = iter.cursor();
+
+    let mut iter = seq.block_iter();
+    iter.skip_to(c);
+    assert_equal(iter.next().unwrap().iter(), [192]);
+}
+
+#[test]
+fn cursor_test_empty(){
+    let seq: HiSparseBitset = Default::default();
+
+    let iter = seq.block_iter();
+    let c = iter.cursor();
+
+    let mut iter = seq.block_iter();
+    iter.skip_to(c);
+}
+
+#[test]
+fn cursor_test_empty2(){
+    let seq: HiSparseBitset = Default::default();
+    let mut iter = seq.block_iter();
+
+    iter.next();
+    iter.next();
+
+    let c = iter.cursor();
+
+    let mut iter = seq.block_iter();
+    iter.skip_to(c);
 }
