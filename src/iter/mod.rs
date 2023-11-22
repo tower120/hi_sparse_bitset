@@ -2,7 +2,7 @@ mod caching;
 mod simple;
 
 use num_traits::AsPrimitive;
-use crate::{BitSetInterface, DataBlock, DataBlockIter, IConfig};
+use crate::{BitSetInterface, DataBlock, DataBlockIter, IConfig, bit_queue};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
@@ -16,6 +16,13 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
     let level0_offset = level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT);
     let level1_offset = level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT);
     level0_offset + level1_offset
+}
+
+#[derive(Default, Clone)]
+pub struct BlockIterCursor{
+    // TODO: u32's ?
+    pub(crate) level0_index: usize,
+    pub(crate) level1_index: usize,
 }
 
 // TODO: Clone -able.
@@ -58,7 +65,7 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
 /// buffer, suspend iterator to state, unlock sets, process buffer, lock sets,
 /// resume iterator from state, and so on.
 ///
-pub struct State<Config: IConfig> {
+pub(crate) struct State<Config: IConfig> {
     pub(crate) level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
     pub(crate) level1_iter: <Config::Level1BitBlock as BitBlock>::BitsIter,
     pub(crate) level0_index: usize,
@@ -78,7 +85,7 @@ impl<Config: IConfig> Default for State<Config>{
 }
 
 impl<Config: IConfig> State<Config>{
-    /// Make block iterator from this State.
+    /*/// Make block iterator from this State.
     ///
     /// # Safety
     ///
@@ -90,7 +97,19 @@ impl<Config: IConfig> State<Config>{
         -> DefaultBlockIterator<T>
     {
         DefaultBlockIterator::resume(bit_set, self)
-    }
+    }*/
+
+/*    // TODO: Make default mode?
+    /// Into more strict mode.
+    ///
+    /// Iteration will be resumed from last iterated block, and move forward index-wise.
+    /// (You'll see all [DataBlock]s with indices greater than one, you suspended on)
+    #[inline]
+    pub fn all_remaining(mut self) -> Self {
+        self.level0_iter.fill_remaining();
+        self.level1_iter.fill_remaining();
+        self
+    }*/
 }
 
 pub trait BlockIterator
@@ -104,12 +123,14 @@ pub trait BlockIterator
 
     fn new(virtual_set: Self::BitSet) -> Self;
 
-    fn resume(
+    /*fn resume(
         virtual_set: Self::BitSet,
         state: State<<Self::BitSet as BitSetBase>::Config>
-    ) -> Self;
+    ) -> Self;*/
 
-    fn suspend(self) -> State<<Self::BitSet as BitSetBase>::Config>;
+    //fn suspend(self) -> State<<Self::BitSet as BitSetBase>::Config>;
+
+    fn cursor(&self) -> BlockIterCursor;
 
     type IndexIter: IndexIterator<BlockIter = Self>;
 
