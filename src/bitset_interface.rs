@@ -30,7 +30,6 @@ pub trait LevelMasks: BitSetBase{
         -> <Self::Config as IConfig>::DataBitBlock;
 }
 
-
 /// More sophisticated masks interface, optimized for iteration speed, through
 /// caching level1(pre-data level) block pointer. This also, allow to discard
 /// sets with empty level1 blocks in final stage of getting data blocks.

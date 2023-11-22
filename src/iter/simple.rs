@@ -51,7 +51,7 @@ where
         SimpleIndexIter::new(self)
     }
 
-    fn skip_to(&mut self, cursor: BlockIterCursor) {
+    fn skip_to(&mut self, _cursor: BlockIterCursor) {
         unimplemented!()
     }
 }

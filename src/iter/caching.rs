@@ -67,7 +67,8 @@ where
 
     #[inline]
     fn skip_to(&mut self, cursor: BlockIterCursor) {
-        // use actual level0 index.
+        // get level0_index from level0_iter since we did not set it 
+        // during iterator construction
         let level0_index = self.state.level0_iter.current();
 
         use std::cmp::Ordering;
@@ -166,8 +167,8 @@ where
 }
 
 impl<T> Drop for CachingBlockIter<T>
-    where
-        T: LevelMasksExt
+where
+    T: LevelMasksExt
 {
     #[inline]
     fn drop(&mut self) {

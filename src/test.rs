@@ -5,7 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::{BlockIterCursor, SimpleBlockIter};
+use crate::iter::{BlockIterCursor};
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -212,7 +212,6 @@ where
         // non removed initial intersection set.
 
         // initial insert
-        //let mut intersection_state = IteratorState::default();
         let mut intersection_cursor = BlockIterCursor::default();
         let mut initial_hashsets_intersection;
         {
@@ -279,8 +278,6 @@ where
             {
                 let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
                 intersection.skip_to(intersection_cursor);
-                    /*crate::iter::CachingBlockIter
-                        ::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);*/
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
                 // all intersections must be valid
@@ -307,7 +304,6 @@ where
                 }
 
                 intersection_cursor = intersection.cursor();
-                //intersection_state = intersection.suspend();
             }
 
             // reduce ext3 test
@@ -381,7 +377,6 @@ where
         {
             let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
             intersection.skip_to(intersection_cursor);
-                //SimpleBlockIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), intersection_state);
             for block in intersection{
                 block.traverse(
                     |index|{
@@ -478,10 +473,6 @@ fn regression_test1() {
         let mut indices2 = Vec::new();
         let mut iter = reduce(BitAndOp, hi_sets.iter()).unwrap().into_block_iter();
         iter.skip_to(BlockIterCursor::default());
-        /*let iter = crate::iter::CachingBlockIter::resume(
-            reduce(BitAndOp, hi_sets.iter()).unwrap(),
-            IteratorState::default()
-        )*/;
         for block in iter{
             block.traverse(
                 |index|{
@@ -768,7 +759,7 @@ fn cursor_test2(){
 fn cursor_test_empty(){
     let seq: HiSparseBitset = Default::default();
 
-    let mut iter = seq.block_iter();
+    let iter = seq.block_iter();
     let c = iter.cursor();
 
     let mut iter = seq.block_iter();

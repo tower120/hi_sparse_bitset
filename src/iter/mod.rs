@@ -4,7 +4,7 @@ mod caching;
 mod simple;
 
 use num_traits::AsPrimitive;
-use crate::{BitSetInterface, DataBlock, DataBlockIter, IConfig};
+use crate::{DataBlock, DataBlockIter, IConfig};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
