@@ -4,12 +4,20 @@ use std::mem::{ManuallyDrop, size_of};
 use crate::bit_op::{one_bits_iter, OneBitsIter};
 use crate::Primitive;
 
+/// Return 0 if n > BITS
+/* #[inline]
+fn saturating_shl(i: u64, n: u32) -> u64{
+    let (res, overflow) = i.overflowing_shl(n);
+    res * overflow as u64
+} */
 #[inline]
-fn zero_first_n<P: Primitive>(bit_block_iter: &mut OneBitsIter<P>, n: usize) {
-    let block: &mut P = unsafe{
-        mem::transmute(bit_block_iter)
-    };
-    *block &= P::max_value() << n;
+fn saturating_shl<P: Primitive>(p: P, n: usize) -> P {
+    let bits = size_of::<P>() * 8;
+    if n >= bits{
+        P::zero()
+    } else {
+        p << n
+    }
 }
 
 #[inline]
@@ -88,7 +96,11 @@ where
 
     #[inline]
     fn zero_first_n(&mut self, n: usize) {
-        zero_first_n(&mut self.bit_block_iter, n);
+        let block: &mut P = unsafe{
+            mem::transmute(&mut self.bit_block_iter)
+        };
+        let mask = saturating_shl(P::max_value(), n);
+        *block &= mask;
     }
 
     #[inline]
@@ -178,12 +190,14 @@ where
             return;
         }
 
-        unsafe{
-            // Mask out newly active block
-            let bit_index = n % (size_of::<P>() * 8); // compile-time math optimization
-            zero_first_n(&mut self.bit_block_iters.get_unchecked_mut(element_index), bit_index);
-            self.bit_block_index = element_index;
+        // Mask out newly active block                        
+        let bit_index = n % (size_of::<P>() * 8); // compile-time math optimization
+        unsafe /* zero_first_n */ {
+            let bit_block_iter = self.bit_block_iters.get_unchecked_mut(element_index);
+            let block: &mut P = mem::transmute(bit_block_iter);
+            *block &= P::max_value() << bit_index;            
         }
+        self.bit_block_index = element_index;
     }
 
     #[inline]
