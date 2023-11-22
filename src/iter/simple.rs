@@ -36,22 +36,6 @@ where
         }
     }
 
-    /*fn resume(virtual_set: T, mut state: State<T::Config>) -> Self {
-        let lvl1_mask_gen = |index| unsafe {
-            virtual_set.level1_mask(index)
-        };
-        patch_state(&mut state, &virtual_set, lvl1_mask_gen);
-        Self{
-            virtual_set,
-            state,
-        }
-    }*/
-
-    /*#[inline]
-    fn suspend(self) -> State<T::Config> {
-        self.state
-    }*/
-
     #[inline]
     fn cursor(&self) -> BlockIterCursor {
         BlockIterCursor{
@@ -65,6 +49,10 @@ where
     #[inline]
     fn as_indices(self) -> Self::IndexIter {
         SimpleIndexIter::new(self)
+    }
+
+    fn skip_to(&mut self, cursor: BlockIterCursor) {
+        unimplemented!()
     }
 }
 

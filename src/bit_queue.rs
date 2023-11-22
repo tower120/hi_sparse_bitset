@@ -1,25 +1,8 @@
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
-use num_traits::AsPrimitive;
 
 use crate::bit_op::{one_bits_iter, OneBitsIter};
 use crate::Primitive;
-
-#[inline]
-fn mask_out<P: Primitive>(bit_block_iter: &mut OneBitsIter<P>, mask: P) {
-    let block: &mut P = unsafe{
-        mem::transmute(bit_block_iter)
-    };
-    *block &= mask;
-}
-
-#[inline]
-fn fill_remaining<P: Primitive>(bit_block_iter: &mut OneBitsIter<P>) {
-    let block: &mut P = unsafe{
-        mem::transmute(bit_block_iter)
-    };
-    *block = P::one() << block.trailing_zeros().as_();
-}
 
 #[inline]
 fn zero_first_n<P: Primitive>(bit_block_iter: &mut OneBitsIter<P>, n: usize) {
@@ -28,7 +11,6 @@ fn zero_first_n<P: Primitive>(bit_block_iter: &mut OneBitsIter<P>, n: usize) {
     };
     *block &= P::max_value() << n;
 }
-
 
 #[inline]
 fn trailing_zeroes<P: Primitive>(bit_block_iter: &OneBitsIter<P>) -> usize{
@@ -54,34 +36,16 @@ pub trait BitQueue: Iterator<Item = usize>{
     /// All bits 1.
     fn filled() -> Self;
 
-    type Mask;
-
-    /// Lower bits with 0 in mask.
-    ///
-    /// N.B. Bits with 1 in mask will **NOT** be raised.
-    ///
-    /// # Safety
-    ///
-    /// Panics, if mask size does not match BitQueue.
-    ///
-    /// _P.S. This should be compile-time panic
-    /// (it is not due to RUST limitations). It does assert
-    /// in compile-time, but throw panic runtime. So, kinda noop,
-    /// when OK._
-    fn mask_out(&mut self, mask: &Self::Mask);
-
-    /// All bits, starting from first 1 bit will be 1.
-    /// 
-    /// `0001001100 -> 0001111111`
-    fn fill_remaining(&mut self);
-
-    /// Remove first n bits. (Set 0)
+    /* /// Remove first n bits. (Set 0)
     /// 
     /// # Safety
     /// 
     /// n is not checked.
-    unsafe fn zero_first_n_unchecked(&mut self, n: usize);
+    unsafe fn zero_first_n_unchecked(&mut self, n: usize); */
 
+    /// Remove first n bits. (Set 0)
+    /// 
+    /// If n >= BitQueue len - make it empty.
     fn zero_first_n(&mut self, n: usize);
 
     /// Current index. Equals len - if iteration finished.
@@ -117,22 +81,10 @@ where
         Self::new(P::max_value())
     }
 
-    type Mask = [P; 1];
-
-    #[inline]
-    fn mask_out(&mut self, mask: &[P; 1]) {
-        mask_out(&mut self.bit_block_iter, mask[0]);
-    }
-
-    #[inline]
-    fn fill_remaining(&mut self) {
-        fill_remaining(&mut self.bit_block_iter);
-    }
-
-    #[inline]
+    /* #[inline]
     unsafe fn zero_first_n_unchecked(&mut self, n: usize) {
         zero_first_n(&mut self.bit_block_iter, n);
-    }
+    } */
 
     #[inline]
     fn zero_first_n(&mut self, n: usize) {
@@ -201,36 +153,7 @@ where
         Self::new([P::max_value(); N])
     }
 
-    type Mask = [P; N];
-
-    #[inline]
-    fn mask_out(&mut self, mask: &[P; N]) {
-        // update active one
-        if self.bit_block_index == 0 {
-            mask_out(&mut self.bit_block_iters[0], mask[0]);
-        }
-
-        // compile-time loop
-        for i in 1..N {
-            mask_out(&mut self.bit_block_iters[i], mask[i]);
-        }
-    }
-
-    #[inline]
-    fn fill_remaining(&mut self) {
-        // patch active bit_block
-        let active_bit_block_iter = unsafe{
-            self.bit_block_iters.get_unchecked_mut(self.bit_block_index)
-        };
-        fill_remaining(active_bit_block_iter);
-
-        // fill rest with ones
-        for i in self.bit_block_index+1..N {
-            self.bit_block_iters[i] = one_bits_iter(P::max_value());
-        }
-    }
-
-    #[inline]
+/*     #[inline]
     unsafe fn zero_first_n_unchecked(&mut self, n: usize) {
         let element_index = n / (size_of::<P>() * 8); // compile-time math optimization
         let bit_index     = n % (size_of::<P>() * 8); // compile-time math optimization
@@ -242,7 +165,7 @@ where
         
         // Mask out last one
         zero_first_n(&mut self.bit_block_iters.get_unchecked_mut(element_index), bit_index);
-    }
+    } */
 
     #[inline]
     fn zero_first_n(&mut self, n: usize) {
@@ -256,15 +179,10 @@ where
         }
 
         unsafe{
-            // TODO: This does not matters
-            /*// Fill all first elements with 0
-            for i in 0..element_index{
-                *self.bit_block_iters.get_unchecked_mut(i) = one_bits_iter(P::zero());
-            }*/
-
-            // Mask out last one
+            // Mask out newly active block
             let bit_index = n % (size_of::<P>() * 8); // compile-time math optimization
             zero_first_n(&mut self.bit_block_iters.get_unchecked_mut(element_index), bit_index);
+            self.bit_block_index = element_index;
         }
     }
 
