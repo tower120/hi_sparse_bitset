@@ -3,7 +3,7 @@
 //! 
 //! Memory consumption does not depends on max index inserted.
 //! 
-//! ![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50%.png)
+//! ![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50.png)
 //! 
 //! The very structure of [BitSet] acts as acceleration structure for
 //! intersection operation. All operations are incredibly fast - see benchmarks.

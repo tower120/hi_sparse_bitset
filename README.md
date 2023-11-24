@@ -8,7 +8,7 @@ And like hibitset, it is also utilize
 hierarchical acceleration structure to reduce algorithmic complexity on operations
 between bitsets.
 
-![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50%.png)
+![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50.png)
 
 # Usage 
 
