@@ -1,10 +1,10 @@
 //! Operations for [apply] and [reduce].
 //!
-//! [BitAndOp] is the only operation that can early discard
-//! hierarchy/tree travers. Complexity-wise this is the fastest operation.
-//!
-//! All others does not discard hierarchical tree early.
-//! _[BitOrOp] does not need to discard anything._
+//! * [BitAndOp] is the only operation that can discard blocks early
+//! on hierarchy level during traverse. Complexity-wise this is the fastest operation.
+//! * [BitOrOp] - does not need to discard any blocks, since it is a merge operation by definition.
+//! * [BitXorOp] - have [BitOrOp] performance.
+//! * [BitSubOp] - traverse all left operand bitset blocks.
 //!
 //! You can make your own operation by implementing [BinaryOp].
 //!
@@ -32,6 +32,9 @@ pub trait BinaryOp: Default + Copy + 'static{
 
 // TODO: rename structs?
 
+/// Intersection
+/// 
+/// Will traverse only intersected blocks of left and right.
 #[derive(Default, Copy, Clone)]
 pub struct BitAndOp;
 impl BinaryOp for BitAndOp {
@@ -46,6 +49,9 @@ impl BinaryOp for BitAndOp {
     }
 }
 
+/// Union
+/// 
+/// Will traverse all blocks of left and right. (Since all of them participate in merge)
 #[derive(Default, Copy, Clone)]
 pub struct BitOrOp;
 impl BinaryOp for BitOrOp {
@@ -60,9 +66,9 @@ impl BinaryOp for BitOrOp {
     }
 }
 
-/// Have performance of BitOrOp.
-///
-/// _Due to fact that hierarchy layers does not take part in culling symmetric difference._
+/// Symmetric difference.
+/// 
+/// Have performance of [BitOrOp].
 #[derive(Default, Copy, Clone)]
 pub struct BitXorOp;
 impl BinaryOp for BitXorOp {
@@ -77,6 +83,8 @@ impl BinaryOp for BitXorOp {
     }
 }
 
+/// Difference (relative complement) left\right.
+/// 
 /// Have performance of traversing left operand.
 #[derive(Default, Copy, Clone)]
 pub struct BitSubOp;

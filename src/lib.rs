@@ -1,4 +1,51 @@
 #![cfg_attr(miri, feature(alloc_layout_extra) )]
+//! Hierarchical sparse bitset. 
+//! 
+//! Memory consumption does not depends on max index inserted.
+//! 
+//! ![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50%.png)
+//! 
+//! The very structure of [BitSet] acts as acceleration structure for
+//! intersection operation. All operations are incredibly fast - see benchmarks.
+//! (insert/contains in "traditional bitset" ballpark, intersection/union - orders of magnitude faster)
+//! 
+//! # Configs
+//! 
+//! Max index [BitSet] can hold, depends on used bitblocks capacity.
+//! The bigger the bitblocks - the higher [BitSet] index range.
+//! The lower - the smaller memory footprint it has.
+//! 
+//! Max index for 64bit blocks = 262_144; for 256bit blocks = 16_777_216.
+//! 
+//! # Inter-bitset operations
+//! 
+//! Inter-bitset operations can be applied between ANY [BitSetInterface].
+//! Output of inter-bitset operations are lazy bitsets(which are [BitSetInterface]s too).
+//! This means, that you can combine different operations however you want
+//! without ever materialize them to actual [BitSet].
+//! 
+//! Use [reduce] to apply inter-bitset operation between elements of bitsets iterator.
+//! 
+//! Use [apply]  to apply inter-bitset operation between two bitsets. Also [&], [|], [`^`], [-].
+//! 
+//! You can define your own inter-bitset operation, by implementing [BinaryOp].
+//! 
+//! [&]: std::ops::BitAnd
+//! [|]: std::ops::BitOr
+//! [`^`]: std::ops::BitXor
+//! [-]: std::ops::Sub
+//! 
+//! # Cursor
+//! 
+//! [BitSetInterface] iterators can return [Cursor], pointing to current iterator position. 
+//! You can use [Cursor] to advance ANY [BitSetInterface] iterator to it's position with [skip_to].
+//! 
+//! N.B. Currently only in [BlockIter].
+//! 
+//! # DataBlocks
+//! 
+//! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
+//! and iterated for indices.
 
 mod block;
 mod level;
@@ -16,7 +63,7 @@ pub mod cache;
 #[cfg(test)]
 mod test;
 
-use std::{ops::ControlFlow};
+use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAndAssign, BitXorAssign};
 use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
@@ -32,7 +79,6 @@ use crate::bitset_interface::{LevelMasks, LevelMasksExt};
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use op::BitSetOp;
 pub use reduce::Reduce;
-
 
 /// Use any other operation then intersection(and) require
 /// to either do checks on block access (in LevelMasks), or
@@ -120,12 +166,14 @@ type LevelDataBlock<Config> = Block<
 /// Hierarchical sparse bitset.
 ///
 /// Tri-level hierarchy. Highest uint it can hold
-/// is Level0Mask * Level1Mask * DenseBlock.
+/// is Level0Mask::BITS * Level1Mask::BITS * DenseBlock::BITS.
 ///
 /// Only last level contains blocks of actual data. Empty(skipped) data blocks
 /// are not allocated.
 ///
-/// Structure optimized for intersection speed. Insert/remove/contains is fast O(1) too.
+/// Structure optimized for intersection speed. 
+/// _(Other inter-bitset operations are in fact fast too - but intersection has lowest algorithmic complexity.)_
+/// Insert/remove/contains is fast O(1) too.
 pub struct BitSet<Config: IConfig>{
     level0: Block<Config::Level0BitBlock, Config::Level1BlockIndex, Config::Level0BlockIndices>,
     level1: Level<Level1Block<Config>,    Config::Level1BlockIndex>,

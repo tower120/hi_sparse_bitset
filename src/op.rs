@@ -144,60 +144,73 @@ where
     }
 }
 
+
 // We need this all because RUST still does not support template/generic specialization.
 macro_rules! impl_op {
-    ($op_class:ident, $op_fn:ident, $binary_op:ident) => {
-        impl<'a, Config: IConfig, Rhs> $op_class<Rhs> for &'a BitSet<Config> {
-            type Output = BitSetOp<$binary_op, &'a BitSet<Config>, Rhs>;
+    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
 
+        impl<$($generics),*, Rhs> BitAnd<Rhs> for $t
+        where
+            $($where_bounds)*
+        {
+            type Output = BitSetOp<BitAndOp, $t, Rhs>;
+
+            /// Returns intersection of self and rhs bitsets.
             #[inline]
-            fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                BitSetOp::new($binary_op, self, rhs)
+            fn bitand(self, rhs: Rhs) -> Self::Output{
+                BitSetOp::new(BitAndOp, self, rhs)    
             }
         }
 
-        impl<Op, S1, S2, Rhs> $op_class<Rhs> for BitSetOp<Op, S1, S2> {
-            type Output = BitSetOp<$binary_op, BitSetOp<Op, S1, S2>, Rhs>;
+        impl<$($generics),*, Rhs> BitOr<Rhs> for $t
+        where
+            $($where_bounds)*
+        {
+            type Output = BitSetOp<BitOrOp, $t, Rhs>;
 
+            /// Returns union of self and rhs bitsets.
             #[inline]
-            fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                BitSetOp::new($binary_op, self, rhs)
+            fn bitor(self, rhs: Rhs) -> Self::Output{
+                BitSetOp::new(BitOrOp, self, rhs)    
             }
         }
 
-        impl<'a, Op, S1, S2, Rhs> $op_class<Rhs> for &'a BitSetOp<Op, S1, S2> {
-            type Output = BitSetOp<$binary_op, &'a BitSetOp<Op, S1, S2>, Rhs>;
+        impl<$($generics),*, Rhs> BitXor<Rhs> for $t
+        where
+            $($where_bounds)*
+        {
+            type Output = BitSetOp<BitXorOp, $t, Rhs>;
 
+            /// Returns symmetric difference of self and rhs bitsets.
             #[inline]
-            fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                BitSetOp::new($binary_op, self, rhs)
+            fn bitxor(self, rhs: Rhs) -> Self::Output{
+                BitSetOp::new(BitXorOp, self, rhs)    
             }
-        }
+        }        
 
-        impl<Op, S, Rhs, Storage> $op_class<Rhs> for Reduce<Op, S, Storage> {
-            type Output = BitSetOp<$binary_op, Reduce<Op, S, Storage>, Rhs>;
+        impl<$($generics),*, Rhs> Sub<Rhs> for $t
+        where
+            $($where_bounds)*
+        {
+            type Output = BitSetOp<BitSubOp, $t, Rhs>;
 
+            /// Returns difference of self and rhs bitsets. 
+            /// 
+            /// _Or relative complement of rhs in self._
             #[inline]
-            fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                BitSetOp::new($binary_op, self, rhs)
+            fn sub(self, rhs: Rhs) -> Self::Output{
+                BitSetOp::new(BitSubOp, self, rhs)    
             }
-        }
+        }    
 
-        impl<'a, Op, S, Rhs, Storage> $op_class<Rhs> for &'a Reduce<Op, S, Storage> {
-            type Output = BitSetOp<$binary_op, &'a Reduce<Op, S, Storage>, Rhs>;
-
-            #[inline]
-            fn $op_fn(self, rhs: Rhs) -> Self::Output {
-                BitSetOp::new($binary_op, self, rhs)
-            }
-        }
-    }
+    };
 }
 
-impl_op!(BitOr, bitor, BitOrOp);
-impl_op!(BitAnd, bitand, BitAndOp);
-impl_op!(BitXor, bitxor, BitXorOp);
-impl_op!(Sub, sub, BitSubOp);
+impl_op!(impl<'a, Config> for &'a BitSet<Config> where Config: IConfig);
+impl_op!(impl<Op, S1, S2> for BitSetOp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
+impl_op!(impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
+impl_op!(impl<Op, S, Storage> for Reduce<Op, S, Storage> where);
+impl_op!(impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage> where);
 
 #[cfg(test)]
 mod test{

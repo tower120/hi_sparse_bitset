@@ -5,6 +5,9 @@ edition = "2021"
 
 [features]
 default = ["simd"]
+# You don't need this. Original legacy iterator.
+simple_iter = []
+# simd bitblocks support (128,256 bit configs)
 simd = ["dep:wide"]
 
 [dependencies]
@@ -19,9 +22,6 @@ cfg-if = "1"
 # for benchmarks
 hibitset = "0.6.4"
 roaring = "0.10.2"
-
-#[profile.bench]
-#lto = "thin"
 
 [[bench]]
 name = "intersection_bench"

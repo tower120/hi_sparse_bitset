@@ -14,8 +14,8 @@ use crate::iter::CachingBlockIter;
 type DefaultCache = cache::FixedCache<32>;
 pub(crate) type DefaultBlockIterator<T> = CachingBlockIter<T>;
 
-// TODO: rename to with_cache?
-pub mod base{
+/// Specify the default cache type.
+pub mod with_cache{
     use std::marker::PhantomData;
     use crate::cache::ReduceCache;
     use crate::IConfig;
@@ -56,10 +56,9 @@ pub mod base{
 }
 
 /// MAX = 262_144
-pub type _64bit = base::_64bit<DefaultCache>;
+pub type _64bit = with_cache::_64bit<DefaultCache>;
 
 /// MAX = 2_097_152
-#[cfg(feature = "simd")]
-pub type _128bit = base::_128bit<DefaultCache>;
+pub type _128bit = with_cache::_128bit<DefaultCache>;
 
 // TODO: simd_256

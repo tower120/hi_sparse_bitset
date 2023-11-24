@@ -1,15 +1,15 @@
 //! Iteration always return ordered (or sorted) index sequences.
 
-mod caching;
-mod simple;
-
-use num_traits::AsPrimitive;
 use crate::{DataBlock, DataBlockIter, IConfig};
 use crate::bit_block::BitBlock;
-use crate::bit_queue::BitQueue;
-use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 
+mod caching;
 pub use caching::{CachingBlockIter, CachingIndexIter};
+
+#[cfg(feature = "simple_iter")]
+mod simple;
+#[cfg(feature = "simple_iter")]
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
 #[inline]
@@ -72,7 +72,7 @@ pub trait BlockIterator
     fn as_indices(self) -> Self::IndexIter;
 
     // TODO: rename to advance_to ?
-    /// Advance iterator to cursor position. If iterator past
+    /// Advance iterator to cursor position. If iterator is past
     /// the cursor - have no effect.
     /// 
     /// It is safe to use even "invalid" cursors.

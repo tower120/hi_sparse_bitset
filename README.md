@@ -8,6 +8,12 @@ And like hibitset, it is also utilize
 hierarchical acceleration structure to reduce algorithmic complexity on operations
 between bitsets.
 
+![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50%.png)
+
+# Usage 
+
+TODO
+
 # Memory footprint
 
 Being truly sparse, `hi_sparse_bitset` allocate memory only for bitblocks in use.
@@ -20,7 +26,7 @@ For `config::_128bit`:
 Minimal(initial) footprint = (128+16) + (256+16) = 416 bytes.  
 Maximum possible hierarchy-wise memory overhead = (128+16) + (256+16)*128 = 35 Kb.
 
-See doc for more info, on how it actually works and use memory.
+See doc for more info.
 
 # Performance
 
@@ -67,33 +73,28 @@ reduce on reduce...
 
 Iteration always return sorted sequences.
 
-# Suspend-resume
+# Suspend-resume iterator with cursor
 
-TODO: outdated!!
+Iterators of `BitSetInterface` (any kind of bitset) can return cursor, 
+and can rewind to cursor. Cursor is like integer index in `Vec`.
+Which means, that you can use it even if container was mutated.
 
-Iterators of `BitSetInterface` (any kind of bitset) can be suspended and resumed.
-This means that you can have intersection between several bitset, iterate it
-to some point, and suspend iterator to `State` (very fast operation). Then, later,
+## Multi-session iteration
+
+This way you can suspend and later resume your iteration 
+session. For example, you can have intersection between several bitsets, iterate it
+to some point, and get iterator cursor (very fast operation). Then, later,
 you can make intersection between the same bitsets (but possibly in different state),
-and resume iteration from the las point you stopped, using `State`, as cursor.
+and resume iteration from the las point you stopped, using cursor.
 
-## Resuming
+## Multi-threaded env use-case
 
-Resuming means, that you're guaranteed to see all remaining existing elements, 
-that was in `BitSetInterface` as for the moment of suspending iterator to `State`.
-Plus you can sporadically see some new ones.
-
-_TODO: UNIMPLEMENTED_ 
-Resuming can also work in more strict mode, where you resume from the last iterated index, 
-and move forward. (You'll see all bitset indices, which are greater than one, you suspended on)
-
-## Motivation
-
-Main motivation for this - iteration in a few sessions/rounds. Use case for this -
-is multithreaded env, where you want to lock your bitsets, read part of intersection into buffer,
+In multithreaded env, you can lock your bitsets, read part of intersection into buffer,
 unlock, process buffer, repeat until the end.
 
-N.B. Currently, only block iterators can be suspended and resumed. It is possible
+## N.B. 
+
+Currently, only block iterators can be suspended and resumed. It is possible
 to make index iterators suspend-resume-able too. Fill an issue, if you need this.
 
 # Known alternatives

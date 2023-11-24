@@ -1,4 +1,7 @@
 use crate::bitset_interface::BitSetBase;
+use crate::bitset_interface::LevelMasks;
+use crate::bit_queue::BitQueue;
+use num_traits::AsPrimitive;
 use super::*;
 
 /// Simple iterator - access each data block, by traversing all hierarchy
