@@ -27,11 +27,11 @@ cfg_if::cfg_if! {
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_64)] {
-        type Config = configs::base::_64bit<DefaultCache>;
+        type Config = configs::with_cache::_64bit<DefaultCache>;
     } else if #[cfg(hisparsebitset_test_128)] {
-        type Config = configs::base::_128bit<DefaultCache>;
+        type Config = configs::with_cache::_128bit<DefaultCache>;
     } else {
-        type Config = configs::base::_128bit<DefaultCache>;
+        type Config = configs::with_cache::_128bit<DefaultCache>;
     }
 }
 
