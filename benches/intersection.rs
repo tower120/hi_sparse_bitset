@@ -2,13 +2,14 @@ mod common;
 
 use std::ops::ControlFlow;
 use std::collections::HashSet;
-use criterion::{criterion_group, criterion_main, Criterion, PlotConfiguration, AxisScale};
-use hi_sparse_bitset::{BitSet, IConfig, reduce};
+use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
+use hi_sparse_bitset::{BitSet, reduce};
 use hi_sparse_bitset::binary_op::BitAndOp;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
 use roaring::RoaringBitmap;
+use hi_sparse_bitset::config::IConfig;
 use crate::common::bench;
 
 // TODO: consider bench different Cache modes instead.
@@ -161,7 +162,7 @@ fn roaring_intersection(roarings: &[RoaringBitmap]) -> usize{
 }
 
 pub fn bench_iter(c: &mut Criterion) {
-    type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::configs::_128bit>;
+    type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
     const SETS: usize = 5;
 
     fn generate_data(size: usize, index_mul: usize, sets: usize)

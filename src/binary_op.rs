@@ -22,6 +22,8 @@ use crate::bit_block::BitBlock;
 /// Pay attention to hierarchical nature of `hi_sparse_bitset` - you
 /// may need to apply "broader" operations to "hierarchical blocks", then
 /// to "data blocks".
+/// 
+/// [BitSetInterface]: crate::BitSetInterface
 pub trait BinaryOp: Default + Copy + 'static{
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;

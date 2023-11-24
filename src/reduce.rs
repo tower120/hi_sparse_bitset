@@ -2,14 +2,18 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 use std::{mem, slice};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::{IConfig, LevelMasks};
+use crate::LevelMasks;
 use crate::binary_op::{BinaryOp, BitAndOp};
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksExt};
+use crate::config::IConfig;
 
 /// Bitsets iterator reduction, as lazy bitset.
 ///
-/// Constructed by [reduce()] and [reduce_w_cache()].
+/// Constructed by [reduce] and [reduce_w_cache].
+/// 
+/// [reduce]: crate::reduce()
+/// [reduce_w_cache]: crate::reduce_w_cache()
 #[derive(Clone)]
 #[repr(transparent)]
 pub struct Reduce<Op, S, Cache> {
@@ -478,7 +482,6 @@ where
     }
 }
 
-use unique_ptr::UniqueArrayPtr;
 // Some methods not used by library.
 #[allow(dead_code)]
 mod unique_ptr{
@@ -580,3 +583,4 @@ mod unique_ptr{
         }
     }
 }
+use unique_ptr::UniqueArrayPtr;

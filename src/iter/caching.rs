@@ -12,9 +12,13 @@ use super::*;
 ///
 /// # Memory footprint
 ///
-/// This iterator may cache some data.
-/// Amount of memory used by cache depends on [cache type].
+/// This iterator may store some data in its internal state.
+/// Amount of memory used by cache depends on [cache] type.
 /// Cache affects only [reduce] operations.
+/// 
+/// [cache]: crate::cache
+/// [reduce]: crate::reduce()
+/// [binary_op]: crate::binary_op
 pub struct CachingBlockIter<T>
 where
     T: LevelMasksExt,
