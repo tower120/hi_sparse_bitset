@@ -73,18 +73,15 @@ jobs:
            " cargo +nightly miri nextest run -j6 --all-features
 
   benchmarks:
-    name: benchmark build
+    name: benchmarks build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - run: RUSTFLAGS="--deny warnings" cargo build --benches --all-features
 
-#  doc:
-#    runs-on: ubuntu-latest
-#    steps:
-#    - uses: actions/checkout@v2
-#    #- uses: ATiltedTree/setup-rust@v1
-#    #  with:
-#    #    rust-version: stable
-#    - name: Build doc
-#      run: RUSTDOCFLAGS="--deny warnings" cargo doc --lib
+  doc:
+    name: doc build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: RUSTFLAGS="--deny warnings" cargo doc --lib

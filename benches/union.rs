@@ -1,9 +1,10 @@
 mod common;
 
-use criterion::{criterion_group, criterion_main, Criterion, PlotConfiguration, AxisScale};
+use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use criterion::measurement::Measurement;
-use hi_sparse_bitset::{BitSet, IConfig, reduce};
+use hi_sparse_bitset::{BitSet, reduce};
 use hi_sparse_bitset::binary_op::*;
+use hi_sparse_bitset::config::IConfig;
 use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
 use crate::common::bench;
 
@@ -67,7 +68,7 @@ fn hibitset_union(sets: &[hibitset::BitSet]) -> usize{
 /// Bench worst case scenario for hibitset and default iter.
 /// All sets does not have intersections.
 pub fn bench_iter(c: &mut Criterion) {
-    type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::configs::_128bit>;
+    type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
     const SETS: usize = 3;
 
     fn generate_data(size: usize, index_mul: usize, sets: usize) -> (Vec<HiSparseBitset>, Vec<hibitset::BitSet>){

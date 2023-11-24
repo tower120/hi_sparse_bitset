@@ -9,13 +9,18 @@
 //! intersection operation. All operations are incredibly fast - see benchmarks.
 //! (insert/contains in "traditional bitset" ballpark, intersection/union - orders of magnitude faster)
 //! 
-//! # Configs
+//! # Config
 //! 
 //! Max index [BitSet] can hold, depends on used bitblocks capacity.
 //! The bigger the bitblocks - the higher [BitSet] index range.
 //! The lower - the smaller memory footprint it has.
 //! 
 //! Max index for 64bit blocks = 262_144; for 256bit blocks = 16_777_216.
+//! 
+//! Use [BitSet] with predefined [config]:
+//! ```
+//! type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
+//! ```
 //! 
 //! # Inter-bitset operations
 //! 
@@ -24,9 +29,9 @@
 //! This means, that you can combine different operations however you want
 //! without ever materialize them to actual [BitSet].
 //! 
-//! Use [reduce] to apply inter-bitset operation between elements of bitsets iterator.
+//! Use [reduce()] to apply inter-bitset operation between elements of bitsets iterator.
 //! 
-//! Use [apply]  to apply inter-bitset operation between two bitsets. Also [&], [|], [`^`], [-].
+//! Use [apply()]  to apply inter-bitset operation between two bitsets. Also [&], [|], [`^`], [-].
 //! 
 //! You can define your own inter-bitset operation, by implementing [BinaryOp].
 //! 
@@ -40,7 +45,11 @@
 //! [BitSetInterface] iterators can return [Cursor], pointing to current iterator position. 
 //! You can use [Cursor] to advance ANY [BitSetInterface] iterator to it's position with [skip_to].
 //! 
-//! N.B. Currently only in [BlockIter].
+//! N.B. Currently only in [BlockIterator].
+//! 
+//! [Cursor]: crate::iter::BlockIterCursor
+//! [BlockIterator]: crate::iter::BlockIterator
+//! [skip_to]: crate::iter::BlockIterator::skip_to
 //! 
 //! # DataBlocks
 //! 
@@ -52,7 +61,7 @@ mod level;
 mod bit_block;
 mod bit_queue;
 mod bit_op;
-pub mod configs;
+pub mod config;
 pub mod binary_op;
 mod reduce;
 mod bitset_interface;
@@ -68,13 +77,14 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAndAssign, BitXorAssign};
 use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
 
+use config::IConfig;
 use block::Block;
 use level::Level;
-use crate::binary_op::BinaryOp;
-use crate::bit_block::BitBlock;
-use crate::bit_queue::BitQueue;
+use binary_op::BinaryOp;
+use bit_block::BitBlock;
+use bit_queue::BitQueue;
 use cache::ReduceCache;
-use crate::bitset_interface::{LevelMasks, LevelMasksExt};
+use bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use op::BitSetOp;
@@ -88,26 +98,6 @@ const INTERSECTION_ONLY: bool = false;
 
 pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> Primitive for T{}
-
-// TODO: consider moving to mod@config
-pub trait IConfig: 'static {
-    type Level0BitBlock: BitBlock + Default;
-    /// Must be big enough to accommodate at least Level0BitBlock::SIZE
-    /// Must be [Self::Level1BlockIndex; 1 << Level0BitBlock::SIZE_POT_EXPONENT]
-    type Level0BlockIndices: AsRef<[Self::Level1BlockIndex]> + AsMut<[Self::Level1BlockIndex]> + Clone;
-
-    type Level1BitBlock: BitBlock + Default;
-    type Level1BlockIndex: Primitive;
-    /// Must be big enough to accommodate at least Level1BitBlock::SIZE.
-    /// Must be [Self::DataBlockIndex; 1 << Level1BitBlock::SIZE_POT_EXPONENT]
-    type Level1BlockIndices: AsRef<[Self::DataBlockIndex]> + AsMut<[Self::DataBlockIndex]> + Clone;
-
-    type DataBitBlock: BitBlock + Default;
-    /// Should be big enough to accommodate at least `max_range<Config>() / DataBitBlock::SIZE`
-    type DataBlockIndex: Primitive;
-
-    type DefaultCache: ReduceCache;
-}
 
 #[inline]
 fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -473,7 +463,7 @@ where
 ///
 /// # Safety
 ///
-/// Panics, if [Config::DefaultCache] capacity is smaller then sets len.
+/// Panics, if [IConfig::DefaultCache] capacity is smaller then sets len.
 #[inline]
 pub fn reduce<Config, Op, S>(op: Op, sets: S)
     -> Option<reduce::Reduce<Op, S, Config::DefaultCache>>
@@ -486,17 +476,17 @@ where
     reduce_w_cache(op, sets, Default::default())
 }
 
-/// [reduce], using specific `Cache` for iteration.
+/// [reduce], using specific [cache] for iteration.
 ///
 /// Cache applied to current operation only, so you can combine different cache
-/// types. Alternatively, you can change [Config::DefaultCache] and use [reduce()].
-///
-/// See [mod@cache].
+/// types. 
+/// 
+/// N.B. Alternatively, you can change [IConfig::DefaultCache] and use [reduce].
 ///
 /// # Safety
 ///
 /// Panics, if `Cache` capacity is smaller then sets len.
-///
+/// 
 /// [reduce]: reduce()
 #[inline]
 pub fn reduce_w_cache<Op, S, Cache>(_: Op, sets: S, _: Cache)

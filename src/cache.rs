@@ -4,6 +4,8 @@
 //!
 //! Cache for one [BitSet] costs 2 pointers.
 //!
+//! [BitSet]: crate::BitSet
+//! [CachingBlockIter]: crate::iter::CachingBlockIter
 //! [reduce]: crate::reduce()
 
 use crate::binary_op::BinaryOp;
@@ -18,6 +20,8 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// # Example
 ///
 /// TODO
+/// 
+/// [reduce]: crate::reduce()
 #[derive(Default, Copy, Clone)]
 pub struct NoCache;
 
@@ -37,6 +41,8 @@ pub struct FixedCache<const N:usize>;
 /// This can happened, when you work with enormously large number of sets,
 /// and/or work with deep [reduce] operations. Alternatively, you
 /// can use [NoCache].
+/// 
+/// [reduce]: crate::reduce()
 #[derive(Default, Copy, Clone)]
 pub struct DynamicCache;
 

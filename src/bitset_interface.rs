@@ -1,9 +1,9 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::{BitSet, IConfig, level_indices};
+use crate::{BitSet, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
-use crate::configs::DefaultBlockIterator;
+use crate::config::{DefaultBlockIterator, IConfig};
 use crate::iter::BlockIterator;
 use crate::op::BitSetOp;
 use crate::reduce::Reduce;

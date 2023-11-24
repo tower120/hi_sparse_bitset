@@ -1,8 +1,9 @@
 //! Iteration always return ordered (or sorted) index sequences.
 
-use crate::{DataBlock, DataBlockIter, IConfig};
+use crate::{DataBlock, DataBlockIter};
 use crate::bit_block::BitBlock;
 use crate::bitset_interface::{BitSetBase, LevelMasksExt};
+use crate::config::IConfig;
 
 mod caching;
 pub use caching::{CachingBlockIter, CachingIndexIter};
@@ -22,7 +23,7 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
 // TODO: Looks like Cursor for IndexIter possible too. Do we need it?
 /// Iterator cursor, or position of iterable.
 /// 
-/// Created by [BlockIter::cursor()], consumed by [BlockIter::skip_to()].
+/// Created by [BlockIterator::cursor()], consumed by [BlockIterator::skip_to()].
 /// 
 /// Allows to resume iteration from the last position, even if the
 /// source was mutated. Can be used with any [BitSetInterface].
@@ -39,6 +40,7 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
 /// buffer, suspend iterator to state, unlock sets, process buffer, lock sets,
 /// resume iterator from state, and so on.
 /// 
+/// [BitSetInterface]: crate::BitSetInterface
 #[derive(Default, Clone)]
 pub struct BlockIterCursor{
     // TODO: u32's ?
@@ -74,8 +76,6 @@ pub trait BlockIterator
     // TODO: rename to advance_to ?
     /// Advance iterator to cursor position. If iterator is past
     /// the cursor - have no effect.
-    /// 
-    /// It is safe to use even "invalid" cursors.
     fn skip_to(&mut self, cursor: BlockIterCursor);
 }
 

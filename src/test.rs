@@ -1,11 +1,11 @@
-use std::{collections::HashSet};
+use std::collections::HashSet;
 use std::iter::zip;
 
 use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::{BlockIterCursor};
+use crate::iter::BlockIterCursor;
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -27,20 +27,19 @@ cfg_if::cfg_if! {
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_64)] {
-        type Config = configs::with_cache::_64bit<DefaultCache>;
+        type Config = config::with_cache::_64bit<DefaultCache>;
     } else if #[cfg(hisparsebitset_test_128)] {
-        type Config = configs::with_cache::_128bit<DefaultCache>;
+        type Config = config::with_cache::_128bit<DefaultCache>;
     } else {
-        type Config = configs::with_cache::_128bit<DefaultCache>;
+        type Config = config::with_cache::_128bit<DefaultCache>;
     }
 }
 
 type HiSparseBitset = super::BitSet<Config>;
-//type IteratorState  = super::iter::State<Config>;
 
 #[test]
 fn level_indices_test(){
-    type Config  = configs::_128bit;
+    type Config  = config::_128bit;
 
     let levels = level_indices::<Config>(0);
     assert_eq!(levels, (0,0,0));
@@ -539,7 +538,7 @@ fn reduce2_test() {
 
 #[test]
 fn reduce_or_test(){
-    type HiSparseBitset = super::BitSet<configs::_64bit>;
+    type HiSparseBitset = super::BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -576,7 +575,7 @@ fn reduce_or_test(){
 
 #[test]
 fn op_or_regression_test1(){
-    type HiSparseBitset = crate::BitSet<crate::configs::_64bit>;
+    type HiSparseBitset = crate::BitSet<crate::config::_64bit>;
     let h1 = HiSparseBitset::from([0]);
     let h2 = HiSparseBitset::from([0]);
     let h3 = HiSparseBitset::from([4096]);
@@ -594,7 +593,7 @@ fn op_or_regression_test1(){
 
 #[test]
 fn reduce_xor_test(){
-    type HiSparseBitset = super::BitSet<configs::_64bit>;
+    type HiSparseBitset = super::BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -667,7 +666,7 @@ fn multilayer_test(){
 
 #[test]
 fn multilayer_or_test(){
-    type HiSparseBitset = super::BitSet<configs::_64bit>;
+    type HiSparseBitset = super::BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_1: usize = BLOCK_SIZE;
@@ -740,7 +739,7 @@ fn cursor_test(){
 
 #[test]
 fn cursor_test2(){
-    type HiSparseBitset = BitSet<configs::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
     let seq: HiSparseBitset = [0, 64, 128, 192, 256].into();
     let mut iter = seq.block_iter();
 

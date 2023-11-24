@@ -2,17 +2,21 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{BitOr, BitAnd, BitXor, Sub};
+use std::ops::{BitAnd, BitOr, BitXor, Sub};
 use crate::binary_op::*;
-use crate::{BitSet, IConfig};
+use crate::BitSet;
 use crate::bit_block::BitBlock;
 use crate::reduce::Reduce;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
+use crate::config::IConfig;
 
 /// Binary operation application, as lazy bitset.
 ///
 /// Created by [apply], or by performing [BitOr], [BitAnd], [BitXor],
 /// [Sub] operations on [BitSetInterface]s.
+/// 
+/// [apply]: crate::apply()
+/// [BitSetInterface]: crate::BitSetInterface
 #[derive(Clone)]
 pub struct BitSetOp<Op, S1, S2>{
     pub(crate) s1: S1,
@@ -221,7 +225,7 @@ mod test{
     use crate::bitset_interface::BitSetInterface;
     use super::*;
 
-    type HiSparseBitset = crate::BitSet<crate::configs::_64bit>;
+    type HiSparseBitset = crate::BitSet<crate::config::_64bit>;
 
     #[test]
     fn ops_test(){
