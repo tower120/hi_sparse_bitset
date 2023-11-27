@@ -5,7 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::BlockIterCursor;
+use crate::iter::{BlockIterCursor, IndexIterCursor, IndexIterator, CachingIndexIter};
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -168,6 +168,7 @@ where
         const MAX_REMOVES : usize = 100;
         const MAX_RANGE: usize = 1000;
         const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 5;
+        const MAX_RESUMED_INTERSECTION_INDICES_CONSUME: usize = 30;
         const REPEATS: usize = 2;
         const INNER_REPEATS: usize = 3;
         const INDEX_MUL: usize = 20;
@@ -178,6 +179,7 @@ where
         const MAX_REMOVES : usize = 10000;
         const MAX_RANGE: usize = 10000;
         const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 100;
+        const MAX_RESUMED_INTERSECTION_INDICES_CONSUME: usize = 300;
         const REPEATS: usize = 100;
         const INNER_REPEATS: usize = 10;
         const INDEX_MUL: usize = 10;
@@ -211,8 +213,10 @@ where
         // non removed initial intersection set.
 
         // initial insert
-        let mut intersection_cursor = BlockIterCursor::default();
-        let mut initial_hashsets_intersection;
+        let mut block_cursor = BlockIterCursor::default();
+        let mut index_cursor = IndexIterCursor::default();
+        let mut initial_hashsets_intersection_for_blocks;
+        let mut initial_hashsets_intersection_for_indices;
         {
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
                 for _ in 0..rng.gen_range(0..MAX_INSERTS){
@@ -221,8 +225,9 @@ where
                     hi_set.insert(index);
                 }
             }
-            initial_hashsets_intersection = hashset_multi_op(&hash_sets, hashset_op);
-        }
+            initial_hashsets_intersection_for_blocks  = hashset_multi_op(&hash_sets, hashset_op);            
+            initial_hashsets_intersection_for_indices = initial_hashsets_intersection_for_blocks.clone();
+        }        
 
         for _ in 0..INNER_REPEATS{
             let mut inserted = Vec::new();
@@ -269,14 +274,15 @@ where
             let changed = Iterator::chain(removed.iter(), inserted.iter());
             for index in changed{
                 if !hashsets_intersection.contains(index){
-                    initial_hashsets_intersection.remove(index);
+                    initial_hashsets_intersection_for_blocks.remove(index);
+                    initial_hashsets_intersection_for_indices.remove(index);
                 }
             }
 
-            // suspend/resume
+            // suspend/resume blocks
             {
                 let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
-                intersection.skip_to(intersection_cursor);
+                intersection.skip_to(block_cursor);
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
                 // all intersections must be valid
@@ -293,7 +299,7 @@ where
                                 // We cannot guarantee that index will
                                 // exists in initial intersection, since
                                 // it could be added after initial fill.
-                                initial_hashsets_intersection.remove(&index);
+                                initial_hashsets_intersection_for_blocks.remove(&index);
                                 ControlFlow::Continue(())
                             }
                         );
@@ -302,7 +308,26 @@ where
                     }
                 }
 
-                intersection_cursor = intersection.cursor();
+                block_cursor = intersection.cursor();
+            }
+
+            // suspend/resume indices
+            {
+                let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_iter();
+                intersection.move_to(index_cursor);
+                
+                //let mut intersection = CachingIndexIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), index_cursor);
+                let indices_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_INDICES_CONSUME);
+
+                for index in intersection.by_ref().take(indices_to_consume){
+                    assert!(hashsets_intersection.contains(&index));
+                    // We cannot guarantee that index will
+                    // exists in initial intersection, since
+                    // it could be added after initial fill.
+                    initial_hashsets_intersection_for_indices.remove(&index);
+                }
+
+                index_cursor = intersection.cursor();
             }
 
             // reduce ext3 test
@@ -372,21 +397,35 @@ where
             }
         }
 
-        // consume resumable leftovers
+        // consume resumable blocks leftovers
         {
             let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
-            intersection.skip_to(intersection_cursor);
+            intersection.skip_to(block_cursor);
             for block in intersection{
                 block.traverse(
                     |index|{
-                        initial_hashsets_intersection.remove(&index);
+                        initial_hashsets_intersection_for_blocks.remove(&index);
                         ControlFlow::Continue(())
                     }
                 );
             }
         }
-        // assert that we consumed all initial intersection set.
-        assert!(initial_hashsets_intersection.is_empty());
+
+        // consume resumable indices leftovers
+        {
+            let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_iter();
+            intersection.move_to(index_cursor);
+            
+            //let mut intersection = CachingIndexIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), index_cursor);
+            
+            for index in intersection{
+                initial_hashsets_intersection_for_indices.remove(&index);
+            }
+        }
+
+        // assert that we consumed all of initial intersection set.
+        assert!(initial_hashsets_intersection_for_blocks.is_empty());
+        assert!(initial_hashsets_intersection_for_indices.is_empty());
     }
 }
 
@@ -700,7 +739,6 @@ fn op_or_test(){
     let or = &seq1 | &seq2 | &seq3;
     let or_collected: Vec<_> = or.block_iter().flat_map(|block|block.iter()).collect();
     assert_equal(or_collected, [1,2,3,4,5,6,7]);
-
 }
 
 #[test]
@@ -722,7 +760,7 @@ fn multilayer_fixed_dynamic_cache(){
 }
 
 #[test]
-fn cursor_test(){
+fn block_cursor_test(){
     let seq: HiSparseBitset = [1000, 2000, 3000, 4000, 5000, 6000].into();
     let mut iter = seq.block_iter();
 
@@ -738,7 +776,7 @@ fn cursor_test(){
 }
 
 #[test]
-fn cursor_test2(){
+fn block_cursor_test2(){
     type HiSparseBitset = BitSet<config::_64bit>;
     let seq: HiSparseBitset = [0, 64, 128, 192, 256].into();
     let mut iter = seq.block_iter();
@@ -755,7 +793,7 @@ fn cursor_test2(){
 }
 
 #[test]
-fn cursor_test_empty(){
+fn block_cursor_test_empty(){
     let seq: HiSparseBitset = Default::default();
 
     let iter = seq.block_iter();
@@ -766,7 +804,7 @@ fn cursor_test_empty(){
 }
 
 #[test]
-fn cursor_test_empty2(){
+fn block_cursor_test_empty2(){
     let seq: HiSparseBitset = Default::default();
     let mut iter = seq.block_iter();
 
@@ -777,4 +815,34 @@ fn cursor_test_empty2(){
 
     let mut iter = seq.block_iter();
     iter.skip_to(c);
+}
+
+
+#[test]
+fn index_cursor_test(){
+    type HiSparseBitset = BitSet<config::_64bit>;
+    let seq: HiSparseBitset = (0..4096*4).collect();
+    
+    let mut iter = seq.iter();
+    assert_equal(iter.by_ref().take(4096*3), (0..4096*3));
+    let c = iter.cursor();
+    
+    let mut iter = seq.iter();
+    iter.skip_to(c);
+    assert_equal(iter.by_ref().take(4096), (4096*3..4096*4));
+}
+
+#[test]
+fn index_cursor_test2(){
+    type HiSparseBitset = BitSet<config::_64bit>;
+    let seq: HiSparseBitset = (0..4096*4).collect();
+    
+    let mut iter = seq.iter();
+    let milestone = 4096*3 - 64;
+    assert_equal(iter.by_ref().take(milestone), (0..milestone));
+    let c = iter.cursor();
+    
+    let mut iter = seq.iter();
+    iter.skip_to(c);
+    assert_eq!(iter.next().unwrap(), milestone);
 }

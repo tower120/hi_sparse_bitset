@@ -20,7 +20,7 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
     level0_offset + level1_offset
 }
 
-// TODO: Looks like Cursor for IndexIter possible too. Do we need it?
+// TODO: Consider making Copy
 /// Iterator cursor, or position of iterable.
 /// 
 /// Created by [BlockIterator::cursor()], consumed by [BlockIterator::skip_to()].
@@ -45,9 +45,18 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
 pub struct BlockIterCursor{
     // TODO: u32's ?
     pub(crate) level0_index: usize,
-    pub(crate) level1_index: usize,
+    // We don't have current/last returned index
+    pub(crate) level1_next_index: usize,
 }
 
+#[derive(Default, Clone)]
+pub struct IndexIterCursor{
+    pub(crate) block_cursor: BlockIterCursor,
+    // TODO: u32's ?
+    pub(crate) data_next_index: usize,
+}
+
+// TODO: move inside caching iterator
 pub(crate) struct State<Config: IConfig> {
     pub(crate) level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
     pub(crate) level1_iter: <Config::Level1BitBlock as BitBlock>::BitsIter,
@@ -65,7 +74,7 @@ pub trait BlockIterator
     type BitSet: LevelMasksExt;
     fn new(virtual_set: Self::BitSet) -> Self;
 
-    /// Constructs cursor for BlockIterator, with current position.
+    /// Construct cursor for BlockIterator, with current position.
     fn cursor(&self) -> BlockIterCursor;
 
     type IndexIter: IndexIterator<BlockIter = Self>;
@@ -76,6 +85,8 @@ pub trait BlockIterator
     // TODO: rename to advance_to ?
     /// Advance iterator to cursor position. If iterator is past
     /// the cursor - have no effect.
+    /// 
+    /// Fast O(1) operation.
     fn skip_to(&mut self, cursor: BlockIterCursor);
 }
 
@@ -88,6 +99,10 @@ pub trait IndexIterator
 
     /// Into block iterator.
     fn as_blocks(self) -> Self::BlockIter;
+
+    fn cursor(&self) -> IndexIterCursor;
+
+    fn skip_to(&mut self, cursor: IndexIterCursor);
 }
 
 // It's just flatmap across block iterator.
@@ -121,6 +136,14 @@ where
     #[inline]
     fn as_blocks(self) -> Self::BlockIter{
         self.block_iter
+    }
+
+    fn skip_to(&mut self, cursor: IndexIterCursor) {
+        unimplemented!()     
+    }
+
+    fn cursor(&self) -> IndexIterCursor {
+        unimplemented!()     
     }
 }
 

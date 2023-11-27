@@ -59,6 +59,7 @@ pub trait BitQueue: Iterator<Item = usize>{
     /// Current index. Equals len - if iteration finished.
     fn current(&self) -> usize;
 
+    // TODO: remove
     fn is_empty(&self) -> bool;
 }
 
@@ -127,6 +128,7 @@ where
 }
 
 pub struct ArrayBitQueue<P, const N: usize>{
+    /// first element - always active one.
     bit_block_iters: [OneBitsIter<P>; N],
     bit_block_index: usize,
 }
@@ -182,37 +184,46 @@ where
     #[inline]
     fn zero_first_n(&mut self, n: usize) {
         let element_index = n / (size_of::<P>() * 8); // compile-time math optimization
-
+        
         // clamp to empty
         if element_index >= N {
-            self.bit_block_iters[N-1] = one_bits_iter(P::zero());
+            //*self = Self::empty(); 
+            self.bit_block_iters[0] = one_bits_iter(P::zero());
             self.bit_block_index = N-1;
             return;
         }
+        
+        // are we ahead of n block-wise? 
+        if element_index < self.bit_block_index {
+            return;
+        }
+        
+        // update active block
+        if element_index != self.bit_block_index {
+            self.bit_block_index = element_index;
+            self.bit_block_iters[0] = unsafe {
+                *self.bit_block_iters.get_unchecked_mut(element_index)
+            };
+        }
 
-        // Mask out newly active block                        
+        // Mask out active block                        
         let bit_index = n % (size_of::<P>() * 8); // compile-time math optimization
         unsafe /* zero_first_n */ {
-            let bit_block_iter = self.bit_block_iters.get_unchecked_mut(element_index);
-            let block: &mut P = mem::transmute(bit_block_iter);
+            let active_block_iter = &mut self.bit_block_iters[0];
+            let block: &mut P = mem::transmute(active_block_iter);
             *block &= P::max_value() << bit_index;            
         }
-        self.bit_block_index = element_index;
     }
 
     #[inline]
     fn current(&self) -> usize {
-        let active_block_iter = unsafe{
-            self.bit_block_iters.get_unchecked(self.bit_block_index)
-        };
+        let active_block_iter = &self.bit_block_iters[0];
         self.bit_block_index * size_of::<P>() * 8 + trailing_zeroes(active_block_iter)
     }
 
     #[inline]
     fn is_empty(&self) -> bool {
-        let active_block_iter = unsafe{
-            self.bit_block_iters.get_unchecked(self.bit_block_index)
-        };
+        let active_block_iter = &self.bit_block_iters[0];
         is_empty(active_block_iter)
     }
 }

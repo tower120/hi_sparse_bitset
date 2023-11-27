@@ -49,7 +49,7 @@ pub trait LevelMasksExt: LevelMasks{
     type Level1Blocks;
 
     /// Could [data_mask_from_blocks3] be called if [update_level1_blocks3]
-    /// returned false.
+    /// returned false?
     ///
     /// Mainly used by op.
     const EMPTY_LVL1_TOLERANCE: bool;
