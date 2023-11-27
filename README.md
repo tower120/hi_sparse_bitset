@@ -8,11 +8,35 @@ And like hibitset, it is also utilize
 hierarchical acceleration structure to reduce algorithmic complexity on operations
 between bitsets.
 
-![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50.png)
+![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png)
 
 # Usage 
 
-TODO
+```rust
+type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
+let bitset1 = BitSet::from([1,2,3,4]);
+let bitset2 = BitSet::from([3,4,5,6]);
+let bitset3 = BitSet::from([3,4,7,8]);
+let bitset4 = BitSet::from([4,9,10]);
+let bitsets = [bitset1, bitset2, bitset3];
+
+// reduce on bitsets iterator
+let intersection = reduce(BitAndOp, bitsets.iter()).unwrap();
+assert_equal(&intersection, [3,4]);
+
+// operation between different types
+let union = intersection | &bitset4;
+assert_equal(&union, [3,4,9,10]);
+
+// partially traverse iterator, and save position to cursor.
+let mut iter = union.iter();
+assert_equal(iter.by_ref().take(2), [3,4]);
+let cursor = iter.cursor();
+
+// resume iteration from cursor position
+let iter = union.iter().move_to(cursor);
+assert_equal(iter, [9,10]);
+```
 
 # Memory footprint
 
@@ -83,25 +107,20 @@ Which means, that you can use it even if container was mutated.
 
 This way you can suspend and later resume your iteration 
 session. For example, you can have intersection between several bitsets, iterate it
-to some point, and get iterator cursor (very fast operation). Then, later,
+to some point, and get iterator cursor. Then, later,
 you can make intersection between the same bitsets (but possibly in different state),
-and resume iteration from the las point you stopped, using cursor.
+and resume iteration from the last point you stopped, using cursor.
 
 ## Multi-threaded env use-case
 
 In multithreaded env, you can lock your bitsets, read part of intersection into buffer,
 unlock, process buffer, repeat until the end.
 
-## N.B. 
-
-Currently, only block iterators can be suspended and resumed. It is possible
-to make index iterators suspend-resume-able too. Fill an issue, if you need this.
-
 # Known alternatives
 
-* [hibitset](https://crates.io/crates/hibitset) - hierarchical dense bitset. Thou documentation states
-    it is sparse, but it is actually dense. If you'll insert one index 16_000_000, it will allocate
-    2Mb of RAM. It uses 4-level hierarchy, and being dense - does not use indirection.
+* [hibitset](https://crates.io/crates/hibitset) - hierarchical dense bitset. 
+    If you'll insert one index = 16_000_000, it will allocate 2Mb of RAM. 
+    It uses 4-level hierarchy, and being dense - does not use indirection.
     This makes it hierarchy overhead smaller, and on intersection operations it SHOULD perform
     better - but it doesn't (probably because of additional level of hierarchy, or some 
     implementation details).
@@ -110,7 +129,8 @@ to make index iterators suspend-resume-able too. Fill an issue, if you need this
     should be reasonably faster (not at magnitude scale).
     Inter-bitset operations - super-linearly slower for the worst case (which is almost always), 
     and have approx. same performance for the best case (when each bitset block used).
-    Have no memory overhead, so if you do not need to perform inter-bitset operations,
+    Have no memory overhead per-se, but memory usage depends on max int in bitset, 
+    so if you do not need to perform inter-bitset operations,
     and know that your indices are relatively small numbers, or expect bitset to be
     densely populated - this is a good choice.
 
@@ -119,7 +139,7 @@ to make index iterators suspend-resume-able too. Fill an issue, if you need this
    And "just" slower for the rest ones.
 
 *  [roaring](https://crates.io/crates/roaring) - compressed bitset. It does not have means of intersecting multiple
-   sets at once, only through intermediate bitset. So you can't directly do the same things in `roaring`.
+   sets at once, only through intermediate bitset (which would be unfair to compare). So you can't directly do the same things in `roaring`.
    As for comparing things that possible (like intersection count). In ideal (against hierarchical bitset) 
    for `roaring` scenario (all elements intersects): on quite sparse bitsets roaring is somewhat faster, on denser - slower. 
    That will vary from actual dataset to dataset. Probably the less the percentage of intersected 

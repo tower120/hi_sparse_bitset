@@ -5,7 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::{BlockIterCursor, IndexIterCursor, IndexIterator, CachingIndexIter};
+use crate::iter::{BlockIterCursor, IndexIterCursor, IndexIterator};
 use crate::op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -281,8 +281,11 @@ where
 
             // suspend/resume blocks
             {
-                let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
-                intersection.skip_to(block_cursor);
+                let mut intersection = 
+                    reduce(hiset_op, hi_sets.iter()).unwrap()
+                    .into_block_iter()
+                    .move_to(block_cursor);
+
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
                 // all intersections must be valid
@@ -313,10 +316,11 @@ where
 
             // suspend/resume indices
             {
-                let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_iter();
-                intersection.move_to(index_cursor);
+                let mut intersection = 
+                    reduce(hiset_op, hi_sets.iter()).unwrap()
+                    .into_iter()
+                    .move_to(index_cursor);
                 
-                //let mut intersection = CachingIndexIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), index_cursor);
                 let indices_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_INDICES_CONSUME);
 
                 for index in intersection.by_ref().take(indices_to_consume){
@@ -399,8 +403,10 @@ where
 
         // consume resumable blocks leftovers
         {
-            let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_block_iter();
-            intersection.skip_to(block_cursor);
+            let intersection = 
+                reduce(hiset_op, hi_sets.iter()).unwrap()
+                .into_block_iter()
+                .move_to(block_cursor);
             for block in intersection{
                 block.traverse(
                     |index|{
@@ -413,10 +419,10 @@ where
 
         // consume resumable indices leftovers
         {
-            let mut intersection = reduce(hiset_op, hi_sets.iter()).unwrap().into_iter();
-            intersection.move_to(index_cursor);
-            
-            //let mut intersection = CachingIndexIter::resume(reduce(hiset_op, hi_sets.iter()).unwrap(), index_cursor);
+            let intersection = 
+                reduce(hiset_op, hi_sets.iter()).unwrap()
+                .into_iter()
+                .move_to(index_cursor);
             
             for index in intersection{
                 initial_hashsets_intersection_for_indices.remove(&index);
@@ -465,8 +471,10 @@ fn one_intersection_test(){
     hi_set.insert(521);
 
     let cursor = BlockIterCursor::default();
-    let mut iter = reduce(BitAndOp, [&hi_set].into_iter()).unwrap().into_block_iter();
-    iter.skip_to(cursor);
+    let iter = 
+        reduce(BitAndOp, [&hi_set].into_iter()).unwrap()
+        .into_block_iter()
+        .move_to(cursor);
 
     let mut intersection = Vec::new();
     for block in iter{
@@ -509,8 +517,10 @@ fn regression_test1() {
 
     {
         let mut indices2 = Vec::new();
-        let mut iter = reduce(BitAndOp, hi_sets.iter()).unwrap().into_block_iter();
-        iter.skip_to(BlockIterCursor::default());
+        let iter = 
+            reduce(BitAndOp, hi_sets.iter()).unwrap()
+            .into_block_iter()
+            .move_to(BlockIterCursor::default());
         for block in iter{
             block.traverse(
                 |index|{
@@ -539,8 +549,7 @@ fn resume_valid_level1_index_miri_test(){
 
     let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
 
-    let mut i = r.block_iter();
-    i.skip_to(cursor);
+    let mut i = r.block_iter().move_to(cursor);
     i.next();
 }
 
@@ -554,7 +563,6 @@ fn remove_regression_test1() {
     let c= hi_set.contains(10000);
     assert!(c);
 }
-
 
 #[test]
 fn reduce2_test() {
@@ -770,8 +778,7 @@ fn block_cursor_test(){
 
     let c = iter.cursor();
 
-    let mut iter = seq.block_iter();
-    iter.skip_to(c);
+    let mut iter = seq.block_iter().move_to(c);
     assert_equal(iter.next().unwrap().iter(), [4000]);
 }
 
@@ -787,8 +794,7 @@ fn block_cursor_test2(){
 
     let c = iter.cursor();
 
-    let mut iter = seq.block_iter();
-    iter.skip_to(c);
+    let mut iter = seq.block_iter().move_to(c);
     assert_equal(iter.next().unwrap().iter(), [192]);
 }
 
@@ -799,8 +805,8 @@ fn block_cursor_test_empty(){
     let iter = seq.block_iter();
     let c = iter.cursor();
 
-    let mut iter = seq.block_iter();
-    iter.skip_to(c);
+    let mut iter = seq.block_iter().move_to(c);
+    assert!(iter.next().is_none());
 }
 
 #[test]
@@ -813,8 +819,8 @@ fn block_cursor_test_empty2(){
 
     let c = iter.cursor();
 
-    let mut iter = seq.block_iter();
-    iter.skip_to(c);
+    let mut iter = seq.block_iter().move_to(c);
+    assert!(iter.next().is_none());
 }
 
 
@@ -824,12 +830,11 @@ fn index_cursor_test(){
     let seq: HiSparseBitset = (0..4096*4).collect();
     
     let mut iter = seq.iter();
-    assert_equal(iter.by_ref().take(4096*3), (0..4096*3));
+    assert_equal(iter.by_ref().take(4096*3), 0..4096*3);
     let c = iter.cursor();
     
-    let mut iter = seq.iter();
-    iter.skip_to(c);
-    assert_equal(iter.by_ref().take(4096), (4096*3..4096*4));
+    let mut iter = seq.iter().move_to(c);
+    assert_equal(iter.by_ref().take(4096), 4096*3..4096*4);
 }
 
 #[test]
@@ -839,10 +844,9 @@ fn index_cursor_test2(){
     
     let mut iter = seq.iter();
     let milestone = 4096*3 - 64;
-    assert_equal(iter.by_ref().take(milestone), (0..milestone));
+    assert_equal(iter.by_ref().take(milestone), 0..milestone);
     let c = iter.cursor();
     
-    let mut iter = seq.iter();
-    iter.skip_to(c);
+    let mut iter = seq.iter().move_to(c);
     assert_eq!(iter.next().unwrap(), milestone);
 }

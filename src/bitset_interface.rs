@@ -4,7 +4,7 @@ use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, IConfig};
-use crate::iter::BlockIterator;
+use crate::iter::{BlockIterator, IndexIterator};
 use crate::op::BitSetOp;
 use crate::reduce::Reduce;
 
@@ -153,7 +153,7 @@ pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksE
     type BlockIter<'a>: BlockIterator where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
-    type Iter<'a>: Iterator<Item = usize> where Self: 'a;
+    type Iter<'a>: IndexIterator<Item = usize> where Self: 'a;
     fn iter(&self) -> Self::Iter<'_>;
 
     type IntoBlockIter: BlockIterator;
@@ -170,7 +170,7 @@ where
 
     #[inline]
     fn block_iter(&self) -> Self::BlockIter<'_> {
-        BlockIterator::new(self)
+        DefaultBlockIterator::new(self)
     }
 
     type Iter<'a> = <Self::BlockIter<'a> as BlockIterator>::IndexIter where Self: 'a;
@@ -184,7 +184,7 @@ where
 
     #[inline]
     fn into_block_iter(self) -> Self::IntoBlockIter {
-        BlockIterator::new(self)
+        DefaultBlockIterator::new(self)
     }
 
     #[inline]

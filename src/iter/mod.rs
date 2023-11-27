@@ -2,7 +2,6 @@
 
 use crate::{DataBlock, DataBlockIter};
 use crate::bit_block::BitBlock;
-use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::config::IConfig;
 
 mod caching;
@@ -21,13 +20,13 @@ fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: us
 }
 
 // TODO: Consider making Copy
-/// Iterator cursor, or position of iterable.
+/// Block iterator cursor, or position of iterable.
 /// 
-/// Created by [BlockIterator::cursor()], consumed by [BlockIterator::skip_to()].
+/// Created by [BlockIterator::cursor()], used by [BlockIterator::move_to()].
 /// 
 /// Allows to resume iteration from the last position, even if the
 /// source was mutated. Can be used with any [BitSetInterface].
-/// Default constructed State will traverse bitset from the very begin.
+/// Default constructed cursor will traverse bitset from the very begin.
 /// 
 /// # Use-case
 ///
@@ -49,6 +48,11 @@ pub struct BlockIterCursor{
     pub(crate) level1_next_index: usize,
 }
 
+/// Index iterator cursor.
+/// 
+/// Created by [IndexIterator::cursor()], used by [IndexIterator::move_to()].
+/// 
+/// Same as [BlockIterCursor], but for indices iterator.
 #[derive(Default, Clone)]
 pub struct IndexIterCursor{
     pub(crate) block_cursor: BlockIterCursor,
@@ -63,16 +67,20 @@ pub(crate) struct State<Config: IConfig> {
     pub(crate) level0_index: usize,
 }
 
+/// Block iterator.
+/// 
+/// Block iterator may occasionally return empty blocks.
+/// This is for performance reasons - since you most likely will
+/// traverse block indices in loop anyway - checking it for emptiness, and then looping to the 
+/// next non-empty one inside BlockIterator - may be just unnecessary operation.
+/// 
+/// TODO: consider changing this behavior.
 pub trait BlockIterator
-    : Iterator<Item = DataBlock<
-        <<Self::BitSet as BitSetBase>::Config as IConfig>::DataBitBlock
-    >>
+    : Iterator<Item = DataBlock<Self::DataBitBlock>> 
     + Sized
 {
-    // TODO: Do we even need these two in public interface?
-    // TODO: rename latter
-    type BitSet: LevelMasksExt;
-    fn new(virtual_set: Self::BitSet) -> Self;
+    // TODO: DataBlock/Config instead?
+    type DataBitBlock: BitBlock;
 
     /// Construct cursor for BlockIterator, with current position.
     fn cursor(&self) -> BlockIterCursor;
@@ -82,15 +90,13 @@ pub trait BlockIterator
     /// Into index iterator.
     fn as_indices(self) -> Self::IndexIter;
 
-    // TODO: rename to advance_to ?
-    /// Advance iterator to cursor position. If iterator is past
-    /// the cursor - have no effect.
+    /// Move iterator to cursor position.
     /// 
     /// Fast O(1) operation.
-    fn skip_to(&mut self, cursor: BlockIterCursor);
+    fn move_to(self, cursor: BlockIterCursor) -> Self;
 }
 
-// TODO: We have common implementation?
+/// Index iterator.
 pub trait IndexIterator
     : Iterator<Item = usize>
     + Sized
@@ -102,18 +108,23 @@ pub trait IndexIterator
 
     fn cursor(&self) -> IndexIterCursor;
 
-    fn skip_to(&mut self, cursor: IndexIterCursor);
+    /// Move iterator to cursor position.
+    /// 
+    /// Fast O(1) operation.
+    fn move_to(self, cursor: IndexIterCursor) -> Self;
 }
 
+// TODO: Remove this, or move to simple_iter
 // It's just flatmap across block iterator.
-pub struct IndexIter<T>
+#[cfg(feature = "simple_iter")]
+pub(crate) struct IndexIter<T>
 where
     T: BlockIterator
 {
     block_iter: T,
-    data_block_iter: DataBlockIter<<<T::BitSet as BitSetBase>::Config as IConfig>::DataBitBlock>,
+    data_block_iter: DataBlockIter<T::DataBitBlock>,
 }
-
+#[cfg(feature = "simple_iter")]
 impl<T> IndexIter<T>
 where
     T: BlockIterator
@@ -126,7 +137,7 @@ where
         }
     }
 }
-
+#[cfg(feature = "simple_iter")]
 impl<T> IndexIterator for IndexIter<T>
 where
     T: BlockIterator
@@ -138,15 +149,15 @@ where
         self.block_iter
     }
 
-    fn skip_to(&mut self, cursor: IndexIterCursor) {
-        unimplemented!()     
-    }
-
     fn cursor(&self) -> IndexIterCursor {
         unimplemented!()     
     }
-}
 
+    fn move_to(self, cursor: IndexIterCursor) -> Self {
+        unimplemented!()
+    }
+}
+#[cfg(feature = "simple_iter")]
 impl<T> Iterator for IndexIter<T>
 where
     T: BlockIterator

@@ -3,11 +3,32 @@
 //! 
 //! Memory consumption does not depends on max index inserted.
 //! 
-//! ![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/Hisparsebitset-50.png)
+//! ![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png)
 //! 
 //! The very structure of [BitSet] acts as acceleration structure for
 //! intersection operation. All operations are incredibly fast - see benchmarks.
 //! (insert/contains in "traditional bitset" ballpark, intersection/union - orders of magnitude faster)
+//! 
+//! It is multi-level structure. Last level contains actual bit-data. Each previous level
+//! have bitmask, where each bit corresponds to `!is_empty` of bitblock in next level. 
+//! 
+//! In addition to "non-empty-marker" bitmasks, there is pointers(indices) to non-empty blocks in next level.
+//! In this way, only blocks with actual data allocated.
+//! 
+//! For inter-bitset operations, for example intersection:
+//! * root level bitmasks AND-ed.
+//! * resulting bitmask traversed for bits with 1.
+//! * indexes of bits with 1, used for getting pointers to the next level for each bitset.
+//! * repeat for next level until the data level, then for each next 1 bit in each level.
+//! 
+//! Bitmasks allow to cut out empty tree/hierarchy branches early for intersection operation,
+//! and traverse only actual data during iteration.
+//! 
+//! In addition to this, during iteration in iter-bitset operation, level1 blocks of bitsets cached
+//! for faster access, and the empty one skipped (does not added to cache container) - 
+//! which makes bitblocks computing in data level algorithmically faster. This have observable effect, 
+//! if you merge N bitsets, which does not intersects - without this optimisation, on data level bitmask would
+//! be OR-ed N times, with it - only one.
 //! 
 //! # Config
 //! 
@@ -42,14 +63,12 @@
 //! 
 //! # Cursor
 //! 
-//! [BitSetInterface] iterators can return [Cursor], pointing to current iterator position. 
-//! You can use [Cursor] to advance ANY [BitSetInterface] iterator to it's position with [skip_to].
+//! [BitSetInterface] iterators can return [cursor()], pointing to current iterator position. 
+//! You can use [Cursor] to advance ANY [BitSetInterface] iterator to it's position with [move_to].
 //! 
-//! N.B. Currently only in [BlockIterator].
-//! 
+//! [cursor()]: crate::iter::BlockIterator::cursor
 //! [Cursor]: crate::iter::BlockIterCursor
-//! [BlockIterator]: crate::iter::BlockIterator
-//! [skip_to]: crate::iter::BlockIterator::skip_to
+//! [move_to]: crate::iter::BlockIterator::move_to
 //! 
 //! # DataBlocks
 //! 
