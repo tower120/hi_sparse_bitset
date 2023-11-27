@@ -1,4 +1,4 @@
-use crate::bitset_interface::BitSetBase;
+use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::bitset_interface::LevelMasks;
 use crate::bit_queue::BitQueue;
 use num_traits::AsPrimitive;
@@ -20,14 +20,12 @@ where
     state: State<T::Config>,
 }
 
-impl<T> BlockIterator for SimpleBlockIter<T>
+impl<T> SimpleBlockIter<T>
 where
     T: LevelMasksExt
 {
-    type BitSet = T;
-
     #[inline]
-    fn new(virtual_set: T) -> Self {
+    pub fn new(virtual_set: T) -> Self {
         let state = State{
             level0_iter: virtual_set.level0_mask().bits_iter(),
             level1_iter: BitQueue::empty(),
@@ -38,13 +36,22 @@ where
             state,
         }
     }
+}
+
+
+impl<T> BlockIterator for SimpleBlockIter<T>
+where
+    T: LevelMasksExt
+{
+    type DataBitBlock = <T::Config as IConfig>::DataBitBlock;
 
     #[inline]
     fn cursor(&self) -> BlockIterCursor {
-        BlockIterCursor{
+        unimplemented!()
+        /*BlockIterCursor{
             level0_index: self.state.level0_index,
             level1_index: self.state.level1_iter.current(),
-        }
+        }*/
     }
 
     type IndexIter = SimpleIndexIter<T>;
@@ -54,7 +61,7 @@ where
         SimpleIndexIter::new(self)
     }
 
-    fn skip_to(&mut self, _cursor: BlockIterCursor) {
+    fn move_to(self, _cursor: BlockIterCursor) -> Self {
         unimplemented!()
     }
 }

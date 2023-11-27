@@ -39,9 +39,8 @@ where
 {
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self {
-        let level0_iter = virtual_set.level0_mask().bits_iter();
         let state = State{
-            level0_iter,
+            level0_iter: virtual_set.level0_mask().bits_iter(),
             level1_iter: BitQueue::empty(),
             // usize::MAX - is marker, that we in "intial state".
             // Which means that only level0_iter initialized, and in original state.

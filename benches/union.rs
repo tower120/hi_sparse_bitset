@@ -2,10 +2,10 @@ mod common;
 
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use criterion::measurement::Measurement;
-use hi_sparse_bitset::{BitSet, reduce};
+use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
 use hi_sparse_bitset::binary_op::*;
 use hi_sparse_bitset::config::IConfig;
-use hi_sparse_bitset::iter::{BlockIterator, CachingBlockIter, CachingIndexIter, SimpleBlockIter, SimpleIndexIter};
+use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
 use crate::common::bench;
 
 
@@ -17,7 +17,7 @@ fn hi_sparse_bitset_reduce_or_simple_block_iter<Conf: IConfig>(sets: &[BitSet<Co
 
 fn hi_sparse_bitset_reduce_or_caching_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(BitOrOp, sets.iter()).unwrap();
-    CachingBlockIter::new(union).count()
+    union.into_block_iter().count()
 }
 
 fn hi_sparse_bitset_reduce_or_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
@@ -27,7 +27,7 @@ fn hi_sparse_bitset_reduce_or_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) 
 
 fn hi_sparse_bitset_reduce_or_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(BitOrOp, sets.iter()).unwrap();
-    CachingIndexIter::new(CachingBlockIter::new(union)).count()
+    union.into_iter().count()
 }
 
 
@@ -39,7 +39,7 @@ fn hi_sparse_bitset_op_or_simple_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]
 
 fn hi_sparse_bitset_op_or_caching_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
-    CachingBlockIter::new(union).count()
+    union.into_block_iter().count()
 }
 
 fn hi_sparse_bitset_op_or_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
@@ -49,7 +49,7 @@ fn hi_sparse_bitset_op_or_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> u
 
 fn hi_sparse_bitset_op_or_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
-    CachingIndexIter::new(CachingBlockIter::new(union)).count()
+    union.into_iter().count()
 }
 
 // ---- Third party ----

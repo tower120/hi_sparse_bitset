@@ -117,7 +117,7 @@ pub trait IndexIterator
 // TODO: Remove this, or move to simple_iter
 // It's just flatmap across block iterator.
 #[cfg(feature = "simple_iter")]
-pub(crate) struct IndexIter<T>
+pub struct IndexIter<T>
 where
     T: BlockIterator
 {
@@ -153,7 +153,7 @@ where
         unimplemented!()     
     }
 
-    fn move_to(self, cursor: IndexIterCursor) -> Self {
+    fn move_to(self, _cursor: IndexIterCursor) -> Self {
         unimplemented!()
     }
 }
