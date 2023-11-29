@@ -1,15 +1,18 @@
+[![crates.io](https://img.shields.io/crates/v/hi_sparse_bitset.svg)](https://crates.io/crates/hi_sparse_bitset)
+[![license](https://img.shields.io/badge/license-Apache--2.0_OR_MIT-blue?style=flat-square)](#license)
+[![Docs](https://docs.rs/hi_sparse_bitset/badge.svg)](https://docs.rs/hi_sparse_bitset)
+[![CI](https://github.com/tower120/hi_sparse_bitset/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tower120/hi_sparse_bitset/actions/workflows/ci.yml)
+
 Hierarchical sparse bitset. High performance of operations between bitsets (intersection, union, etc.).
 Low memory usage.
 
 Think of [hibitset](https://crates.io/crates/hibitset), but with lower memory consumption.
 Unlike hibitset - it is actually sparse - it's memory usage does not depend on max index in set.
 Only amount of used bitblocks matters (or elements, to put it simply).
-And like hibitset, it is also utilize
-hierarchical acceleration structure to reduce algorithmic complexity on operations
-between bitsets.
+And like hibitset, it also utilizes hierarchical acceleration structure to reduce
+algorithmic complexity on operations between bitsets.
 
-![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-50.png#gh-light-mode-only)
-![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-dark-50.png#gh-dark-mode-only)
+![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png)
 
 # Usage 
 
@@ -47,9 +50,8 @@ containing bit-masks and indirection information, and third level - actual bit d
 Currently, whole first level (which is one block itself) and one block from the
 second level are always allocated.
 
-For `config::_128bit`:  
-Minimal(initial) footprint = (128+16) + (256+16) = 416 bytes.  
-Maximum possible hierarchy-wise memory overhead = (128+16) + (256+16)*128 = 35 Kb.
+Hierarchy-wise memory overhead, for `config::_128bit`:
+minimal(initial) = 416 bytes, maximum = 35 Kb.
 
 See doc for more info.
 
@@ -90,9 +92,8 @@ _In future versions, you can also insert DataBlocks into BitSet._
 
 In addition to "the usual" bitset-to-bitset operations,
 you can perform operation between all elements of iterator of bitsets.
-This is important addition, since as result you have the same type, 
-regardless of bitsets count. And of course, you can have reduce on 
-reduce on reduce...
+This is an important addition, since the result is the same type, regardless 
+of bitset count. And of course, you can have reduce on reduce on reduce...
 
 # Ordered/sorted
 
