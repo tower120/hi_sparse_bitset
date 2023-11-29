@@ -21,14 +21,16 @@
 //! * indexes of bits with 1, used for getting pointers to the next level for each bitset.
 //! * repeat for next level until the data level, then for each next 1 bit in each level.
 //! 
-//! Bitmasks allow to cut out empty tree/hierarchy branches early for intersection operation,
+//! Bitmasks allow to cutoff empty tree/hierarchy branches early for intersection operation,
 //! and traverse only actual data during iteration.
-//! 
-//! In addition to this, during iteration in iter-bitset operation, level1 blocks of bitsets cached
-//! for faster access, and the empty one skipped (does not added to cache container) - 
-//! which makes bitblocks computing in data level algorithmically faster. This have observable effect, 
-//! if you merge N bitsets, which does not intersects - without this optimisation, on data level bitmask would
-//! be OR-ed N times, with it - only one.
+//!
+//! In addition to this, during the inter-bitset operation, level1 blocks of
+//! bitsets are cached for faster access. Empty blocks are skipped and not added
+//! to the cache container, which algorithmically speeds up bitblock computations
+//! at the data level.
+//! This has observable effect in a merge operation between N non-intersecting
+//! bitsets: without this optimization - the data level bitmask would be OR-ed N times;
+//! with it - only once.
 //! 
 //! # Config
 //! 
@@ -47,8 +49,8 @@
 //! 
 //! Inter-bitset operations can be applied between ANY [BitSetInterface].
 //! Output of inter-bitset operations are lazy bitsets(which are [BitSetInterface]s too).
-//! This means, that you can combine different operations however you want
-//! without ever materialize them to actual [BitSet].
+//! This means that you can combine different operations however you want
+//! without ever materializing them into actual [BitSet].
 //! 
 //! Use [reduce()] to apply inter-bitset operation between elements of bitsets iterator.
 //! 
@@ -64,7 +66,7 @@
 //! # Cursor
 //! 
 //! [BitSetInterface] iterators can return [cursor()], pointing to current iterator position. 
-//! You can use [Cursor] to advance ANY [BitSetInterface] iterator to it's position with [move_to].
+//! You can use [Cursor] to move ANY [BitSetInterface] iterator to it's position with [move_to].
 //! 
 //! [cursor()]: crate::iter::BlockIterator::cursor
 //! [Cursor]: crate::iter::BlockIterCursor
@@ -74,6 +76,14 @@
 //! 
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
+//! 
+//! # SIMD
+//! 
+//! 128 and 256 bit configurations use SIMD. Make sure you compile with simd support
+//! enabled (`sse2` for _128bit, `avx` for _256bit) to achieve best performance.
+//! _sse2 enabled by default in Rust for most desktop environments_ 
+//! 
+//! If you don't need "wide" configurations, you may disable default feature "simd".   
 
 mod block;
 mod level;
@@ -341,8 +351,6 @@ impl<Config: IConfig> BitSetBase for BitSet<Config>{
 }
 
 impl<Config: IConfig> LevelMasks for BitSet<Config>{
-    //type Config = Config;
-
     #[inline]
     fn level0_mask(&self) -> Config::Level0BitBlock {
         *self.level0.mask()
@@ -411,6 +419,7 @@ pub struct DataBlock<Block>{
     pub bit_block: Block
 }
 impl<Block: BitBlock> DataBlock<Block>{
+    /// traverse approx. 15% faster then iterator
     #[inline]
     pub fn traverse<F>(&self, mut f: F) -> ControlFlow<()>
     where
@@ -425,6 +434,21 @@ impl<Block: BitBlock> DataBlock<Block>{
             start_index: self.start_index,
             bit_block_iter: self.bit_block.clone().bits_iter()
         }
+    }
+    
+    /// Calculate elements count in DataBlock.
+    /// 
+    /// On most platforms, this should be faster then manually traversing DataBlock
+    /// and counting elements. It use hardware supported popcnt operations,
+    /// whenever possible. 
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.bit_block.count_ones()
+    }
+    
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.bit_block.is_zero()
     }
 }
 impl<Block: BitBlock> IntoIterator for DataBlock<Block>{

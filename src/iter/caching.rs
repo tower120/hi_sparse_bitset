@@ -7,8 +7,10 @@ use crate::level_indices;
 
 use super::*;
 
-/// Caching iterator.
+/// Caching block iterator.
 ///
+/// Constructed by [BitSetInterface], or acquired from [CachingIndexIter::as_blocks].
+/// 
 /// Cache pre-data level block pointers, making data blocks access faster.
 /// Also, can discard (on pre-data level) sets with empty level1 blocks from iteration.
 /// (See [binary_op] - this have no effect for AND operation, but can speed up all other)
@@ -19,6 +21,7 @@ use super::*;
 /// Amount of memory used by cache depends on [cache] type.
 /// Cache affects only [reduce] operations.
 /// 
+/// [BitSetInterface]: crate::BitSetInterface
 /// [cache]: crate::cache
 /// [reduce]: crate::reduce()
 /// [binary_op]: crate::binary_op
@@ -117,7 +120,7 @@ where
         } else {
             // absolutely empty
             self.state.level1_iter  = BitQueue::empty();
-            self.state.level0_index = /*TODO: MAX LEVEL INDEX*/0;
+            self.state.level0_index = 1 << <T::Config as IConfig>::DataBitBlock::SIZE_POT_EXPONENT; 
         }
 
         self
@@ -181,6 +184,14 @@ where
     }
 }
 
+
+/// Caching index iterator.
+/// 
+/// Constructed by [BitSetInterface], or acquired from [CachingBlockIter::as_indices].
+/// 
+/// Same as [CachingBlockIter] but for indices.
+///
+/// [BitSetInterface]: crate::BitSetInterface 
 pub struct CachingIndexIter<T>
 where
     T: LevelMasksExt,

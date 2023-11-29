@@ -7,6 +7,8 @@ edition = "2021"
 repository = "https://github.com/tower120/hi_sparse_bitset"
 keywords = ["hierarchical", "sparse", "bitset", "container"]
 categories = ["data-structures"]
+description = "Hierarchical sparse bitset. Incredibly high performance. Compact memory usage."
+exclude = ["/doc", "/.github"]
 
 [features]
 default = ["simd"]

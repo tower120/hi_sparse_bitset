@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 mod common;
 
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
@@ -133,16 +135,16 @@ pub fn bench_iter(c: &mut Criterion) {
 
     {
         let mut group = c.benchmark_group("Union - index step 20");
-        group.plot_config(
+        /*group.plot_config(
             PlotConfiguration::default().summary_scale(AxisScale::Logarithmic)
-        );
+        );*/
         do_bench(&mut group, 20);
     }
     {
         let mut group = c.benchmark_group("Union - index step 200");
-        group.plot_config(
+        /*group.plot_config(
             PlotConfiguration::default().summary_scale(AxisScale::Logarithmic)
-        );
+        );*/
         do_bench(&mut group, 200);
     }
 }

@@ -27,6 +27,8 @@ pub trait BitBlock
 
     type AsArray: AsRef<[u64]>;
     fn as_array_u64(&self) -> &Self::AsArray;
+    
+    fn count_ones(&self) -> usize;
 }
 
 impl BitBlock for u64{
@@ -73,6 +75,11 @@ impl BitBlock for u64{
         unsafe {
             mem::transmute::<&u64, &[u64; 1]>(self)
         }
+    }
+
+    #[inline]
+    fn count_ones(&self) -> usize {
+        u64::count_ones(*self) as usize
     }
 }
 
@@ -123,5 +130,13 @@ impl BitBlock for wide::u64x2{
     #[inline]
     fn as_array_u64(&self) -> &[u64; 2] {
         self.as_array_ref()
+    }
+
+    #[inline]
+    fn count_ones(&self) -> usize {
+        // TODO: there is faster solutions for this http://0x80.pl/articles/sse-popcount.html
+        let primitives = self.as_array_u64();
+        let len = primitives[0].count_ones() + primitives[1].count_ones();
+        len as usize
     }
 }

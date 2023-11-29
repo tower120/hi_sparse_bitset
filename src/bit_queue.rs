@@ -58,8 +58,7 @@ pub trait BitQueue: Iterator<Item = usize>{
 
     /// Current index. Equals len - if iteration finished.
     fn current(&self) -> usize;
-
-    // TODO: remove
+    
     fn is_empty(&self) -> bool;
 }
 

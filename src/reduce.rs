@@ -166,7 +166,6 @@ where
     Sets: Iterator + Clone,
     Sets::Item: LevelMasksExt<Config = Config>,
 {
-    // TODO: try actual const.
     // intersection case can be optimized, since we know
     // that with intersection, there can be no
     // empty masks/blocks queried.
