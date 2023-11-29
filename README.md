@@ -12,7 +12,11 @@ Only amount of used bitblocks matters (or elements, to put it simply).
 And like hibitset, it also utilizes hierarchical acceleration structure to reduce
 algorithmic complexity on operations between bitsets.
 
-![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png)
+<picture>
+  <source srcset="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-dark-50.png" media="(prefers-color-scheme: dark)">
+  <source srcset="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-50.png" media="(prefers-color-scheme: light)">
+  <img src="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png">
+</picture>
 
 # Usage 
 
