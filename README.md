@@ -94,10 +94,11 @@ _In future versions, you can also insert DataBlocks into BitSet._
 
 # Reduce on iterator of bitsets
 
-In addition to "the usual" bitset-to-bitset operations,
-you can perform operation between all elements of iterator of bitsets.
-This is an important addition, since the result is the same type, regardless 
-of bitset count. And of course, you can have reduce on reduce on reduce...
+In addition to "the usual" bitset-to-bitset(binary) operations,
+you can apply operation to iterator of bitsets (reduce/fold).
+In this way, you not only apply operation to the arbitrary
+number of bitsets, but also have the same result type,
+for any bitsets count. And of course, you can have reduce on reduce on reduce...
 
 # Ordered/sorted
 
@@ -112,9 +113,9 @@ Which means, that you can use it even if container was mutated.
 ## Multi-session iteration
 
 This way you can suspend and later resume your iteration 
-session. For example, you can have intersection between several bitsets, iterate it
-to some point, and get iterator cursor. Then, later,
-you can make intersection between the same bitsets (but possibly in different state),
+session. For example, you can create an intersection between several bitsets, iterate it
+to a certain point, and obtain an iterator cursor. Then, later,
+you can make an intersection between the same bitsets (but possibly in different state),
 and resume iteration from the last point you stopped, using cursor.
 
 ## Multi-threaded env use-case
