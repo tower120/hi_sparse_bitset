@@ -10,7 +10,7 @@
 //! [BitSet]: crate::BitSet
 
 use crate::bit_block::BitBlock;
-use crate::{cache, Primitive};
+use crate::{cache, INTERSECTION_ONLY, Primitive};
 use crate::cache::ReduceCache;
 use crate::iter::CachingBlockIter;
 
@@ -74,6 +74,25 @@ pub trait Config: 'static {
     /// 
     /// [reduce()]: crate::reduce()
     type DefaultCache: ReduceCache;
+    
+    /// Max usize, [BitSet] with this `Config` can hold.
+    /// 
+    /// [BitSet]: crate::BitSet
+    #[inline]
+    /*const*/ fn max_value() -> usize {
+        let mut max_range = (1 << Self::Level0BitBlock::SIZE_POT_EXPONENT)
+            * (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
+            * (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
+    
+        if !INTERSECTION_ONLY{
+            // We occupy one block for "empty" at each level, except root.
+            max_range = max_range
+                - (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
+                - (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
+        }
+    
+        max_range
+    }
 }
 
 /// Specify the default cache type.
