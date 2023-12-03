@@ -106,7 +106,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAndAssign, BitXorAssign};
 use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
 
-use config::IConfig;
+use config::Config;
 use block::Block;
 use level::Level;
 use binary_op::BinaryOp;
@@ -129,13 +129,13 @@ pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign 
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> Primitive for T{}
 
 #[inline]
-fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
+fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
     // this should be const and act as const.
-    /*const*/ let data_block_capacity_pot_exp  : usize = Config::DataBitBlock::SIZE_POT_EXPONENT;
+    /*const*/ let data_block_capacity_pot_exp  : usize = Conf::DataBitBlock::SIZE_POT_EXPONENT;
     /*const*/ let data_block_capacity          : usize = 1 << data_block_capacity_pot_exp;
 
-    /*const*/ let level1_block_capacity_pot_exp: usize = Config::Level1BitBlock::SIZE_POT_EXPONENT
-                                                       + Config::DataBitBlock::SIZE_POT_EXPONENT;
+    /*const*/ let level1_block_capacity_pot_exp: usize = Conf::Level1BitBlock::SIZE_POT_EXPONENT
+                                                       + Conf::DataBitBlock::SIZE_POT_EXPONENT;
     /*const*/ let level1_block_capacity        : usize = 1 << level1_block_capacity_pot_exp;
 
     // index / LEVEL1_BLOCK_CAP
@@ -157,29 +157,29 @@ fn level_indices<Config: IConfig>(index: usize) -> (usize/*level0*/, usize/*leve
 }
 
 /// Max usize, [BitSet] with `Config` can hold.
-pub const fn max_range<Config: IConfig>() -> usize {
-    let mut max_range = (1 << Config::Level0BitBlock::SIZE_POT_EXPONENT)
-        * (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
-        * (1 << Config::DataBitBlock::SIZE_POT_EXPONENT);
+pub const fn max_range<Conf: Config>() -> usize {
+    let mut max_range = (1 << Conf::Level0BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT);
 
     if !INTERSECTION_ONLY{
         // We occupy one block for "empty" at each level, except root.
         max_range = max_range
-            - (1 << Config::Level1BitBlock::SIZE_POT_EXPONENT)
-            - (1 << Config::DataBitBlock::SIZE_POT_EXPONENT);
+            - (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
+            - (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT);
     }
 
     max_range
 }
 
-type Level1Block<Config> = Block<
-    <Config as IConfig>::Level1BitBlock,
-    <Config as IConfig>::DataBlockIndex,
-    <Config as IConfig>::Level1BlockIndices
+type Level1Block<Conf> = Block<
+    <Conf as Config>::Level1BitBlock,
+    <Conf as Config>::DataBlockIndex,
+    <Conf as Config>::Level1BlockIndices
 >;
 
-type LevelDataBlock<Config> = Block<
-    <Config as IConfig>::DataBitBlock, usize, [usize;0]
+type LevelDataBlock<Conf> = Block<
+    <Conf as Config>::DataBitBlock, usize, [usize;0]
 >;
 
 /// Hierarchical sparse bitset.
@@ -193,13 +193,13 @@ type LevelDataBlock<Config> = Block<
 /// Structure optimized for intersection speed. 
 /// _(Other inter-bitset operations are in fact fast too - but intersection has lowest algorithmic complexity.)_
 /// Insert/remove/contains is fast O(1) too.
-pub struct BitSet<Config: IConfig>{
-    level0: Block<Config::Level0BitBlock, Config::Level1BlockIndex, Config::Level0BlockIndices>,
-    level1: Level<Level1Block<Config>,    Config::Level1BlockIndex>,
-    data  : Level<LevelDataBlock<Config>, Config::DataBlockIndex>,
+pub struct BitSet<Conf: Config>{
+    level0: Block<Conf::Level0BitBlock, Conf::Level1BlockIndex, Conf::Level0BlockIndices>,
+    level1: Level<Level1Block<Conf>,    Conf::Level1BlockIndex>,
+    data  : Level<LevelDataBlock<Conf>, Conf::DataBlockIndex>,
 }
 
-impl<Config: IConfig> Default for BitSet<Config> {
+impl<Conf: Config> Default for BitSet<Conf> {
     #[inline]
     fn default() -> Self{
         Self{
@@ -210,7 +210,7 @@ impl<Config: IConfig> Default for BitSet<Config> {
     }
 }
 
-impl<Config: IConfig> Clone for BitSet<Config> {
+impl<Conf: Config> Clone for BitSet<Conf> {
     fn clone(&self) -> Self {
         Self{
             level0: self.level0.clone(),
@@ -220,7 +220,7 @@ impl<Config: IConfig> Clone for BitSet<Config> {
     }
 }
 
-impl<Config: IConfig> BitSet<Config> {
+impl<Conf: Config> BitSet<Conf> {
     #[inline]
     pub fn new() -> Self{
         Self::default()
@@ -228,12 +228,12 @@ impl<Config: IConfig> BitSet<Config> {
 
     #[inline]
     fn is_in_range(index: usize) -> bool{
-        index < max_range::<Config>()
+        index < max_range::<Conf>()
     }
 
     #[inline]
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
-        -> Option<(Config::Level1BlockIndex, Config::DataBlockIndex)>
+        -> Option<(Conf::Level1BlockIndex, Conf::DataBlockIndex)>
     {
         // 1. Level0
         let level1_block_index = unsafe{
@@ -256,7 +256,7 @@ impl<Config: IConfig> BitSet<Config> {
         assert!(Self::is_in_range(index), "index out of range!");
 
         // That's indices to next level
-        let (level0_index, level1_index, data_index) = level_indices::<Config>(index);
+        let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
 
         // 1. Level0
         let level1_block_index = unsafe{
@@ -283,7 +283,7 @@ impl<Config: IConfig> BitSet<Config> {
         }
 
         // 1. Resolve indices
-        let (level0_index, level1_index, data_index) = level_indices::<Config>(index);
+        let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
         let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
             None => return false,
             Some(value) => value,
@@ -330,7 +330,7 @@ impl<Config: IConfig> BitSet<Config> {
     }
 }
 
-impl<Config: IConfig> FromIterator<usize> for BitSet<Config> {
+impl<Conf: Config> FromIterator<usize> for BitSet<Conf> {
     fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
         let mut this = Self::default();
         for i in iter{
@@ -340,31 +340,31 @@ impl<Config: IConfig> FromIterator<usize> for BitSet<Config> {
     }
 }
 
-impl<Config: IConfig, const N: usize> From<[usize; N]> for BitSet<Config> {
+impl<Conf: Config, const N: usize> From<[usize; N]> for BitSet<Conf> {
     fn from(value: [usize; N]) -> Self {
         Self::from_iter(value.into_iter())
     }
 }
 
-impl<Config: IConfig> BitSetBase for BitSet<Config>{
-    type Config = Config;
+impl<Conf: Config> BitSetBase for BitSet<Conf>{
+    type Conf = Conf;
 }
 
-impl<Config: IConfig> LevelMasks for BitSet<Config>{
+impl<Conf: Config> LevelMasks for BitSet<Conf>{
     #[inline]
-    fn level0_mask(&self) -> Config::Level0BitBlock {
+    fn level0_mask(&self) -> Conf::Level0BitBlock {
         *self.level0.mask()
     }
 
     #[inline]
-    unsafe fn level1_mask(&self, level0_index: usize) -> Config::Level1BitBlock {
+    unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
         let level1_block_index = self.level0.get_unchecked(level0_index);
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
         *level1_block.mask()
     }
 
     #[inline]
-    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Config::DataBitBlock {
+    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Conf::DataBitBlock {
         let level1_block_index = self.level0.get_unchecked(level0_index);
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
 
@@ -374,9 +374,9 @@ impl<Config: IConfig> LevelMasks for BitSet<Config>{
     }
 }
 
-impl<Config: IConfig> LevelMasksExt for BitSet<Config>{
+impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
     /// Points to elements in heap.
-    type Level1Blocks = (*const LevelDataBlock<Config> /* array pointer */, *const Level1Block<Config>);
+    type Level1Blocks = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
 
     const EMPTY_LVL1_TOLERANCE: bool = true;
 
@@ -390,7 +390,7 @@ impl<Config: IConfig> LevelMasksExt for BitSet<Config>{
         _: &mut Self::CacheData,
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
-    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool){
+    ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);
 
         // TODO: This can point to static empty block, if level1_block_index invalid.
@@ -403,7 +403,7 @@ impl<Config: IConfig> LevelMasksExt for BitSet<Config>{
     #[inline]
     unsafe fn data_mask_from_blocks(
         /*&self,*/ level1_blocks: &Self::Level1Blocks, level1_index: usize
-    ) -> Config::DataBitBlock {
+    ) -> Conf::DataBitBlock {
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;
 
@@ -489,7 +489,7 @@ pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: BitSetInterface,
-    S2: BitSetInterface<Config = <S1 as BitSetBase>::Config>,
+    S2: BitSetInterface<Conf= <S1 as BitSetBase>::Conf>,
 {
     BitSetOp::new(op, s1, s2)
 }
@@ -506,15 +506,15 @@ where
 ///
 /// # Safety
 ///
-/// Panics, if [IConfig::DefaultCache] capacity is smaller then sets len.
+/// Panics, if [Config::DefaultCache] capacity is smaller then sets len.
 #[inline]
-pub fn reduce<Config, Op, S>(op: Op, sets: S)
-    -> Option<reduce::Reduce<Op, S, Config::DefaultCache>>
+pub fn reduce<Conf, Op, S>(op: Op, sets: S)
+   -> Option<reduce::Reduce<Op, S, Conf::DefaultCache>>
 where
-    Config:IConfig,
+    Conf: Config,
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: BitSetInterface<Config = Config>,
+    S::Item: BitSetInterface<Conf=Conf>,
 {
     reduce_w_cache(op, sets, Default::default())
 }
@@ -524,7 +524,7 @@ where
 /// Cache applied to current operation only, so you can combine different cache
 /// types. 
 /// 
-/// N.B. Alternatively, you can change [IConfig::DefaultCache] and use [reduce].
+/// N.B. Alternatively, you can change [Config::DefaultCache] and use [reduce].
 ///
 /// # Safety
 ///

@@ -6,50 +6,50 @@ use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfi
 use criterion::measurement::Measurement;
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
 use hi_sparse_bitset::binary_op::*;
-use hi_sparse_bitset::config::IConfig;
+use hi_sparse_bitset::config::Config;
 use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
 use crate::common::bench;
 
 
 // ---- REDUCE ----
-fn hi_sparse_bitset_reduce_or_simple_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_or_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(BitOrOp, sets.iter()).unwrap();
     SimpleBlockIter::new(union).count()
 }
 
-fn hi_sparse_bitset_reduce_or_caching_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_or_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(BitOrOp, sets.iter()).unwrap();
     union.into_block_iter().count()
 }
 
-fn hi_sparse_bitset_reduce_or_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_or_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(BitOrOp, sets.iter()).unwrap();
     SimpleIndexIter::new(SimpleBlockIter::new(union)).count()
 }
 
-fn hi_sparse_bitset_reduce_or_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_or_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(BitOrOp, sets.iter()).unwrap();
     union.into_iter().count()
 }
 
 
 // ---- OP ----
-fn hi_sparse_bitset_op_or_simple_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_or_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
     SimpleBlockIter::new(union).count()
 }
 
-fn hi_sparse_bitset_op_or_caching_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_or_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
     union.into_block_iter().count()
 }
 
-fn hi_sparse_bitset_op_or_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_or_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
     SimpleIndexIter::new(SimpleBlockIter::new(union)).count()
 }
 
-fn hi_sparse_bitset_op_or_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_or_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
     union.into_iter().count()
 }

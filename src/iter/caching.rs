@@ -30,7 +30,7 @@ where
     T: LevelMasksExt,
 {
     virtual_set: T,
-    state: State<T::Config>,
+    state: State<T::Conf>,
     cache_data: ManuallyDrop<T::CacheData>,
     /// Never drop - since we're guaranteed to have them POD.
     level1_blocks: MaybeUninit<T::Level1Blocks>,
@@ -64,7 +64,7 @@ impl<T> BlockIterator for CachingBlockIter<T>
 where
     T: LevelMasksExt,
 {
-    type DataBitBlock = <T::Config as IConfig>::DataBitBlock;  
+    type DataBitBlock = <T::Conf as Config>::DataBitBlock;  
 
     #[inline]
     fn cursor(&self) -> BlockIterCursor {
@@ -120,7 +120,7 @@ where
         } else {
             // absolutely empty
             self.state.level1_iter  = BitQueue::empty();
-            self.state.level0_index = 1 << <T::Config as IConfig>::DataBitBlock::SIZE_POT_EXPONENT; 
+            self.state.level0_index = 1 << <T::Conf as Config>::DataBitBlock::SIZE_POT_EXPONENT; 
         }
 
         self
@@ -132,7 +132,7 @@ impl<T> Iterator for CachingBlockIter<T>
 where
     T: LevelMasksExt,
 {
-    type Item = DataBlock<<T::Config as IConfig>::DataBitBlock>;
+    type Item = DataBlock<<T::Conf as Config>::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -166,7 +166,7 @@ where
         };
 
         let block_start_index =
-            data_block_start_index::<<T as BitSetBase>::Config>(
+            data_block_start_index::<<T as BitSetBase>::Conf>(
                 state.level0_index, level1_index,
             );
 
@@ -197,7 +197,7 @@ where
     T: LevelMasksExt,
 {
     block_iter: CachingBlockIter<T>,
-    data_block_iter: DataBlockIter<<T::Config as IConfig>::DataBitBlock>,
+    data_block_iter: DataBlockIter<<T::Conf as Config>::DataBitBlock>,
 }
 
 impl<T> CachingIndexIter<T>
@@ -234,7 +234,7 @@ where
             let mut data_block_iter = data_block.into_iter();
             
             // mask out, if this is block pointed by cursor
-            let cursor_block_start_index = data_block_start_index::<T::Config>(
+            let cursor_block_start_index = data_block_start_index::<T::Conf>(
                 cursor.block_cursor.level0_index, 
                 cursor.block_cursor.level1_next_index /*this is current index*/,
             );
@@ -258,7 +258,7 @@ where
         }
         
         // Extract level0_index, level1_index from block_start_index
-        let (level0_index, level1_index, _) = level_indices::<T::Config>(self.data_block_iter.start_index);
+        let (level0_index, level1_index, _) = level_indices::<T::Conf>(self.data_block_iter.start_index);
          
         IndexIterCursor{
             block_cursor: BlockIterCursor{ 

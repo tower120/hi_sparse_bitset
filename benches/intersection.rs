@@ -11,25 +11,25 @@ use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
 use roaring::RoaringBitmap;
-use hi_sparse_bitset::config::IConfig;
+use hi_sparse_bitset::config::Config;
 use crate::common::bench;
 
 // TODO: consider bench different Cache modes instead.
 
 // ---- REDUCE -----
 // === Block iter ===
-fn hi_sparse_bitset_reduce_and_simple_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_and_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
     SimpleBlockIter::new(reduce).count()
 }
 
-fn hi_sparse_bitset_reduce_and_caching_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_and_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
     reduce.into_block_iter().count()
 }
 
 // === Traverse ===
-fn hi_sparse_bitset_reduce_and_simple_traverse<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_and_simple_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
 
     let mut counter = 0;
@@ -42,7 +42,7 @@ fn hi_sparse_bitset_reduce_and_simple_traverse<Conf: IConfig>(sets: &[BitSet<Con
     counter
 }
 
-fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
 
     let mut counter = 0;
@@ -56,12 +56,12 @@ fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: IConfig>(sets: &[BitSet<Co
 }
 
 // === Iter ===
-fn hi_sparse_bitset_reduce_and_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_and_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
     SimpleIndexIter::new(SimpleBlockIter::new(reduce)).count()
 }
 
-fn hi_sparse_bitset_reduce_and_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_reduce_and_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
     reduce.into_iter().count()
 }
@@ -69,18 +69,18 @@ fn hi_sparse_bitset_reduce_and_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]
 
 // ---- OP -----
 // === Block iter ===
-fn hi_sparse_bitset_op_and_simple_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize{
+fn hi_sparse_bitset_op_and_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize{
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
     SimpleBlockIter::new(intersection).count()
 }
 
-fn hi_sparse_bitset_op_and_caching_block_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize{
+fn hi_sparse_bitset_op_and_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize{
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
     intersection.into_block_iter().count()
 }
 
 // === Traverse ===
-fn hi_sparse_bitset_op_and_simple_traverse<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_and_simple_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
 
     let mut counter = 0;
@@ -93,7 +93,7 @@ fn hi_sparse_bitset_op_and_simple_traverse<Conf: IConfig>(sets: &[BitSet<Conf>])
     counter
 }
 
-fn hi_sparse_bitset_op_and_caching_traverse<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
 
     let mut counter = 0;
@@ -107,12 +107,12 @@ fn hi_sparse_bitset_op_and_caching_traverse<Conf: IConfig>(sets: &[BitSet<Conf>]
 }
 
 // === Iter ===
-fn hi_sparse_bitset_op_and_simple_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_and_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
     SimpleIndexIter::new(SimpleBlockIter::new(intersection)).count()
 }
 
-fn hi_sparse_bitset_op_and_caching_iter<Conf: IConfig>(sets: &[BitSet<Conf>]) -> usize {
+fn hi_sparse_bitset_op_and_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
     intersection.into_iter().count()
 }

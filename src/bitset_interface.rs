@@ -3,31 +3,31 @@ use crate::{BitSet, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
-use crate::config::{DefaultBlockIterator, IConfig};
+use crate::config::{DefaultBlockIterator, Config};
 use crate::iter::{BlockIterator, IndexIterator};
 use crate::op::BitSetOp;
 use crate::reduce::Reduce;
 
 // We have this separate trait with Config, to avoid making LevelMasks public.
 pub trait BitSetBase {
-    type Config: IConfig;
+    type Conf: Config;
 }
 
 /// Basic interface for accessing block masks. Can work with [SimpleIter].
 pub trait LevelMasks: BitSetBase{
-    fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock;
+    fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock;
 
     /// # Safety
     ///
     /// index is not checked
     unsafe fn level1_mask(&self, level0_index: usize)
-        -> <Self::Config as IConfig>::Level1BitBlock;
+        -> <Self::Conf as Config>::Level1BitBlock;
 
     /// # Safety
     ///
     /// indices are not checked
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize)
-        -> <Self::Config as IConfig>::DataBitBlock;
+        -> <Self::Conf as Config>::DataBitBlock;
 }
 
 /// More sophisticated masks interface, optimized for iteration speed, through
@@ -72,7 +72,7 @@ pub trait LevelMasksExt: LevelMasks{
         cache: &mut Self::CacheData,
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
-    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool);
+    ) -> (<Self::Conf as Config>::Level1BitBlock, bool);
 
     /// # Safety
     ///
@@ -81,28 +81,28 @@ pub trait LevelMasksExt: LevelMasks{
     ///   [update_level1_blocks] returned false.
     unsafe fn data_mask_from_blocks(
         /*&self,*/ level1_blocks: &Self::Level1Blocks, level1_index: usize
-    ) -> <Self::Config as IConfig>::DataBitBlock;
+    ) -> <Self::Conf as Config>::DataBitBlock;
 }
 
 impl<'a, T: LevelMasks> BitSetBase for &'a T {
-    type Config = T::Config;
+    type Conf = T::Conf;
 }
 impl<'a, T: LevelMasks> LevelMasks for &'a T {
     #[inline]
-    fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
+    fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock {
         <T as LevelMasks>::level0_mask(self)
     }
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize)
-        -> <Self::Config as IConfig>::Level1BitBlock
+        -> <Self::Conf as Config>::Level1BitBlock
     {
         <T as LevelMasks>::level1_mask(self, level0_index)
     }
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize)
-        -> <Self::Config as IConfig>::DataBitBlock
+        -> <Self::Conf as Config>::DataBitBlock
     {
         <T as LevelMasks>::data_mask(self, level0_index, level1_index)
     }
@@ -131,7 +131,7 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
         cache_data: &mut Self::CacheData,
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
-    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
+    ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         <T as LevelMasksExt>::update_level1_blocks(
             self, cache_data, level1_blocks, level0_index
         )
@@ -140,7 +140,7 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
     #[inline]
     unsafe fn data_mask_from_blocks(
         level1_blocks: &Self::Level1Blocks, level1_index: usize
-    ) -> <Self::Config as IConfig>::DataBitBlock {
+    ) -> <Self::Conf as Config>::DataBitBlock {
         <T as LevelMasksExt>::data_mask_from_blocks(
             level1_blocks, level1_index
         )
@@ -189,7 +189,7 @@ where
 
     #[inline]
     fn contains(&self, index: usize) -> bool {
-        let (level0_index, level1_index, data_index) = level_indices::<T::Config>(index);
+        let (level0_index, level1_index, data_index) = level_indices::<T::Conf>(index);
         unsafe{
             let data_block = self.data_mask(level0_index, level1_index);
             data_block.get_bit(data_index)
@@ -215,20 +215,20 @@ macro_rules! impl_into_iter {
     };
 }
 
-impl_into_iter!(impl<Config> for BitSet<Config> where Config: IConfig );
-impl_into_iter!(impl<'a, Config> for &'a BitSet<Config> where Config: IConfig );
+impl_into_iter!(impl<Conf> for BitSet<Conf> where Conf: Config );
+impl_into_iter!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config );
 impl_into_iter!(
     impl<Op, S1, S2> for BitSetOp<Op, S1, S2>
     where
         Op: BinaryOp,
-        S1: LevelMasksExt<Config = S2::Config>,
+        S1: LevelMasksExt<Conf = S2::Conf>,
         S2: LevelMasksExt
 );
 impl_into_iter!(
     impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2>
     where
         Op: BinaryOp,
-        S1: LevelMasksExt<Config = S2::Config>,
+        S1: LevelMasksExt<Conf = S2::Conf>,
         S2: LevelMasksExt
 );
 impl_into_iter!(

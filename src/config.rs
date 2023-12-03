@@ -1,6 +1,7 @@
 //! Configurations for [BitSet].
 //!
-//! The smaller the block size - the lower `HiSparseBitset` memory footprint.
+//! Increasing block size will increase max index [BitSet] can hold.
+//! Decreasing block size will lower memory footprint.
 //!
 //! For your task, you can make specialized config. For example, if you're
 //! not limited by MAX index, and know that your indices will be dense,
@@ -19,7 +20,7 @@ pub(crate) type DefaultBlockIterator<T> = CachingBlockIter<T>;
 /// [BitSet] configuration
 /// 
 /// [BitSet]: crate::BitSet
-pub trait IConfig: 'static {
+pub trait Config: 'static {
 // Level 0
     /// BitBlock used as bitmask for level 0.
     type Level0BitBlock: BitBlock + Default;
@@ -79,12 +80,12 @@ pub trait IConfig: 'static {
 pub mod with_cache{
     use std::marker::PhantomData;
     use crate::cache::ReduceCache;
-    use crate::config::IConfig;
+    use crate::config::Config;
 
     /// MAX = 262_144
     #[derive(Default)]
     pub struct _64bit<DefaultCache: ReduceCache>(PhantomData<DefaultCache>);
-    impl<DefaultCache: ReduceCache> IConfig for _64bit<DefaultCache> {
+    impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
         type Level0BitBlock = u64;
         type Level0BlockIndices = [u8; 64];
 
@@ -103,7 +104,7 @@ pub mod with_cache{
     #[derive(Default)]
     pub struct _128bit<DefaultCache: ReduceCache>(PhantomData<DefaultCache>);
     #[cfg(feature = "simd")]
-    impl<DefaultCache: ReduceCache> IConfig for _128bit<DefaultCache> {
+    impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
         type Level0BitBlock = wide::u64x2;
         type Level0BlockIndices = [u8; 128];
 

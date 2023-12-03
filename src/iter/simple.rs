@@ -17,7 +17,7 @@ where
     T: LevelMasks,
 {
     virtual_set: T,
-    state: State<T::Config>,
+    state: State<T::Conf>,
 }
 
 impl<T> SimpleBlockIter<T>
@@ -43,7 +43,7 @@ impl<T> BlockIterator for SimpleBlockIter<T>
 where
     T: LevelMasksExt
 {
-    type DataBitBlock = <T::Config as IConfig>::DataBitBlock;
+    type DataBitBlock = <T::Conf as Config>::DataBitBlock;
 
     #[inline]
     fn cursor(&self) -> BlockIterCursor {
@@ -71,7 +71,7 @@ impl<T> Iterator for SimpleBlockIter<T>
 where
     T: LevelMasks,
 {
-    type Item = DataBlock<<<T as BitSetBase>::Config as IConfig>::DataBitBlock>;
+    type Item = DataBlock<<<T as BitSetBase>::Conf as Config>::DataBitBlock>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -102,7 +102,7 @@ where
         };
 
         let block_start_index =
-            data_block_start_index::<<T as BitSetBase>::Config>(
+            data_block_start_index::<<T as BitSetBase>::Conf>(
                 state.level0_index, level1_index
             );
 
