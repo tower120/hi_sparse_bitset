@@ -2,7 +2,7 @@
 
 use crate::{DataBlock, DataBlockIter};
 use crate::bit_block::BitBlock;
-use crate::config::IConfig;
+use crate::config::Config;
 
 mod caching;
 pub use caching::{CachingBlockIter, CachingIndexIter};
@@ -13,9 +13,9 @@ mod simple;
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
 #[inline]
-fn data_block_start_index<Config: IConfig>(level0_index: usize, level1_index: usize) -> usize{
-    let level0_offset = level0_index << (Config::DataBitBlock::SIZE_POT_EXPONENT + Config::Level1BitBlock::SIZE_POT_EXPONENT);
-    let level1_offset = level1_index << (Config::DataBitBlock::SIZE_POT_EXPONENT);
+fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{
+    let level0_offset = level0_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT + Conf::Level1BitBlock::SIZE_POT_EXPONENT);
+    let level1_offset = level1_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT);
     level0_offset + level1_offset
 }
 
@@ -61,9 +61,9 @@ pub struct IndexIterCursor{
 }
 
 // TODO: move inside caching iterator
-pub(crate) struct State<Config: IConfig> {
-    pub(crate) level0_iter: <Config::Level0BitBlock as BitBlock>::BitsIter,
-    pub(crate) level1_iter: <Config::Level1BitBlock as BitBlock>::BitsIter,
+pub(crate) struct State<Conf: Config> {
+    pub(crate) level0_iter: <Conf::Level0BitBlock as BitBlock>::BitsIter,
+    pub(crate) level1_iter: <Conf::Level1BitBlock as BitBlock>::BitsIter,
     pub(crate) level0_index: usize,
 }
 

@@ -27,42 +27,42 @@ cfg_if::cfg_if! {
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_64)] {
-        type Config = config::with_cache::_64bit<DefaultCache>;
+        type Conf = config::with_cache::_64bit<DefaultCache>;
     } else if #[cfg(hisparsebitset_test_128)] {
-        type Config = config::with_cache::_128bit<DefaultCache>;
+        type Conf = config::with_cache::_128bit<DefaultCache>;
     } else {
-        type Config = config::with_cache::_128bit<DefaultCache>;
+        type Conf = config::with_cache::_128bit<DefaultCache>;
     }
 }
 
-type HiSparseBitset = super::BitSet<Config>;
+type HiSparseBitset = super::BitSet<Conf>;
 
 #[test]
 fn level_indices_test(){
-    type Config  = config::_128bit;
+    type Conf = config::_128bit;
 
-    let levels = level_indices::<Config>(0);
+    let levels = level_indices::<Conf>(0);
     assert_eq!(levels, (0,0,0));
 
-    let levels = level_indices::<Config>(10);
+    let levels = level_indices::<Conf>(10);
     assert_eq!(levels, (0,0,10));
 
-    let levels = level_indices::<Config>(128);
+    let levels = level_indices::<Conf>(128);
     assert_eq!(levels, (0,1,0));
 
-    let levels = level_indices::<Config>(130);
+    let levels = level_indices::<Conf>(130);
     assert_eq!(levels, (0,1,2));
 
-    let levels = level_indices::<Config>(130);
+    let levels = level_indices::<Conf>(130);
     assert_eq!(levels, (0,1,2));
 
-    let levels = level_indices::<Config>(128*128);
+    let levels = level_indices::<Conf>(128*128);
     assert_eq!(levels, (1,0,0));
 
-    let levels = level_indices::<Config>(128*128 + 50*128);
+    let levels = level_indices::<Conf>(128*128 + 50*128);
     assert_eq!(levels, (1,50,0));
 
-    let levels = level_indices::<Config>(128*128 + 50*128 + 4);
+    let levels = level_indices::<Conf>(128*128 + 50*128 + 4);
     assert_eq!(levels, (1,50,4));
 }
 
@@ -355,7 +355,7 @@ where
                 where
                     Op: BinaryOp,
                     S1: LevelMasksExt,
-                    S2: LevelMasksExt<Config = S1::Config>,
+                    S2: LevelMasksExt<Conf = S1::Conf>,
                 {
                     let mut indices2 = Vec::new();
                     for block in op.block_iter(){

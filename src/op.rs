@@ -8,7 +8,7 @@ use crate::BitSet;
 use crate::bit_block::BitBlock;
 use crate::reduce::Reduce;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
-use crate::config::IConfig;
+use crate::config::Config;
 
 /// Binary operation application, as lazy bitset.
 ///
@@ -34,25 +34,25 @@ impl<Op, S1, S2> BitSetBase for BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: LevelMasks,
-    S2: LevelMasks<Config = S1::Config>,
+    S2: LevelMasks<Conf = S1::Conf>,
 {
-    type Config = S1::Config;
+    type Conf = S1::Conf;
 }
 
 impl<Op, S1, S2> LevelMasks for BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: LevelMasks,
-    S2: LevelMasks<Config = S1::Config>,
+    S2: LevelMasks<Conf= S1::Conf>,
 {
     #[inline]
-    fn level0_mask(&self) -> <Self::Config as IConfig>::Level0BitBlock {
+    fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock {
         Op::hierarchy_op(self.s1.level0_mask(), self.s2.level0_mask())
     }
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize)
-        -> <Self::Config as IConfig>::Level1BitBlock
+        -> <Self::Conf as Config>::Level1BitBlock
     {
         Op::hierarchy_op(
             self.s1.level1_mask(level0_index),
@@ -62,7 +62,7 @@ where
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize)
-        -> <Self::Config as IConfig>::DataBitBlock
+        -> <Self::Conf as Config>::DataBitBlock
     {
         Op::data_op(
             self.s1.data_mask(level0_index, level1_index),
@@ -75,7 +75,7 @@ impl<Op, S1, S2> LevelMasksExt for BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: LevelMasksExt,
-    S2: LevelMasksExt<Config = S1::Config>,
+    S2: LevelMasksExt<Conf = S1::Conf>,
 {
     type Level1Blocks = (MaybeUninit<S1::Level1Blocks>, MaybeUninit<S2::Level1Blocks>, MaybeUninit<bool>, MaybeUninit<bool>);
 
@@ -102,7 +102,7 @@ where
         cache_data: &mut Self::CacheData,
         level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
-    ) -> (<Self::Config as IConfig>::Level1BitBlock, bool) {
+    ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         let level1_blocks = level1_blocks.assume_init_mut();
         let (mask1, v1) = self.s1.update_level1_blocks(
             &mut cache_data.0, &mut level1_blocks.0, level0_index
@@ -128,20 +128,20 @@ where
     #[inline]
     unsafe fn data_mask_from_blocks(
         level1_blocks: &Self::Level1Blocks, level1_index: usize
-    ) -> <Self::Config as IConfig>::DataBitBlock {
+    ) -> <Self::Conf as Config>::DataBitBlock {
         // intersection can never point to empty blocks.
         /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
 
         let m0 = if S1::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.2.assume_init(){
             S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index)
         } else {
-            <Self::Config as IConfig>::DataBitBlock::zero()
+            <Self::Conf as Config>::DataBitBlock::zero()
         };
 
         let m1 = if S2::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.3.assume_init(){
             S2::data_mask_from_blocks(level1_blocks.1.assume_init_ref(), level1_index)
         } else {
-            <Self::Config as IConfig>::DataBitBlock::zero()
+            <Self::Conf as Config>::DataBitBlock::zero()
         };
 
         Op::data_op(m0, m1)
@@ -210,7 +210,7 @@ macro_rules! impl_op {
     };
 }
 
-impl_op!(impl<'a, Config> for &'a BitSet<Config> where Config: IConfig);
+impl_op!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
 impl_op!(impl<Op, S1, S2> for BitSetOp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
 impl_op!(impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
 impl_op!(impl<Op, S, Storage> for Reduce<Op, S, Storage> where);
@@ -274,7 +274,7 @@ mod test{
         fn test<Op, S1, S2>(h: BitSetOp<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BinaryOp,
-            S1: LevelMasksExt<Config = S2::Config>,
+            S1: LevelMasksExt<Conf = S2::Conf>,
             S2: LevelMasksExt,
         {
             let hv: Vec<usize> = h.block_iter()

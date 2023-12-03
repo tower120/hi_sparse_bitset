@@ -52,7 +52,7 @@ pub trait ReduceCache: Default + 'static{
     type Impl<Op, S>
         : ReduceCacheImpl<
             Sets = S,
-            Config = <S::Item as BitSetBase>::Config
+            Conf = <S::Item as BitSetBase>::Conf
         >
     where
         Op: BinaryOp,
