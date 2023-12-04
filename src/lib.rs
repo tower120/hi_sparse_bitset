@@ -260,7 +260,7 @@ impl<Conf: Config> BitSet<Conf> {
         }
     }
 
-    /// Returns false if index is invalid/was not in bitset
+    /// Returns false if index is invalid/not in bitset.
     pub fn remove(&mut self, index: usize) -> bool {
         if !Self::is_in_range(index){
             return false;
@@ -277,8 +277,10 @@ impl<Conf: Config> BitSet<Conf> {
             // 2. Get Data block and set bit
             let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index.as_());
             let existed = data_block.remove(data_index);
+            
+            // TODO: fast check of mutated data_block's primitive == 0?  
 
-            if existed{
+            //if existed{
                 // 3. Remove free blocks
                 if data_block.is_empty(){
                     // remove data block
@@ -296,7 +298,7 @@ impl<Conf: Config> BitSet<Conf> {
                         self.level0.remove(level0_index);
                     }
                 }
-            }
+            //}
             existed
         }
     }

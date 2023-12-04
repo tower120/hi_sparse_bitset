@@ -55,7 +55,8 @@ jobs:
         ]
         config_type_flag: [
           hisparsebitset_test_64,
-          hisparsebitset_test_128
+          hisparsebitset_test_128,
+          hisparsebitset_test_256
         ]
     steps:
     - uses: dtolnay/rust-toolchain@nightly
