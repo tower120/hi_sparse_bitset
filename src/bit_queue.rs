@@ -1,3 +1,7 @@
+//! Bit iterator for [BitBlock]. 
+//! 
+//! [BitBlock]: crate::BitBlock
+
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
 
@@ -28,15 +32,17 @@ fn trailing_zeroes<P: Primitive>(bit_block_iter: &OneBitsIter<P>) -> usize{
     block.trailing_zeros() as usize
 }
 
-#[inline]
+/*#[inline]
 fn is_empty<P: Primitive>(bit_block_iter: &OneBitsIter<P>) -> bool{
     let block: &P = unsafe{
         mem::transmute(bit_block_iter)
     };
     block.is_zero()
-}
+}*/
 
-/// Pop one bits. "Consumed" bits replaced with zero.
+/// Queue of 1 bits.
+/// 
+/// Pop first set bit on iteration. "Consumed" bit replaced with zero.
 pub trait BitQueue: Iterator<Item = usize>{
     /// All bits 0. Iterator returns None.
     fn empty() -> Self;
@@ -59,9 +65,11 @@ pub trait BitQueue: Iterator<Item = usize>{
     /// Current index. Equals len - if iteration finished.
     fn current(&self) -> usize;
     
-    fn is_empty(&self) -> bool;
+/*    // TODO: remove ?
+    fn is_empty(&self) -> bool;*/
 }
 
+/// [BitQueue] for [Primitive].
 pub struct PrimitiveBitQueue<P>{
     bit_block_iter: OneBitsIter<P>
 }
@@ -108,9 +116,9 @@ where
         trailing_zeroes(&self.bit_block_iter)
     }
 
-    fn is_empty(&self) -> bool {
+    /*fn is_empty(&self) -> bool {
         is_empty(&self.bit_block_iter)
-    }
+    }*/
 }
 
 
@@ -126,6 +134,7 @@ where
     }
 }
 
+/// [BitQueue] for array of [Primitive]s.
 pub struct ArrayBitQueue<P, const N: usize>{
     /// first element - always active one.
     bit_block_iters: [OneBitsIter<P>; N],
@@ -220,11 +229,11 @@ where
         self.bit_block_index * size_of::<P>() * 8 + trailing_zeroes(active_block_iter)
     }
 
-    #[inline]
+/*    #[inline]
     fn is_empty(&self) -> bool {
         let active_block_iter = &self.bit_block_iters[0];
         is_empty(active_block_iter)
-    }
+    }*/
 }
 
 impl<P, const N: usize> Iterator for ArrayBitQueue<P, N>

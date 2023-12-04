@@ -1,4 +1,3 @@
-use std::mem;
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use crate::bit_op;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
@@ -25,8 +24,8 @@ pub trait BitBlock
     type BitsIter: BitQueue;
     fn bits_iter(self) -> Self::BitsIter;
 
-    type AsArray: AsRef<[u64]>;
-    fn as_array_u64(&self) -> &Self::AsArray;
+    /*type AsArray: AsRef<[u64]>;
+    fn as_array_u64(&self) -> &Self::AsArray;*/
     
     fn count_ones(&self) -> usize;
 }
@@ -68,14 +67,14 @@ impl BitBlock for u64{
         PrimitiveBitQueue::new(self)
     }
 
-    type AsArray = [u64; 1];
+    /*type AsArray = [u64; 1];
 
     #[inline]
     fn as_array_u64(&self) -> &Self::AsArray {
         unsafe {
             mem::transmute::<&u64, &[u64; 1]>(self)
         }
-    }
+    }*/
 
     #[inline]
     fn count_ones(&self) -> usize {
@@ -125,17 +124,17 @@ impl BitBlock for wide::u64x2{
         Self::BitsIter::new(self.to_array())
     }
 
-    type AsArray = [u64; 2];
+    /*type AsArray = [u64; 2];
 
     #[inline]
     fn as_array_u64(&self) -> &[u64; 2] {
         self.as_array_ref()
-    }
+    }*/
 
     #[inline]
     fn count_ones(&self) -> usize {
         // TODO: there is faster solutions for this http://0x80.pl/articles/sse-popcount.html
-        let primitives = self.as_array_u64();
+        let primitives = self.as_array_ref();
         let len = primitives[0].count_ones() + primitives[1].count_ones();
         len as usize
     }
