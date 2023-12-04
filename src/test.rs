@@ -30,6 +30,8 @@ cfg_if::cfg_if! {
         type Conf = config::with_cache::_64bit<DefaultCache>;
     } else if #[cfg(hisparsebitset_test_128)] {
         type Conf = config::with_cache::_128bit<DefaultCache>;
+    } else if #[cfg(hisparsebitset_test_256)] {
+        type Conf = config::with_cache::_256bit<DefaultCache>;
     } else {
         type Conf = config::with_cache::_128bit<DefaultCache>;
     }

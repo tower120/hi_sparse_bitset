@@ -91,7 +91,7 @@ where
         let prev = self.mask.set_bit::<false>(index);
         // don't touch block_index - it state is irrelevant
         if !INTERSECTION_ONLY {
-            // If we have Blocks section (compile-time check)
+            // If we have block_indices section (compile-time check)
             if !size_of::<BlockIndices>().is_zero(){
                 let block_indices = self.block_indices.as_mut();
                 *block_indices.get_unchecked_mut(index) = BlockIndex::zero();

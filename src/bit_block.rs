@@ -2,7 +2,7 @@ use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use crate::bit_op;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 
-// TODO: consider removing copy/clone
+// TODO: consider removing copy
 pub trait BitBlock
     : BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self>
     + Sized + Copy + Clone
@@ -136,6 +136,55 @@ impl BitBlock for wide::u64x2{
         // TODO: there is faster solutions for this http://0x80.pl/articles/sse-popcount.html
         let primitives = self.as_array_ref();
         let len = primitives[0].count_ones() + primitives[1].count_ones();
+        len as usize
+    }
+}
+
+#[cfg(feature = "simd")]
+impl BitBlock for wide::u64x4{
+    const SIZE_POT_EXPONENT: usize = 8;
+
+    #[inline]
+    fn zero() -> Self {
+        wide::u64x4::ZERO
+    }
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        *self == Self::zero()
+    }
+
+    #[inline]
+    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
+        bit_op::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
+    }
+
+    #[inline]
+    fn get_bit(&self, bit_index: usize) -> bool {
+        bit_op::get_array_bit(self.as_array_ref(), bit_index)
+    }
+
+    #[inline]
+    fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>
+    {
+        let array = self.as_array_ref();
+        bit_op::traverse_array_one_bits(array, f)
+    }
+
+    type BitsIter = ArrayBitQueue<u64, 4>;
+    #[inline]
+    fn bits_iter(self) -> Self::BitsIter {
+        Self::BitsIter::new(self.to_array())
+    }
+
+    #[inline]
+    fn count_ones(&self) -> usize {
+        // TODO: there is faster solutions for this http://0x80.pl/articles/sse-popcount.html
+        let primitives = self.as_array_ref();
+        let len = primitives[0].count_ones() + primitives[1].count_ones()
+                + primitives[2].count_ones() + primitives[3].count_ones();
         len as usize
     }
 }

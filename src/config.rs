@@ -136,6 +136,25 @@ pub mod with_cache{
 
         type DefaultCache = DefaultCache;
     }
+    
+    /// MAX = 16_777_216 
+    #[cfg(feature = "simd")]
+    #[derive(Default)]
+    pub struct _256bit<DefaultCache: ReduceCache>(PhantomData<DefaultCache>);
+    #[cfg(feature = "simd")]
+    impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
+        type Level0BitBlock = wide::u64x4;
+        type Level0BlockIndices = [u8; 256];
+
+        type Level1BitBlock = wide::u64x4;
+        type Level1BlockIndex = u8;
+        type Level1BlockIndices = [u16; 256];
+
+        type DataBitBlock = wide::u64x4;
+        type DataBlockIndex = u16;
+
+        type DefaultCache = DefaultCache;
+    }    
 }
 
 /// MAX = 262_144
@@ -144,4 +163,5 @@ pub type _64bit = with_cache::_64bit<DefaultCache>;
 /// MAX = 2_097_152
 pub type _128bit = with_cache::_128bit<DefaultCache>;
 
-// TODO: simd_256
+/// MAX = 16_777_216 
+pub type _256bit = with_cache::_256bit<DefaultCache>;
