@@ -71,14 +71,14 @@ indirection. See benchmarks.
 Despite the fact that `hi_sparse_bitset` have layer of indirection for accessing
 each level, it is faster (sometimes significantly) then `hibitset` for all operations.
 
-On top of that, it is also **algorithmically** faster than `hibitset` on 
-all non-intersection operations due to caching iterator, which
+On top of that, it is also **algorithmically** faster than `hibitset` for 
+non-intersection inter-bitset operations due to caching iterator, which
 can skip bitsets with empty data blocks on pre-data level. 
 
 Technical details:
 _Hierarchical structure of both `hibitset` and `hi_sparse_bitset` is most
 friendly to intersection operations. Doing, for example, union between bitsets,
-require for each level of each bitset to take bitblock and OR them. `hi_sparse_bitset`
+requires for each level of each bitset to take bitblocks and OR them. `hi_sparse_bitset`
 cache level1 blocks during iteration (as a form of iteration optimisation, since it access 
 blocks through indirection), 
 and can skip the empty ones. That excludes bitsets with empty level1 blocks completely 
