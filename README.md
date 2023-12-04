@@ -84,6 +84,16 @@ blocks through indirection),
 and can skip the empty ones. That excludes bitsets with empty level1 blocks completely 
 from participating in data level operation._
 
+## Against `roaring`
+
+`roaring` is a hybrid bitset, that use sorted array of bitblocks for set with large integers,
+and big fixed-sized bitset for a small ones.
+We'll consider case for intersecting `roaring` sets with large integers.
+In order to find intersection, it binary search for bitblocks with the same start index,
+then intersect each bitblock. Operation of binary searching matching bitblock 
+is algorithmically more complex O(log N), then directly traversing intersected 
+bitblock in hierarchy, which is close to O(1) for each resulted bitblock.
+
 # DataBlock operations
 
 In order to speed up things even more, you can work directly with
@@ -141,15 +151,12 @@ unlock, process buffer, repeat until the end.
     and know that your indices are relatively small numbers, or expect bitset to be
     densely populated - this is a good choice.
 
-* `HashSet<usize>` - you should use it only if you work with extremely large numbers. 
-   It is orders of magnitude slower for inter-bitset operations.
+* `HashSet<usize>` - you should use it only if you work with a relatively small
+   set with extremely large numbers. 
+   It is orders of magnitude slower for inter-set operations.
    And "just" slower for the rest ones.
 
-*  [roaring](https://crates.io/crates/roaring) - compressed bitset. It does not have means of intersecting multiple
-   sets at once, only through intermediate bitset (which would be unfair to compare). So you can't directly do the same things in `roaring`.
-   As for comparing things that possible (like intersection count). In ideal (against hierarchical bitset) 
-   for `roaring` scenario (all elements intersects): on quite sparse bitsets roaring is somewhat faster, on denser - slower. 
-   That will vary from actual dataset to dataset. Probably the less the percentage of intersected 
-   elements - the bigger `hi_sparse_bitset` performance gains against `roaring`.
-   The main selling point of `roaring` against `hi_sparse_bitset` should be the fact that `roaring`, being
-   compressed bitset can store MUCH bigger indices in set. _DISCLAIMER: It was not benchmarked head-to-head thoroughly_ 
+*  [roaring](https://crates.io/crates/roaring) - compressed hybrid bitset. 
+   Higher algorithmic complexity of operations, but theoretically unlimited range.
+   It is still super-linearly faster then pure dense bitsets and hashsets in inter-set
+   operations. See [performance section](#against-roaring) for detais.

@@ -6,7 +6,7 @@
 - `max_range()` moved to `Config`.
 
 ### Added
-- `BitBlock` trait for implementing custom bit block for BitSet.
+- `BitBlock` trait for implementing custom `BitSet` bitblock.
 - `_256bit` `Config` added.
 
 ## 0.1.0
