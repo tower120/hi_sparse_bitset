@@ -122,7 +122,7 @@ pub use reduce::Reduce;
 /// Use any other operation then intersection(and) require
 /// to either do checks on block access (in LevelMasks), or
 /// have one empty block at each level as default, and default indices pointing at it.
-/// Second variant in use now.
+/// Second variant is in use now.
 const INTERSECTION_ONLY: bool = false;
 
 pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
@@ -154,22 +154,6 @@ fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*
     let data = level1_remainder;
 
     (level0, level1, data)
-}
-
-/// Max usize, [BitSet] with `Config` can hold.
-pub const fn max_range<Conf: Config>() -> usize {
-    let mut max_range = (1 << Conf::Level0BitBlock::SIZE_POT_EXPONENT)
-        * (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
-        * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT);
-
-    if !INTERSECTION_ONLY{
-        // We occupy one block for "empty" at each level, except root.
-        max_range = max_range
-            - (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
-            - (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT);
-    }
-
-    max_range
 }
 
 type Level1Block<Conf> = Block<
@@ -228,7 +212,7 @@ impl<Conf: Config> BitSet<Conf> {
 
     #[inline]
     fn is_in_range(index: usize) -> bool{
-        index < max_range::<Conf>()
+        index < Conf::max_value()
     }
 
     #[inline]
