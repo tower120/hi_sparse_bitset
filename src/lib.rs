@@ -88,7 +88,7 @@
 mod block;
 mod level;
 mod bit_block;
-mod bit_queue;
+pub mod bit_queue;
 mod bit_op;
 pub mod config;
 pub mod binary_op;
@@ -110,7 +110,7 @@ use config::Config;
 use block::Block;
 use level::Level;
 use binary_op::BinaryOp;
-use bit_block::BitBlock;
+pub use bit_block::BitBlock;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
