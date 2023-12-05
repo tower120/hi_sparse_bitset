@@ -89,12 +89,12 @@ mod block;
 mod level;
 mod bit_block;
 pub mod bit_queue;
-mod bit_op;
+mod bit_utils;
 pub mod config;
 pub mod binary_op;
 mod reduce;
 mod bitset_interface;
-mod op;
+mod bitset_op;
 pub mod iter;
 pub mod cache;
 
@@ -116,7 +116,7 @@ use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
-pub use op::BitSetOp;
+pub use bitset_op::BitSetOp;
 pub use reduce::Reduce;
 
 /// Use any other operation then intersection(and) require

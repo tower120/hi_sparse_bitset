@@ -5,7 +5,7 @@ use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config};
 use crate::iter::{BlockIterator, IndexIterator};
-use crate::op::BitSetOp;
+use crate::bitset_op::BitSetOp;
 use crate::reduce::Reduce;
 
 // We have this separate trait with Config, to avoid making LevelMasks public.

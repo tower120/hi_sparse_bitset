@@ -5,7 +5,7 @@
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
 
-use crate::bit_op::{one_bits_iter, OneBitsIter};
+use crate::bit_utils::{one_bits_iter, OneBitsIter};
 use crate::Primitive;
 
 /// Return 0 if n > BITS
