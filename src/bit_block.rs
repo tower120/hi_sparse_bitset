@@ -1,5 +1,5 @@
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
-use crate::bit_op;
+use crate::bit_utils;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 
 // TODO: consider removing copy
@@ -45,12 +45,12 @@ impl BitBlock for u64{
 
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool{
-        bit_op::set_bit::<BIT, _>(self, bit_index)
+        bit_utils::set_bit::<BIT, _>(self, bit_index)
     }
 
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool {
-        bit_op::get_bit(*self, bit_index)
+        bit_utils::get_bit(*self, bit_index)
     }
 
     #[inline]
@@ -58,7 +58,7 @@ impl BitBlock for u64{
     where
         F: FnMut(usize) -> ControlFlow<()>
     {
-        bit_op::traverse_one_bits(*self, f)
+        bit_utils::traverse_one_bits(*self, f)
     }
 
     type BitsIter = PrimitiveBitQueue<u64>;
@@ -101,12 +101,12 @@ impl BitBlock for wide::u64x2{
 
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
-        bit_op::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
+        bit_utils::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
     }
 
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool {
-        bit_op::get_array_bit(self.as_array_ref(), bit_index)
+        bit_utils::get_array_bit(self.as_array_ref(), bit_index)
     }
 
     #[inline]
@@ -115,7 +115,7 @@ impl BitBlock for wide::u64x2{
         F: FnMut(usize) -> ControlFlow<()>
     {
         let array = self.as_array_ref();
-        bit_op::traverse_array_one_bits(array, f)
+        bit_utils::traverse_array_one_bits(array, f)
     }
 
     type BitsIter = ArrayBitQueue<u64, 2>;
@@ -156,12 +156,12 @@ impl BitBlock for wide::u64x4{
 
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
-        bit_op::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
+        bit_utils::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
     }
 
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool {
-        bit_op::get_array_bit(self.as_array_ref(), bit_index)
+        bit_utils::get_array_bit(self.as_array_ref(), bit_index)
     }
 
     #[inline]
@@ -170,7 +170,7 @@ impl BitBlock for wide::u64x4{
         F: FnMut(usize) -> ControlFlow<()>
     {
         let array = self.as_array_ref();
-        bit_op::traverse_array_one_bits(array, f)
+        bit_utils::traverse_array_one_bits(array, f)
     }
 
     type BitsIter = ArrayBitQueue<u64, 4>;

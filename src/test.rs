@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::{BlockIterCursor, IndexIterCursor, IndexIterator};
-use crate::op::BitSetOp;
+use crate::bitset_op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
 
