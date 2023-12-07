@@ -153,6 +153,12 @@ fn fuzzy_test(){
                 let h2 = hi_set.contains(index);
                 assert_eq!(h1, h2);
             }
+            
+            // eq
+            {
+                let other: HiSparseBitset = hi_set.iter().collect();
+                assert!(hi_set == other);
+            }
         }
     }
 }

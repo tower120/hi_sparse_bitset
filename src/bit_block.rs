@@ -5,6 +5,7 @@ use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 // TODO: consider removing copy
 pub trait BitBlock
     : BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self>
+    + Eq + PartialEq
     + Sized + Copy + Clone
 {
     const SIZE_POT_EXPONENT: usize;
@@ -17,6 +18,7 @@ pub trait BitBlock
 
     fn get_bit(&self, bit_index: usize) -> bool;
 
+    /// Returns Break if traverse was breaked.
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;

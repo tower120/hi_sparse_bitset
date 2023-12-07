@@ -475,7 +475,7 @@ pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetOp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: BitSetInterface,
-    S2: BitSetInterface<Conf= <S1 as BitSetBase>::Conf>,
+    S2: BitSetInterface<Conf = <S1 as BitSetBase>::Conf>,
 {
     BitSetOp::new(op, s1, s2)
 }
@@ -500,7 +500,7 @@ where
     Conf: Config,
     Op: BinaryOp,
     S: Iterator + Clone,
-    S::Item: BitSetInterface<Conf=Conf>,
+    S::Item: BitSetInterface<Conf = Conf>,
 {
     reduce_w_cache(op, sets, Default::default())
 }
