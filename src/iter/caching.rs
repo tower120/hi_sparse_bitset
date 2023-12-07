@@ -2,7 +2,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::bitset_interface::{BitSetBase, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, iter_update_level1_blocks, LevelMasksExt};
 use crate::level_indices;
 
 use super::*;
@@ -103,13 +103,9 @@ where
             self.state.level0_index = level0_index;
             
             // generate level1 mask, and update cache.
-            let (level1_mask, valid) = unsafe {
-                self.virtual_set.update_level1_blocks(&mut self.cache_data, &mut self.level1_blocks, level0_index)
+            let level1_mask = unsafe {
+                iter_update_level1_blocks(&self.virtual_set, &mut self.cache_data, &mut self.level1_blocks, level0_index)
             };
-            if !valid {
-                // level1_mask can not be empty here
-                unsafe { std::hint::unreachable_unchecked() }
-            }
             self.state.level1_iter = level1_mask.bits_iter();
             
             // TODO: can we mask SIMD block directly? 
@@ -147,13 +143,10 @@ where
                     if let Some(index) = state.level0_iter.next() {
                         state.level0_index = index;
 
-                        let (level1_mask, valid) = unsafe {
-                            virtual_set.update_level1_blocks(cache_data, level1_blocks, index)
+                        let level1_mask = unsafe{
+                            iter_update_level1_blocks(virtual_set, cache_data, level1_blocks, index)
                         };
-                        if !valid {
-                            // level1_mask can not be empty here
-                            unsafe { std::hint::unreachable_unchecked() }
-                        }
+
                         state.level1_iter = level1_mask.bits_iter();
                     } else {
                         return None;

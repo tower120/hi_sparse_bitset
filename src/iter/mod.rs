@@ -69,12 +69,19 @@ pub(crate) struct State<Conf: Config> {
 
 /// Block iterator.
 /// 
+/// # Empty blocks
+/// 
 /// Block iterator may occasionally return empty blocks.
 /// This is for performance reasons - since you most likely will
 /// traverse block indices in loop anyway - checking it for emptiness, and then looping to the 
 /// next non-empty one inside BlockIterator - may be just unnecessary operation.
 /// 
+/// [BitSet] and intersection operations are guaranteed to never return empty blocks
+/// during iteration. 
+/// 
 /// TODO: consider changing this behavior.
+/// 
+/// [BitSet]: crate::BitSet
 pub trait BlockIterator
     : Iterator<Item = DataBlock<Self::DataBitBlock>> 
     + Sized

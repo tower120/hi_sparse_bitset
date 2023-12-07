@@ -1,4 +1,5 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ops::ControlFlow;
 use crate::{BitSet, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
@@ -147,6 +148,28 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
     }
 }
 
+/// Helper function
+/// 
+/// # Safety
+/// 
+/// Only safe to call if you iterate `set`. 
+/// (`set` at the top of lazy bitset operations hierarchy)
+#[inline] 
+pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
+    set: &S,
+    cache_data: &mut S::CacheData,
+    level1_blocks: &mut MaybeUninit<S::Level1Blocks>,
+    level0_index: usize    
+) -> <S::Conf as Config>::Level1BitBlock{
+    let (level1_mask, valid) = unsafe {
+        set.update_level1_blocks(cache_data, level1_blocks, level0_index)
+    };
+    if !valid {
+        // level1_mask can not be empty here
+        unsafe { std::hint::unreachable_unchecked() }
+    }
+    level1_mask
+}
 
 // User-side interface
 pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksExt {
@@ -160,6 +183,8 @@ pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksE
     fn into_block_iter(self) -> Self::IntoBlockIter;
 
     fn contains(&self, index: usize) -> bool;
+    
+    fn is_empty(&self) -> bool;
 }
 
 impl<T: LevelMasksExt> BitSetInterface for T
@@ -195,8 +220,163 @@ where
             data_block.get_bit(data_index)
         }
     }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.level0_mask().is_zero()
+    }
 }
 
+macro_rules! impl_all {
+    ($macro_name: ident) => {
+        $macro_name!(impl<Conf> for BitSet<Conf> where Conf: Config);
+        $macro_name!(
+            impl<Op, S1, S2> for BitSetOp<Op, S1, S2>
+            where
+                Op: BinaryOp,
+                S1: LevelMasksExt<Conf = S2::Conf>,
+                S2: LevelMasksExt
+        );
+        $macro_name!(
+            impl<Op, S, Storage> for Reduce<Op, S, Storage>
+            where
+                Op: BinaryOp,
+                S: Iterator + Clone,
+                S::Item: LevelMasksExt,
+                Storage: ReduceCache
+        );        
+    }
+}
+
+macro_rules! impl_all_ref {
+    ($macro_name: ident) => {
+        $macro_name!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
+        $macro_name!(
+            impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2>
+            where
+                Op: BinaryOp,
+                S1: LevelMasksExt<Conf = S2::Conf>,
+                S2: LevelMasksExt
+        );
+        $macro_name!(
+            impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
+            where
+                Op: BinaryOp,
+                S: Iterator + Clone,
+                S::Item: LevelMasksExt,
+                Storage: ReduceCache
+        );
+    }
+}
+
+
+// TODO: remove
+/*// Optimistic in-depth check.
+fn bitsets_eq_simple<L, R>(left: L, right: R) -> bool
+where
+    L: LevelMasks,
+    R: LevelMasks<Conf = L::Conf>,
+{
+    let left_level0_mask  = left.level0_mask();
+    let right_level0_mask = right.level0_mask();
+    
+    if left_level0_mask != right_level0_mask {
+        return false;
+    }
+    
+    use ControlFlow::*;
+    left_level0_mask.traverse_bits(|level0_index|{
+        let left_level1_mask  = unsafe{ left.level1_mask(level0_index) };
+        let right_level1_mask = unsafe{ right.level1_mask(level0_index) };
+        
+        if left_level1_mask != right_level1_mask {
+            return Break(()); 
+        }
+        
+        // simple-iter like
+        // TODO: change to cache iter -like
+        left_level1_mask.traverse_bits(|level1_index|{
+            let left_data  = unsafe{ left.data_mask(level0_index, level1_index) };
+            let right_data = unsafe{ right.data_mask(level0_index, level1_index) };
+            
+            if left_data == right_data{
+                Continue(())
+            }  else {
+                Break(())                 
+            }
+        })
+    }).is_continue()
+}*/
+
+// Optimistic depth-first check.
+fn bitsets_eq<L, R>(left: L, right: R) -> bool
+where
+    L: LevelMasksExt,
+    R: LevelMasksExt<Conf = L::Conf>,
+{
+    let left_level0_mask  = left.level0_mask();
+    let right_level0_mask = right.level0_mask();
+    
+    if left_level0_mask != right_level0_mask {
+        return false;
+    }
+    
+    let mut left_cache_data  = left.make_cache();
+    let mut right_cache_data = right.make_cache();
+    
+    let mut left_level1_blocks  = MaybeUninit::uninit();
+    let mut right_level1_blocks = MaybeUninit::uninit();
+    
+    use ControlFlow::*;
+    left_level0_mask.traverse_bits(|level0_index|{
+        let left_level1_mask = unsafe {
+            iter_update_level1_blocks(&left, &mut left_cache_data, &mut left_level1_blocks, level0_index)
+        };
+        let right_level1_mask  = unsafe {
+            iter_update_level1_blocks(&right, &mut right_cache_data, &mut right_level1_blocks, level0_index)
+        };
+        
+        if left_level1_mask != right_level1_mask {
+            return Break(()); 
+        }
+        
+        left_level1_mask.traverse_bits(|level1_index|{
+            let left_data = unsafe {
+                L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+            };
+            let right_data = unsafe {
+                R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+            };
+            
+            if left_data == right_data{
+                Continue(())
+            }  else {
+                Break(())                 
+            }
+        })
+    }).is_continue()
+}
+
+macro_rules! impl_eq {
+    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
+        impl<$($generics),*,Rhs> PartialEq<Rhs> for $t
+        where
+            $($where_bounds)*,
+            Rhs: BitSetInterface<Conf = <Self as BitSetBase>::Conf>
+        {
+            #[inline]
+            fn eq(&self, other: &Rhs) -> bool {
+                bitsets_eq(self, other)
+            }
+        }        
+        
+        impl<$($generics),*> Eq for $t
+        where
+            $($where_bounds)*
+        {} 
+    }
+}
+impl_all!(impl_eq);
 
 macro_rules! impl_into_iter {
     (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
@@ -214,36 +394,5 @@ macro_rules! impl_into_iter {
         }
     };
 }
-
-impl_into_iter!(impl<Conf> for BitSet<Conf> where Conf: Config );
-impl_into_iter!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config );
-impl_into_iter!(
-    impl<Op, S1, S2> for BitSetOp<Op, S1, S2>
-    where
-        Op: BinaryOp,
-        S1: LevelMasksExt<Conf = S2::Conf>,
-        S2: LevelMasksExt
-);
-impl_into_iter!(
-    impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2>
-    where
-        Op: BinaryOp,
-        S1: LevelMasksExt<Conf = S2::Conf>,
-        S2: LevelMasksExt
-);
-impl_into_iter!(
-    impl<Op, S, Storage> for Reduce<Op, S, Storage>
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S::Item: LevelMasksExt,
-        Storage: ReduceCache
-);
-impl_into_iter!(
-    impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
-    where
-        Op: BinaryOp,
-        S: Iterator + Clone,
-        S::Item: LevelMasksExt,
-        Storage: ReduceCache
-);
+impl_all!(impl_into_iter);
+impl_all_ref!(impl_into_iter);

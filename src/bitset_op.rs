@@ -210,6 +210,7 @@ macro_rules! impl_op {
     };
 }
 
+impl_op!(impl<Conf> for BitSet<Conf> where Conf: Config);
 impl_op!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
 impl_op!(impl<Op, S1, S2> for BitSetOp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
 impl_op!(impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
