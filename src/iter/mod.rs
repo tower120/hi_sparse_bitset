@@ -80,6 +80,8 @@ pub(crate) struct State<Conf: Config> {
 /// during iteration. 
 /// 
 /// TODO: consider changing this behavior.
+/// 
+/// [BitSet]: crate::BitSet
 pub trait BlockIterator
     : Iterator<Item = DataBlock<Self::DataBitBlock>> 
     + Sized
