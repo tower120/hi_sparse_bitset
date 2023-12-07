@@ -3,7 +3,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, iter_update_level1_blocks, LevelMasksExt};
-use crate::level_indices;
+use crate::{data_block_start_index, level_indices};
 
 use super::*;
 

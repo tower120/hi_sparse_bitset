@@ -46,12 +46,10 @@ fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Con
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
 
     let mut counter = 0;
-    for block in reduce.into_block_iter() {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
+    reduce.traverse(|_|{
+        counter += 1;
+        Continue(())
+    });
     counter
 }
 
@@ -97,12 +95,10 @@ fn hi_sparse_bitset_op_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>])
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
 
     let mut counter = 0;
-    for block in intersection.into_block_iter() {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
+    intersection.traverse(|_|{
+        counter += 1;
+        Continue(())
+    });
     counter
 }
 

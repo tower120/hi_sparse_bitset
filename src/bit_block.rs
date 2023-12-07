@@ -3,6 +3,12 @@ use crate::bit_utils;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 
 // TODO: consider removing copy
+/// Bit block.
+///
+/// Used in [Config], to define bit blocks [BitSet] is built from. 
+/// 
+/// [Config]: crate::config::Config
+/// [BitSet]: crate::BitSet
 pub trait BitBlock
     : BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self>
     + Eq + PartialEq

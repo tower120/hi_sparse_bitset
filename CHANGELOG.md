@@ -5,6 +5,7 @@
 - `BitSetInterface::is_empty`.
 - All `BitSetInterface`s now implement `Eq`.
 - `BitSet` (without &) now implements op's too.
+- `BitSetInterface::traverse` added for even higher speed.
 
 ## 0.2.0
 ### Changed

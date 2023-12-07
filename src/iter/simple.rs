@@ -2,6 +2,7 @@ use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::bitset_interface::LevelMasks;
 use crate::bit_queue::BitQueue;
 use num_traits::AsPrimitive;
+use crate::data_block_start_index;
 use super::*;
 
 /// Simple iterator - access each data block, by traversing all hierarchy

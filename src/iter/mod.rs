@@ -12,13 +12,6 @@ mod simple;
 #[cfg(feature = "simple_iter")]
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
-#[inline]
-fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{
-    let level0_offset = level0_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT + Conf::Level1BitBlock::SIZE_POT_EXPONENT);
-    let level1_offset = level1_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT);
-    level0_offset + level1_offset
-}
-
 // TODO: Consider making Copy
 /// Block iterator cursor, or position of iterable.
 /// 

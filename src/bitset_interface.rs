@@ -1,6 +1,6 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
-use crate::{BitSet, level_indices};
+use crate::{BitSet, DataBlock, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
@@ -172,7 +172,38 @@ pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
 }
 
 // User-side interface
+/// Bitset interface.
+/// 
+/// Like with most Rust iterators, traversing[^traverse_def] is somewhat faster
+/// then iteration.
+///
+/// [^traverse_def]: Under "traverse" we understand function application for 
+/// each element of bitset.
 pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksExt {
+    // TODO: traverse from
+    
+    /// This is 25% faster then block iterator.
+    /// 
+    /// If `f` returns [Break], traversal will stop, and function will
+    /// return [Break]. [Continue] is returned otherwise.
+    /// 
+    /// [Break]: ControlFlow::Break
+    /// [Continue]: ControlFlow::Continue
+    fn block_traverse<F>(&self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(DataBlock<<Self::Conf as Config>::DataBitBlock>) -> ControlFlow<()>;
+    
+    /// Up to x2 times faster then iterator in micro-benchmarks.
+    /// 
+    /// If `f` returns [Break], traversal will stop, and function will
+    /// return [Break]. [Continue] is returned otherwise.
+    /// 
+    /// [Break]: ControlFlow::Break
+    /// [Continue]: ControlFlow::Continue
+    fn traverse<F>(&self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>;
+    
     type BlockIter<'a>: BlockIterator where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
@@ -191,6 +222,25 @@ impl<T: LevelMasksExt> BitSetInterface for T
 where
     T: IntoIterator<Item = usize>
 {
+    #[inline]
+    fn block_traverse<F>(&self, f: F) -> ControlFlow<()> 
+    where 
+        F: FnMut(DataBlock<<Self::Conf as Config>::DataBitBlock>) -> ControlFlow<()> 
+    {
+        traverse(self, f)
+    }
+
+    #[inline]
+    fn traverse<F>(&self, mut f: F) -> ControlFlow<()> 
+    where 
+        F: FnMut(usize) -> ControlFlow<()> 
+    {
+        self.block_traverse(|block|{
+            // block.traverse(f)
+            block.bit_block.traverse_bits(|index| f(block.start_index + index))
+        })
+    }
+
     type BlockIter<'a> = DefaultBlockIterator<&'a T> where Self: 'a;
 
     #[inline]
@@ -269,44 +319,36 @@ macro_rules! impl_all_ref {
     }
 }
 
-
-// TODO: remove
-/*// Optimistic in-depth check.
-fn bitsets_eq_simple<L, R>(left: L, right: R) -> bool
+#[inline]
+fn traverse<S, F>(set: &S, mut f: F) -> ControlFlow<()>
 where
-    L: LevelMasks,
-    R: LevelMasks<Conf = L::Conf>,
+    S: LevelMasksExt, 
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
 {
-    let left_level0_mask  = left.level0_mask();
-    let right_level0_mask = right.level0_mask();
+    let level0_mask = set.level0_mask();
     
-    if left_level0_mask != right_level0_mask {
-        return false;
-    }
+    let mut cache_data = set.make_cache();
+    let mut level1_blocks = MaybeUninit::uninit();
     
-    use ControlFlow::*;
-    left_level0_mask.traverse_bits(|level0_index|{
-        let left_level1_mask  = unsafe{ left.level1_mask(level0_index) };
-        let right_level1_mask = unsafe{ right.level1_mask(level0_index) };
+    level0_mask.traverse_bits(|level0_index|{
+        let level1_mask = unsafe {
+            iter_update_level1_blocks(&set, &mut cache_data, &mut level1_blocks, level0_index)
+        };
         
-        if left_level1_mask != right_level1_mask {
-            return Break(()); 
-        }
-        
-        // simple-iter like
-        // TODO: change to cache iter -like
-        left_level1_mask.traverse_bits(|level1_index|{
-            let left_data  = unsafe{ left.data_mask(level0_index, level1_index) };
-            let right_data = unsafe{ right.data_mask(level0_index, level1_index) };
+        level1_mask.traverse_bits(|level1_index|{
+            let data_mask = unsafe {
+                S::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
+            };
             
-            if left_data == right_data{
-                Continue(())
-            }  else {
-                Break(())                 
-            }
+            let block_start_index =
+                crate::data_block_start_index::<<S as BitSetBase>::Conf>(
+                    level0_index, level1_index
+                );
+    
+            f(DataBlock{ start_index: block_start_index, bit_block: data_mask })
         })
-    }).is_continue()
-}*/
+    })    
+}
 
 // Optimistic depth-first check.
 fn bitsets_eq<L, R>(left: L, right: R) -> bool

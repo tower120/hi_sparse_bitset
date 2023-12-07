@@ -146,6 +146,12 @@ fn fuzzy_test(){
             for &index in &hash_set{
                 assert!(hi_set.contains(index));
             }
+            
+            // traverse
+            hi_set.traverse(|index|{ 
+                assert!(hash_set.contains(&index));
+                ControlFlow::Continue(()) 
+            });
 
             // non existent does not contains
             for &index in &removed{
@@ -342,7 +348,7 @@ where
                 index_cursor = intersection.cursor();
             }
 
-            // reduce ext3 test
+            // reduce test
             {
                 let mut indices2 = Vec::new();
                 for block in reduce(hiset_op, hi_sets.iter()).unwrap().block_iter(){
