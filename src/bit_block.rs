@@ -20,14 +20,29 @@ pub trait BitBlock
     fn is_zero(&self) -> bool;
 
     /// Returns previous bit
+    /// 
+    /// `bit_index` is guaranteed to be valid
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool;
 
+    /// `bit_index` is guaranteed to be valid
     fn get_bit(&self, bit_index: usize) -> bool;
 
     /// Returns Break if traverse was breaked.
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;
+    
+    // TODO: remove
+    /// Returns Break if traverse was breaked.
+    /// 
+    /// `index` is guaranteed to be valid.
+    fn traverse_bits_from<F>(&self, index: usize, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>
+    {
+        unimplemented!()
+    }
+    
 
     type BitsIter: BitQueue;
     fn bits_iter(self) -> Self::BitsIter;
@@ -53,12 +68,16 @@ impl BitBlock for u64{
 
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool{
-        bit_utils::set_bit::<BIT, _>(self, bit_index)
+        unsafe{
+            bit_utils::set_bit_unchecked::<BIT, _>(self, bit_index)
+        }
     }
 
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool {
-        bit_utils::get_bit(*self, bit_index)
+        unsafe{
+            bit_utils::get_bit_unchecked(*self, bit_index)
+        }
     }
 
     #[inline]
@@ -109,12 +128,16 @@ impl BitBlock for wide::u64x2{
 
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
-        bit_utils::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
+        unsafe{
+            bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
+        }
     }
 
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool {
-        bit_utils::get_array_bit(self.as_array_ref(), bit_index)
+        unsafe{
+            bit_utils::get_array_bit_unchecked(self.as_array_ref(), bit_index)
+        }
     }
 
     #[inline]
@@ -125,6 +148,17 @@ impl BitBlock for wide::u64x2{
         let array = self.as_array_ref();
         bit_utils::traverse_array_one_bits(array, f)
     }
+    
+    #[inline]
+    fn traverse_bits_from<F>(&self, index: usize, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>
+    {
+        let array = self.as_array_ref();
+        unsafe{
+            bit_utils::traverse_array_one_bits_from_unchecked(array, index, f)
+        }
+    }    
 
     type BitsIter = ArrayBitQueue<u64, 2>;
     #[inline]
@@ -164,12 +198,16 @@ impl BitBlock for wide::u64x4{
 
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
-        bit_utils::set_array_bit::<BIT, _>(self.as_array_mut(), bit_index)
+        unsafe{
+            bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
+        }
     }
 
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool {
-        bit_utils::get_array_bit(self.as_array_ref(), bit_index)
+        unsafe{
+            bit_utils::get_array_bit_unchecked(self.as_array_ref(), bit_index)
+        }
     }
 
     #[inline]

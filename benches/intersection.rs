@@ -5,9 +5,9 @@ mod common;
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
-use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
+use hi_sparse_bitset::{BitSet, BitSetInterface, reduce, traverse_from, traverse_index_from};
 use hi_sparse_bitset::binary_op::BitAndOp;
-use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
+use hi_sparse_bitset::iter::{BlockIterator, BlockIterCursor, IndexIterCursor, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
 use roaring::RoaringBitmap;
@@ -46,10 +46,35 @@ fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Con
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
 
     let mut counter = 0;
-    reduce.traverse(|_|{
+    
+/*    traverse_from(&reduce, BlockIterCursor::default(), |block|{
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())
+        })
+    });*/
+    
+    /* traverse_index_from(&reduce, IndexIterCursor::default(), |_|{
         counter += 1;
         Continue(())
-    });
+    }); */
+
+/*     reduce.block_iter().traverse(|block|{
+        block.traverse(|_|{
+            counter += 1;
+            Continue(())    
+        })
+    }); */
+
+    reduce.iter().traverse(|_|{
+        counter += 1;
+        Continue(())    
+    });    
+    
+    /*reduce.traverse(|_|{
+        counter += 1;
+        Continue(())
+    });*/
     counter
 }
 

@@ -1,8 +1,9 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ops::ControlFlow;
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::bitset_interface::{BitSetBase, iter_update_level1_blocks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, iter_update_level1_blocks, LevelMasksExt, level0_mask_traverse_fn, level1_mask_traverse_fn};
 use crate::{data_block_start_index, level_indices};
 
 use super::*;
@@ -36,6 +37,30 @@ where
     level1_blocks: MaybeUninit<T::Level1Blocks>,
 }
 
+impl<T> Clone for CachingBlockIter<T>
+where
+    T: LevelMasksExt + Clone
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        let cache_data = self.virtual_set.make_cache();
+        let mut this = Self { 
+            virtual_set: self.virtual_set.clone(), 
+            state: self.state.clone(), 
+            cache_data: ManuallyDrop::new(cache_data),
+            level1_blocks: MaybeUninit::uninit()
+        };
+
+        // rebuild cache
+        let _ = unsafe {
+            iter_update_level1_blocks(&this.virtual_set, &mut this.cache_data, &mut this.level1_blocks, this.state.level0_index)
+        };
+
+        this
+    }
+}
+
+
 impl<T> CachingBlockIter<T>
 where
     T: LevelMasksExt,
@@ -56,6 +81,37 @@ where
             cache_data: ManuallyDrop::new(cache_data),
             level1_blocks: MaybeUninit::uninit()
         }
+    }
+
+    /// Stable version of [try_for_each].
+    #[inline]
+    pub fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
+    {
+        // state does not participate in drop
+        let state = unsafe{ std::ptr::read(&self.state) };
+        
+        // compiler SHOULD be able to detect and opt-out this branch away for
+        // traverse() after new() call.
+        if state.level0_index != usize::MAX{
+            let level0_index = state.level0_index;
+            
+            let ctrl = state.level1_iter.traverse(
+                |level1_index| level1_mask_traverse_fn::<T, _>(
+                    level0_index, level1_index, &self.level1_blocks, |b| f(b)
+                )
+            );
+            if ctrl.is_break(){
+                return ControlFlow::Break(());
+            }
+        }
+
+        state.level0_iter.traverse(
+            |level0_index| level0_mask_traverse_fn(
+                &self.virtual_set, level0_index, &mut self.cache_data, &mut self.level1_blocks, |b| f(b)
+            )    
+        )
     }
 }
 
@@ -165,6 +221,17 @@ where
 
         Some(DataBlock { start_index: block_start_index, bit_block: data_intersection })
     }
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(Self::Item)
+    {
+        self.traverse(|block| {
+            f(block);
+            ControlFlow::Continue(())
+        });
+    }
 }
 
 impl<T> Drop for CachingBlockIter<T>
@@ -184,13 +251,26 @@ where
 /// 
 /// Same as [CachingBlockIter] but for indices.
 ///
-/// [BitSetInterface]: crate::BitSetInterface 
+/// [BitSetInterface]: crate::BitSetInterface
 pub struct CachingIndexIter<T>
 where
     T: LevelMasksExt,
 {
     block_iter: CachingBlockIter<T>,
     data_block_iter: DataBlockIter<<T::Conf as Config>::DataBitBlock>,
+}
+
+impl<T> Clone for CachingIndexIter<T>
+where
+    T: LevelMasksExt + Clone
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self{
+            block_iter: self.block_iter.clone(),
+            data_block_iter: self.data_block_iter.clone(),
+        }
+    }
 }
 
 impl<T> CachingIndexIter<T>
@@ -203,6 +283,43 @@ where
             block_iter,
             data_block_iter: DataBlockIter::empty()
         }
+    }
+
+    #[inline]
+    pub fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>    
+    {
+        // state does not participate in drop
+        let state = unsafe{ std::ptr::read(&self.block_iter.state) };
+
+        if state.level0_index != usize::MAX{
+            let level0_index = state.level0_index;
+
+            // 1. traverse datablock
+            let ctrl = self.data_block_iter.traverse(|i| f(i));
+            if ctrl.is_break(){
+                return ControlFlow::Break(());
+            }
+
+            // 2. traverse rest of the level1 block
+            let ctrl = state.level1_iter.traverse(
+                |level1_index| level1_mask_traverse_fn::<T, _>(
+                    level0_index, level1_index, &self.block_iter.level1_blocks, 
+                    |b| b.traverse(|i| f(i))
+                )
+            );
+            if ctrl.is_break(){
+                return ControlFlow::Break(());
+            }
+        }
+
+        state.level0_iter.traverse(
+            |level0_index| level0_mask_traverse_fn(
+                &self.block_iter.virtual_set, level0_index, &mut self.block_iter.cache_data, &mut self.block_iter.level1_blocks, 
+                |b| b.traverse(|i| f(i))
+            )    
+        )        
     }
 }
 
@@ -270,6 +387,7 @@ where
 {
     type Item = usize;
 
+/*    // TODO: try to refactor.
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         // TODO: ?? Still empty blocks ??
@@ -285,5 +403,36 @@ where
                 return None;
             }
         }
-    }
+    }*/
+    
+    // TODO: This have no effect - UNDO. 
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.data_block_iter.next(){
+            return Some(index);
+        }
+        
+        // looping, because BlockIter may return empty DataBlocks.
+        // relatively rare case.
+        while let Some(data_block) = self.block_iter.next(){
+            self.data_block_iter = data_block.into_iter();
+            if let Some(index) = self.data_block_iter.next(){
+                return Some(index);
+            }                 
+        }
+        
+        None
+    }    
+
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(Self::Item)
+    {
+        self.traverse(|index| {
+            f(index);
+            ControlFlow::Continue(())
+        });
+    }    
 }

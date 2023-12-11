@@ -1,11 +1,12 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, Range};
+use std::ops::ControlFlow::Break;
 use crate::{BitSet, DataBlock, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config};
-use crate::iter::{BlockIterator, IndexIterator};
+use crate::iter::{BlockIterator, BlockIterCursor, IndexIterator, IndexIterCursor};
 use crate::bitset_op::BitSetOp;
 use crate::reduce::Reduce;
 
@@ -214,8 +215,6 @@ pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksE
     fn into_block_iter(self) -> Self::IntoBlockIter;
 
     fn contains(&self, index: usize) -> bool;
-    
-    fn is_empty(&self) -> bool;
 }
 
 impl<T: LevelMasksExt> BitSetInterface for T
@@ -235,10 +234,9 @@ where
     where 
         F: FnMut(usize) -> ControlFlow<()> 
     {
-        self.block_traverse(|block|{
-            // block.traverse(f)
-            block.bit_block.traverse_bits(|index| f(block.start_index + index))
-        })
+        self.block_traverse(|block|
+             block.traverse(|i|f(i))
+        )
     }
 
     type BlockIter<'a> = DefaultBlockIterator<&'a T> where Self: 'a;
@@ -269,11 +267,6 @@ where
             let data_block = self.data_mask(level0_index, level1_index);
             data_block.get_bit(data_index)
         }
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.level0_mask().is_zero()
     }
 }
 
@@ -319,6 +312,52 @@ macro_rules! impl_all_ref {
     }
 }
 
+
+// TODO: consider using &mut f in helpers
+#[inline]
+pub(crate) fn level1_mask_traverse_fn<S, F>(
+    level0_index: usize,
+    level1_index: usize,
+    level1_blocks: &MaybeUninit<S::Level1Blocks>,
+    mut f: F
+) -> ControlFlow<()>
+where
+    S: LevelMasksExt, 
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+{
+    let data_mask = unsafe {
+        S::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
+    };
+    
+    let block_start_index =
+        crate::data_block_start_index::<<S as BitSetBase>::Conf>(
+            level0_index, level1_index
+        );
+
+    f(DataBlock{ start_index: block_start_index, bit_block: data_mask })
+}
+
+#[inline]
+pub(crate) fn level0_mask_traverse_fn<S, F>(
+    set: &S,
+    level0_index: usize,
+    cache_data: &mut S::CacheData,
+    level1_blocks: &mut MaybeUninit<S::Level1Blocks>,
+    mut f: F
+) -> ControlFlow<()>
+where
+    S: LevelMasksExt, 
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+{
+    let level1_mask = unsafe {
+        iter_update_level1_blocks(&set, cache_data, level1_blocks, level0_index)
+    };
+    
+    level1_mask.traverse_bits(|level1_index|{
+        level1_mask_traverse_fn::<S, _>(level0_index, level1_index, level1_blocks, |b| f(b))
+    })
+}
+
 #[inline]
 fn traverse<S, F>(set: &S, mut f: F) -> ControlFlow<()>
 where
@@ -330,24 +369,119 @@ where
     let mut cache_data = set.make_cache();
     let mut level1_blocks = MaybeUninit::uninit();
     
-    level0_mask.traverse_bits(|level0_index|{
+    level0_mask.traverse_bits(
+        |level0_index| level0_mask_traverse_fn(
+            set, level0_index, &mut cache_data, &mut level1_blocks, |b| f(b)
+        )
+    )
+}
+
+#[inline]
+pub fn traverse_from<S, F>(set: &S, cursor: BlockIterCursor, mut f: F) -> ControlFlow<()>
+where
+    S: LevelMasksExt, 
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+{
+    let level0_mask = set.level0_mask();
+    
+    let mut cache_data = set.make_cache();
+    let mut level1_blocks = MaybeUninit::uninit();
+    
+    // 1. Traverse first data block
+    if level0_mask.get_bit(cursor.level0_index){
+        let level1_mask = unsafe {
+            iter_update_level1_blocks(&set, &mut cache_data, &mut level1_blocks, cursor.level0_index)
+        };
+        
+        let ctrl = level1_mask.traverse_bits_from(
+            cursor.level1_next_index, 
+            |level1_index| level1_mask_traverse_fn::<S, _>(
+                cursor.level0_index, level1_index, &level1_blocks, |b| f(b)
+            )
+        );
+        if ctrl.is_break(){
+            return Break(());
+        }
+    }
+    
+    // 2. Traverse all next as usual
+    level0_mask.traverse_bits_from(
+        cursor.level0_index+1,
+        |level0_index| level0_mask_traverse_fn(
+            set, level0_index, &mut cache_data, &mut level1_blocks, |b| f(b)
+        )
+    )
+}
+
+#[inline]
+pub fn traverse_index_from<S, F>(set: &S, cursor: IndexIterCursor, mut f: F) -> ControlFlow<()>
+where
+    S: LevelMasksExt, 
+    F: FnMut(usize) -> ControlFlow<()>
+{
+    let level0_mask = set.level0_mask();
+    
+    let mut cache_data = set.make_cache();
+    let mut level1_blocks = MaybeUninit::uninit();
+    
+    let level0_index = cursor.block_cursor.level0_index;
+    
+    // 1. Traverse first level1 block
+    if level0_mask.get_bit(level0_index) {
         let level1_mask = unsafe {
             iter_update_level1_blocks(&set, &mut cache_data, &mut level1_blocks, level0_index)
         };
         
-        level1_mask.traverse_bits(|level1_index|{
+        // 2. Traverse first data block FROM
+        if level1_mask.get_bit(cursor.block_cursor.level1_next_index){
+            let level1_index = cursor.block_cursor.level1_next_index;
             let data_mask = unsafe {
                 S::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
             };
             
             let block_start_index =
                 crate::data_block_start_index::<<S as BitSetBase>::Conf>(
-                    level0_index, level1_index
+                    cursor.block_cursor.level0_index, level1_index
                 );
+            
+            let ctrl = data_mask.traverse_bits_from(cursor.data_next_index, |index|{
+                f(block_start_index + index)
+            });
+            if ctrl.is_break(){
+                return Break(());
+            }
+        }
+        
+        // 3. Traverse rest data blocks as usual
+        let ctrl = level1_mask.traverse_bits_from(
+            cursor.block_cursor.level1_next_index + 1, 
+            |level1_index|{
+                let data_mask = unsafe {
+                    S::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
+                };
+                
+                let block_start_index =
+                    crate::data_block_start_index::<<S as BitSetBase>::Conf>(
+                        level0_index, level1_index
+                    );
+                
+                data_mask.traverse_bits(|index|{
+                    f(block_start_index + index)
+                })               
+            }
+        );
+        if ctrl.is_break(){
+            return Break(());
+        }
+    }
     
-            f(DataBlock{ start_index: block_start_index, bit_block: data_mask })
-        })
-    })    
+    // 4. Traverse all other as usual
+    level0_mask.traverse_bits_from(
+        level0_index+1, |level0_index| level0_mask_traverse_fn(
+            set, level0_index, &mut cache_data, &mut level1_blocks, 
+            |block| block.bit_block.traverse_bits(|index| f(block.start_index + index))
+        )
+    )
 }
 
 // Optimistic depth-first check.

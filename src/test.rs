@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::iter::zip;
 
 use itertools::assert_equal;
@@ -147,11 +147,18 @@ fn fuzzy_test(){
                 assert!(hi_set.contains(index));
             }
             
-            // traverse
-            hi_set.traverse(|index|{ 
-                assert!(hash_set.contains(&index));
-                ControlFlow::Continue(()) 
+            // block traverse
+            hi_set.block_iter().traverse(|block|{ 
+                block.traverse(|index|{
+                    assert!(hash_set.contains(&index));
+                    ControlFlow::Continue(())     
+                })
             });
+
+            // index traverse
+            hi_set.iter().for_each(|index|{ 
+                assert!(hash_set.contains(&index));
+            });            
 
             // non existent does not contains
             for &index in &removed{
@@ -302,7 +309,23 @@ where
 
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
+                // through traverse
+                let mut traversed_blocks = Vec::new();
+                {
+                    let mut blocks_to_consume = blocks_to_consume;
+                    intersection.clone().traverse(|block|{
+                        if blocks_to_consume == 0{
+                            return ControlFlow::Break(());
+                        }
+                        blocks_to_consume -= 1;
+
+                        traversed_blocks.push(block);
+                        ControlFlow::Continue(())
+                    });
+                };
+
                 // all intersections must be valid
+                let mut iterated_blocks = Vec::new();
                 loop{
                     if blocks_to_consume == 0{
                         break;
@@ -320,10 +343,14 @@ where
                                 ControlFlow::Continue(())
                             }
                         );
+                        
+                        iterated_blocks.push(block);
                     } else {
                         break;
                     }
                 }
+                
+                assert_equal(traversed_blocks, iterated_blocks);
 
                 block_cursor = intersection.cursor();
             }
@@ -337,14 +364,32 @@ where
                 
                 let indices_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_INDICES_CONSUME);
 
+                // through traverse
+                let mut traversed_indices = Vec::new();
+                {
+                    let mut indices_to_consume = indices_to_consume;
+                    intersection.clone().traverse(|i|{
+                        if indices_to_consume == 0{
+                            return ControlFlow::Break(());
+                        }
+                        indices_to_consume -= 1;
+
+                        traversed_indices.push(i);                        
+                        ControlFlow::Continue(())
+                    });
+                }
+
+                let mut iterated_indices = Vec::new();
                 for index in intersection.by_ref().take(indices_to_consume){
                     assert!(hashsets_intersection.contains(&index));
                     // We cannot guarantee that index will
                     // exists in initial intersection, since
                     // it could be added after initial fill.
                     initial_hashsets_intersection_for_indices.remove(&index);
+                    iterated_indices.push(index);
                 }
 
+                assert_equal(traversed_indices, iterated_indices);
                 index_cursor = intersection.cursor();
             }
 

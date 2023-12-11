@@ -1,11 +1,24 @@
 # Changelog
 
 ## 0.3.0
+### Changed 
+- General minor performance improvement (removed index check in bit-manipulation).
+
 ### Added
-- `BitSetInterface::is_empty`.
-- All `BitSetInterface`s now implement `Eq`.
+- `CachingBlockIter` now implements `Clone`.
+- `CachingIndexIter` now implements `Clone`.
+- `CachingBlockIter::traverse`.
+- `CachingIndexIter::traverse`.
+- `CachingBlockIter` specialized `for_each` implementation.
+- `CachingIndexIter` specialized `for_each` implementation.
+- `DataBlockIter` now implements `Clone`.
+- `DataBlockIter::traverse`.
+- `DataBlockIter` specialized `for_each` implementation.
+- `DataBlock` now implements `Eq`.
+
+- `BitSet::is_empty`.
+- All `BitSetInterface`s now implements `Eq`.
 - `BitSet` (without &) now implements op's too.
-- `BitSetInterface::traverse` added for even higher speed.
 
 ## 0.2.0
 ### Changed

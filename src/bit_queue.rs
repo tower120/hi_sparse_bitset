@@ -4,8 +4,10 @@
 
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
+use std::ops::ControlFlow;
+use std::ops::ControlFlow::Break;
 
-use crate::bit_utils::{one_bits_iter, OneBitsIter};
+use crate::bit_utils::{one_bits_iter, OneBitsIter, self};
 use crate::Primitive;
 
 /// Return 0 if n > BITS
@@ -43,7 +45,7 @@ fn is_empty<P: Primitive>(bit_block_iter: &OneBitsIter<P>) -> bool{
 /// Queue of 1 bits.
 /// 
 /// Pop first set bit on iteration. "Consumed" bit replaced with zero.
-pub trait BitQueue: Iterator<Item = usize>{
+pub trait BitQueue: Iterator<Item = usize> + Clone{
     /// All bits 0. Iterator returns None.
     fn empty() -> Self;
 
@@ -64,12 +66,17 @@ pub trait BitQueue: Iterator<Item = usize>{
 
     /// Current index. Equals len - if iteration finished.
     fn current(&self) -> usize;
+
+    fn traverse<F>(self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>;        
     
 /*    // TODO: remove ?
     fn is_empty(&self) -> bool;*/
 }
 
 /// [BitQueue] for [Primitive].
+#[derive(Clone)]
 pub struct PrimitiveBitQueue<P>{
     bit_block_iter: OneBitsIter<P>
 }
@@ -116,6 +123,14 @@ where
         trailing_zeroes(&self.bit_block_iter)
     }
 
+    #[inline]
+    fn traverse<F>(self, f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
+        let block: P = unsafe{
+            mem::transmute_copy(&self.bit_block_iter)
+        };
+        bit_utils::traverse_one_bits(block, f)
+    }
+
     /*fn is_empty(&self) -> bool {
         is_empty(&self.bit_block_iter)
     }*/
@@ -135,8 +150,10 @@ where
 }
 
 /// [BitQueue] for array of [Primitive]s.
+#[derive(Clone)]
 pub struct ArrayBitQueue<P, const N: usize>{
-    /// first element - always active one.
+    /// first element - always active one. 
+    /// (copy of bit_block_iters[bit_block_index]).
     bit_block_iters: [OneBitsIter<P>; N],
     bit_block_index: usize,
 }
@@ -205,6 +222,30 @@ where
         if element_index < self.bit_block_index {
             return;
         }
+
+
+
+/*        // 2.0
+        unsafe {
+            self.bit_block_index = element_index;
+            
+            let active_block_iter = unsafe {
+                self.bit_block_iters.get_unchecked_mut(element_index)
+            };
+            
+            // Mask out block                        
+            let bit_index = n % (size_of::<P>() * 8); // compile-time math optimization
+            unsafe /* zero_first_n */ {
+                let block: &mut P = mem::transmute(active_block_iter);
+                *block &= P::max_value() << bit_index;            
+            }
+            
+            // copy to active
+            self.bit_block_iters[0] = *active_block_iter;
+            
+            return;
+        }*/
+        
         
         // update active block
         if element_index != self.bit_block_index {
@@ -228,6 +269,50 @@ where
         let active_block_iter = &self.bit_block_iters[0];
         self.bit_block_index * size_of::<P>() * 8 + trailing_zeroes(active_block_iter)
     }
+
+    #[inline]
+    fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>        
+    {
+        // This is faster, then iterating active value, then the rest ones
+        unsafe{
+            // copy active back to its place.
+            // compiler should optimize away this for newly constructed BitQueue.
+            *self.bit_block_iters.get_unchecked_mut(self.bit_block_index) = self.bit_block_iters[0];
+            
+            let slice: &[P] = unsafe{std::slice::from_raw_parts(
+                // cast is safe because OneBitsIter<P> transmutable to P.
+                self.bit_block_iters.as_ptr().add(self.bit_block_index).cast(),
+                N - self.bit_block_index
+            )};
+            // TODO: maybe this can be better (it is already multiplied inside traverse)
+            let start_index = self.bit_block_index*size_of::<P>()*8;
+            return bit_utils::traverse_array_one_bits( slice, |i|f(start_index + i));
+        }
+        
+        /* // 1. Traverse active
+        let block: P = unsafe{
+            mem::transmute_copy(&self.bit_block_iters[0])
+        };
+        let start_index = self.bit_block_index*size_of::<P>()*8; 
+        let ctrl = bit_utils::traverse_one_bits(block, |i|f(start_index + i));
+        if ctrl.is_break(){
+            return Break(());
+        }
+        
+        // 2. Traverse the rest
+        let from_index = self.bit_block_index + 1;
+        let slice: &[P] = unsafe{std::slice::from_raw_parts(
+            // cast is safe because OneBitsIter<P> transmutable to P.
+            self.bit_block_iters.as_ptr().add(from_index).cast(),
+            N-from_index
+        )};
+        // TODO: do better
+        let start_index = from_index*size_of::<P>()*8; 
+        bit_utils::traverse_array_one_bits( slice, |i|f(start_index+i)) */
+    }
+
 
 /*    #[inline]
     fn is_empty(&self) -> bool {

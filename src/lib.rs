@@ -115,7 +115,7 @@ use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
-pub use bitset_interface::{BitSetBase, BitSetInterface};
+pub use bitset_interface::{BitSetBase, BitSetInterface, traverse_from, traverse_index_from};
 pub use bitset_op::BitSetOp;
 pub use reduce::Reduce;
 
@@ -314,6 +314,11 @@ impl<Conf: Config> BitSet<Conf> {
             unsafe{ std::hint::unreachable_unchecked(); }
         }
     }
+    
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.level0_mask().is_zero()
+    }
 }
 
 impl<Conf: Config> FromIterator<usize> for BitSet<Conf> {
@@ -406,12 +411,13 @@ fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize
     level0_offset + level1_offset
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DataBlock<Block>{
     pub start_index: usize,
     pub bit_block: Block
 }
 impl<Block: BitBlock> DataBlock<Block>{
+    // TODO: remove
     /// traverse approx. 15% faster then iterator
     #[inline]
     pub fn traverse<F>(&self, mut f: F) -> ControlFlow<()>
@@ -457,6 +463,8 @@ impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
         }
     }
 }
+
+#[derive(Clone)]
 pub struct DataBlockIter<Block: BitBlock>{
     start_index: usize,
     bit_block_iter: Block::BitsIter
@@ -466,6 +474,17 @@ impl<Block: BitBlock> DataBlockIter<Block>{
     pub(crate) fn empty() -> Self{
         Self{ start_index: 0, bit_block_iter: BitQueue::empty() }
     }
+
+    /// Stable version of [try_for_each].
+    /// 
+    /// traverse approx. 15% faster then iterator
+    #[inline]
+    pub fn traverse<F>(self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>
+    {
+        self.bit_block_iter.traverse(|index| f(self.start_index + index))
+    }    
 }
 impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     type Item = usize;
@@ -473,6 +492,17 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.bit_block_iter.next().map(|index|self.start_index + index)
+    }
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(Self::Item)
+    {
+        self.traverse(|index| {
+            f(index);
+            ControlFlow::Continue(())
+        });
     }
 }
 

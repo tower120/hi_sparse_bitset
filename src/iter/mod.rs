@@ -12,6 +12,7 @@ mod simple;
 #[cfg(feature = "simple_iter")]
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
+// TODO: rename to BlockCursor
 // TODO: Consider making Copy
 /// Block iterator cursor, or position of iterable.
 /// 
@@ -41,6 +42,7 @@ pub struct BlockIterCursor{
     pub(crate) level1_next_index: usize,
 }
 
+// TODO: rename to IndexCursor
 /// Index iterator cursor.
 /// 
 /// Created by [IndexIterator::cursor()], used by [IndexIterator::move_to()].
@@ -60,17 +62,25 @@ pub(crate) struct State<Conf: Config> {
     pub(crate) level0_index: usize,
 }
 
+impl<Conf: Config> Clone for State<Conf>{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self { 
+            level0_iter: self.level0_iter.clone(), 
+            level1_iter: self.level1_iter.clone(), 
+            level0_index: self.level0_index.clone() 
+        }
+    }
+}
+
 /// Block iterator.
 /// 
 /// # Empty blocks
 /// 
 /// Block iterator may occasionally return empty blocks.
 /// This is for performance reasons - since you most likely will
-/// traverse block indices in loop anyway - checking it for emptiness, and then looping to the 
+/// traverse block indices a loop anyway - checking it for emptiness, and then looping to the 
 /// next non-empty one inside BlockIterator - may be just unnecessary operation.
-/// 
-/// [BitSet] and intersection operations are guaranteed to never return empty blocks
-/// during iteration. 
 /// 
 /// TODO: consider changing this behavior.
 /// 

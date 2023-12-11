@@ -2,10 +2,18 @@ use std::mem::size_of;
 use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, ControlFlow};
 use num_traits::int::PrimInt;
 use num_traits::WrappingNeg;
+use crate::Primitive;
 
 /// Block ordering undefined. But same as [get_array_bit].
+/// 
+/// # Safety
+/// 
+/// `index` validity is not checked.
 #[inline]
-pub fn set_array_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &mut [T], index: usize) -> bool {
+pub unsafe fn set_array_bit_unchecked<const FLAG: bool, T>(blocks: &mut [T], index: usize) -> bool
+where
+    T: PrimInt + BitAndAssign + BitOrAssign
+{
     let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
     let block_index = index / bits_size;
 
@@ -13,13 +21,20 @@ pub fn set_array_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(
     // From https://stackoverflow.com/a/27589182
     let bit_index = index & (bits_size -1);
 
-    set_bit::<FLAG, T>(&mut blocks[block_index], bit_index)
+    set_bit_unchecked::<FLAG, T>(blocks.get_unchecked_mut(block_index), bit_index)
 }
 
 
 /// In machine endian.
+/// 
+/// # Safety
+/// 
+/// `bit_index` validity is not checked.
 #[inline]
-pub fn set_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(block: &mut T, bit_index: usize) -> bool {
+pub unsafe fn set_bit_unchecked<const FLAG: bool, T>(block: &mut T, bit_index: usize) -> bool
+where
+    T: PrimInt + BitAndAssign + BitOrAssign
+{
     let block_mask: T = T::one() << bit_index;
     let masked_block = *block & block_mask;
 
@@ -33,8 +48,15 @@ pub fn set_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(block:
 }
 
 /// Block ordering undefined. But same as [set_array_bit].
+/// 
+/// # Safety
+/// 
+/// `index` validity is not checked.
 #[inline]
-pub fn get_array_bit<T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &[T], index: usize) -> bool {
+pub unsafe fn get_array_bit_unchecked<T>(blocks: &[T], index: usize) -> bool 
+where
+    T: PrimInt + BitAndAssign + BitOrAssign
+{
     let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
     let block_index = index / bits_size;
 
@@ -42,12 +64,16 @@ pub fn get_array_bit<T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &[T], inde
     // From https://stackoverflow.com/a/27589182
     let bit_index = index & (bits_size -1);
 
-    get_bit(blocks[block_index], bit_index)
+    get_bit_unchecked(*blocks.get_unchecked(block_index), bit_index)
 }
 
 /// In machine endian.
+/// 
+/// # Safety
+/// 
+/// `bit_index` validity is not checked.
 #[inline]
-pub fn get_bit<T: PrimInt>(block: T, bit_index: usize) -> bool {
+pub unsafe fn get_bit_unchecked<T: PrimInt>(block: T, bit_index: usize) -> bool {
     let block_mask: T = T::one() << bit_index;
     let masked_block = block & block_mask;
     !masked_block.is_zero()
@@ -70,6 +96,54 @@ where
                 f(index)
             }
         );
+        if control.is_break(){
+            return ControlFlow::Break(());
+        }
+    }
+    ControlFlow::Continue(())
+}
+
+//TODO: remove
+/// Blocks traversed in the same order as [set_array_bit], [get_array_bit].
+/// 
+/// # Safety
+/// 
+/// index is not checked
+#[inline]
+pub unsafe fn traverse_array_one_bits_from_unchecked<P, F>(
+    array: &[P], from_index: usize, mut f: F
+) -> ControlFlow<()>
+where
+    P: PrimInt + BitXorAssign + BitAndAssign + WrappingNeg,
+    F: FnMut(usize) -> ControlFlow<()>
+{
+    let mut traverse_block = |index: usize, element: P| -> ControlFlow<()> {
+        let block_start_index = index * size_of::<P>() * 8; 
+        traverse_one_bits(
+            element,
+            |r|{
+                let index = block_start_index + r;
+                f(index)
+            }
+        )        
+    };
+    
+    let start_block_index = from_index / 8;
+    let start_in_block_index = from_index % 8;  // CT?
+    {
+        let mut element = *array.get_unchecked(start_block_index);
+        element &= P::max_value() << start_in_block_index;
+        
+        let control = traverse_block(start_block_index, element); 
+        if control.is_break(){
+            return ControlFlow::Break(());
+        }
+    }
+    
+    let len = array.len();     
+    for i in start_block_index+1..len{
+        let element = unsafe{*array.get_unchecked(i)};
+        let control = traverse_block(i, element);
         if control.is_break(){
             return ControlFlow::Break(());
         }
