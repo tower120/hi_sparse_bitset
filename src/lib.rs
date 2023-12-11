@@ -69,8 +69,16 @@
 //! You can use [Cursor] to move ANY [BitSetInterface] iterator to it's position with [move_to].
 //! 
 //! [cursor()]: crate::iter::BlockIterator::cursor
-//! [Cursor]: crate::iter::BlockIterCursor
+//! [Cursor]: crate::iter::BlockCursor
 //! [move_to]: crate::iter::BlockIterator::move_to
+//! 
+//! # Iterator::for_each
+//! 
+//! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - `traverse`.
+//! For tight loops, traversing is observably faster then iterating.
+//! 
+//! [for_each]: std::iter::Iterator::for_each
+//! [try_for_each]: std::iter::Iterator::try_for_each
 //! 
 //! # DataBlocks
 //! 
@@ -115,7 +123,7 @@ use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
-pub use bitset_interface::{BitSetBase, BitSetInterface, traverse_from, traverse_index_from};
+pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use bitset_op::BitSetOp;
 pub use reduce::Reduce;
 
@@ -478,6 +486,8 @@ impl<Block: BitBlock> DataBlockIter<Block>{
     /// Stable version of [try_for_each].
     /// 
     /// traverse approx. 15% faster then iterator
+    /// 
+    /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
     pub fn traverse<F>(self, mut f: F) -> ControlFlow<()>
     where

@@ -3,6 +3,9 @@
 ## 0.3.0
 ### Changed 
 - General minor performance improvement (removed index check in bit-manipulation).
+- `BitSetInterface`'s `IntoIterator` now implements `IndexIter`.
+- `BlockIterCursor` renamed to `BlockCursor`.
+- `IndexIterCursor` renamed to `IndexCursor`.
 
 ### Added
 - `CachingBlockIter` now implements `Clone`.

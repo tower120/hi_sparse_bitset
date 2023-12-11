@@ -47,7 +47,7 @@ where
     type DataBitBlock = <T::Conf as Config>::DataBitBlock;
 
     #[inline]
-    fn cursor(&self) -> BlockIterCursor {
+    fn cursor(&self) -> BlockCursor {
         unimplemented!()
         /*BlockIterCursor{
             level0_index: self.state.level0_index,
@@ -62,7 +62,7 @@ where
         SimpleIndexIter::new(self)
     }
 
-    fn move_to(self, _cursor: BlockIterCursor) -> Self {
+    fn move_to(self, _cursor: BlockCursor) -> Self {
         unimplemented!()
     }
 }

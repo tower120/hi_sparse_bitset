@@ -5,7 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::{BlockIterCursor, IndexIterCursor, IndexIterator};
+use crate::iter::{BlockCursor, IndexCursor, IndexIterator};
 use crate::bitset_op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -234,8 +234,8 @@ where
         // non removed initial intersection set.
 
         // initial insert
-        let mut block_cursor = BlockIterCursor::default();
-        let mut index_cursor = IndexIterCursor::default();
+        let mut block_cursor = BlockCursor::default();
+        let mut index_cursor = IndexCursor::default();
         let mut initial_hashsets_intersection_for_blocks;
         let mut initial_hashsets_intersection_for_indices;
         {
@@ -529,7 +529,7 @@ fn one_intersection_test(){
     hi_set.insert(8760);
     hi_set.insert(521);
 
-    let cursor = BlockIterCursor::default();
+    let cursor = BlockCursor::default();
     let iter = 
         reduce(BitAndOp, [&hi_set].into_iter()).unwrap()
         .into_block_iter()
@@ -579,7 +579,7 @@ fn regression_test1() {
         let iter = 
             reduce(BitAndOp, hi_sets.iter()).unwrap()
             .into_block_iter()
-            .move_to(BlockIterCursor::default());
+            .move_to(BlockCursor::default());
         for block in iter{
             block.traverse(
                 |index|{

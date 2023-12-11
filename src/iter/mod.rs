@@ -1,5 +1,7 @@
 //! Iteration always return ordered (or sorted) index sequences.
 
+use std::ops::ControlFlow;
+
 use crate::{DataBlock, DataBlockIter};
 use crate::bit_block::BitBlock;
 use crate::config::Config;
@@ -12,7 +14,6 @@ mod simple;
 #[cfg(feature = "simple_iter")]
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
-// TODO: rename to BlockCursor
 // TODO: Consider making Copy
 /// Block iterator cursor, or position of iterable.
 /// 
@@ -35,22 +36,21 @@ pub use simple::{SimpleBlockIter, SimpleIndexIter};
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
 #[derive(Default, Clone)]
-pub struct BlockIterCursor{
+pub struct BlockCursor {
     // TODO: u32's ?
     pub(crate) level0_index: usize,
     // We don't have current/last returned index
     pub(crate) level1_next_index: usize,
 }
 
-// TODO: rename to IndexCursor
 /// Index iterator cursor.
 /// 
 /// Created by [IndexIterator::cursor()], used by [IndexIterator::move_to()].
 /// 
-/// Same as [BlockIterCursor], but for indices iterator.
+/// Same as [BlockCursor], but for indices iterator.
 #[derive(Default, Clone)]
-pub struct IndexIterCursor{
-    pub(crate) block_cursor: BlockIterCursor,
+pub struct IndexCursor {
+    pub(crate) block_cursor: BlockCursor,
     // TODO: u32's ?
     pub(crate) data_next_index: usize,
 }
@@ -93,7 +93,7 @@ pub trait BlockIterator
     type DataBitBlock: BitBlock;
 
     /// Construct cursor for BlockIterator, with current position.
-    fn cursor(&self) -> BlockIterCursor;
+    fn cursor(&self) -> BlockCursor;
 
     type IndexIter: IndexIterator<BlockIter = Self>;
 
@@ -103,7 +103,14 @@ pub trait BlockIterator
     /// Move iterator to cursor position.
     /// 
     /// Fast O(1) operation.
-    fn move_to(self, cursor: BlockIterCursor) -> Self;
+    fn move_to(self, cursor: BlockCursor) -> Self;
+
+    /// Stable [try_for_each] version.
+    /// 
+    /// [try_for_each]: std::iter::Iterator::try_for_each
+    fn traverse<F>(self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(DataBlock<Self::DataBitBlock>) -> ControlFlow<()>;
 }
 
 /// Index iterator.
@@ -116,12 +123,19 @@ pub trait IndexIterator
     /// Into block iterator.
     fn as_blocks(self) -> Self::BlockIter;
 
-    fn cursor(&self) -> IndexIterCursor;
+    fn cursor(&self) -> IndexCursor;
 
     /// Move iterator to cursor position.
     /// 
     /// Fast O(1) operation.
-    fn move_to(self, cursor: IndexIterCursor) -> Self;
+    fn move_to(self, cursor: IndexCursor) -> Self;
+
+    /// Stable [try_for_each] version.
+    /// 
+    /// [try_for_each]: std::iter::Iterator::try_for_each
+    fn traverse<F>(self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>;
 }
 
 // TODO: Remove this, or move to simple_iter
@@ -159,11 +173,11 @@ where
         self.block_iter
     }
 
-    fn cursor(&self) -> IndexIterCursor {
+    fn cursor(&self) -> IndexCursor {
         unimplemented!()     
     }
 
-    fn move_to(self, _cursor: IndexIterCursor) -> Self {
+    fn move_to(self, _cursor: IndexCursor) -> Self {
         unimplemented!()
     }
 }

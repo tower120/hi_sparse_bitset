@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce, traverse_from, traverse_index_from};
 use hi_sparse_bitset::binary_op::BitAndOp;
-use hi_sparse_bitset::iter::{BlockIterator, BlockIterCursor, IndexIterCursor, SimpleBlockIter, SimpleIndexIter};
+use hi_sparse_bitset::iter::{BlockIterator, BlockCursor, IndexCursor, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
 use roaring::RoaringBitmap;
