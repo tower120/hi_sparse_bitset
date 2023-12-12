@@ -65,6 +65,10 @@ where
     fn move_to(self, _cursor: BlockCursor) -> Self {
         unimplemented!()
     }
+
+    fn traverse<F>(self, f: F) -> ControlFlow<()> where F: FnMut(DataBlock<Self::DataBitBlock>) -> ControlFlow<()> {
+        unimplemented!()
+    }
 }
 
 

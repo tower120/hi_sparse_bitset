@@ -6,8 +6,11 @@
 - `BitSetInterface`'s `IntoIterator` now implements `IndexIter`.
 - `BlockIterCursor` renamed to `BlockCursor`.
 - `IndexIterCursor` renamed to `IndexCursor`.
+- both cursors now <= 64bit in size.
 
 ### Added
+- `BlockCursor` now implements `Copy`.
+- `IndexCursor` now implements `Copy`.
 - `CachingBlockIter` now implements `Clone`.
 - `CachingIndexIter` now implements `Clone`.
 - `CachingBlockIter::traverse`.
@@ -21,7 +24,7 @@
 
 - `BitSet::is_empty`.
 - All `BitSetInterface`s now implements `Eq`.
-- `BitSet` (without &) now implements op's too.
+- `BitSet` (without &) now implements `op`s too.
 
 ## 0.2.0
 ### Changed

@@ -14,7 +14,6 @@ mod simple;
 #[cfg(feature = "simple_iter")]
 pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
-// TODO: Consider making Copy
 /// Block iterator cursor, or position of iterable.
 /// 
 /// Created by [BlockIterator::cursor()], used by [BlockIterator::move_to()].
@@ -35,12 +34,11 @@ pub use simple::{SimpleBlockIter, SimpleIndexIter};
 /// resume iterator from state, and so on.
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy)]
 pub struct BlockCursor {
-    // TODO: u32's ?
-    pub(crate) level0_index: usize,
+    pub(crate) level0_index: u16,
     // We don't have current/last returned index
-    pub(crate) level1_next_index: usize,
+    pub(crate) level1_next_index: u16,
 }
 
 /// Index iterator cursor.
@@ -48,11 +46,11 @@ pub struct BlockCursor {
 /// Created by [IndexIterator::cursor()], used by [IndexIterator::move_to()].
 /// 
 /// Same as [BlockCursor], but for indices iterator.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Copy)]
 pub struct IndexCursor {
     pub(crate) block_cursor: BlockCursor,
-    // TODO: u32's ?
-    pub(crate) data_next_index: usize,
+    // use u32 instead of u16, to nicely fit 64bit register
+    pub(crate) data_next_index: u32,
 }
 
 // TODO: move inside caching iterator
@@ -78,9 +76,8 @@ impl<Conf: Config> Clone for State<Conf>{
 /// # Empty blocks
 /// 
 /// Block iterator may occasionally return empty blocks.
-/// This is for performance reasons - since you most likely will
-/// traverse block indices a loop anyway - checking it for emptiness, and then looping to the 
-/// next non-empty one inside BlockIterator - may be just unnecessary operation.
+/// This is for performance reasons - it is faster to just iterate/traverse empty
+/// blocks through, then to add adding additional `is_empty` check in the middle of the loop.
 /// 
 /// TODO: consider changing this behavior.
 /// 
@@ -178,6 +175,10 @@ where
     }
 
     fn move_to(self, _cursor: IndexCursor) -> Self {
+        unimplemented!()
+    }
+
+    fn traverse<F>(self, f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
         unimplemented!()
     }
 }

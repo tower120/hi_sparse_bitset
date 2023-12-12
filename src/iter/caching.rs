@@ -105,8 +105,8 @@ where
         }
         
         BlockCursor {
-            level0_index     : self.state.level0_index,
-            level1_next_index: self.state.level1_iter.current(),
+            level0_index     : self.state.level0_index as u16,
+            level1_next_index: self.state.level1_iter.current() as u16,
         }
     }
 
@@ -128,7 +128,8 @@ where
         }
         
         // Mask out level0 mask
-        self.state.level0_iter.zero_first_n(cursor.level0_index);
+        let cursor_level0_index = cursor.level0_index as usize;
+        self.state.level0_iter.zero_first_n(cursor_level0_index);
 
         if let Some(level0_index) = self.state.level0_iter.next(){
             self.state.level0_index = level0_index;
@@ -141,8 +142,8 @@ where
             
             // TODO: can we mask SIMD block directly? 
             // mask out level1 mask, if this is block pointed by cursor
-            if level0_index == cursor.level0_index{
-                self.state.level1_iter.zero_first_n(cursor.level1_next_index);
+            if level0_index == cursor_level0_index{
+                self.state.level1_iter.zero_first_n(cursor.level1_next_index as usize);
             }
         } else {
             // absolutely empty
@@ -318,11 +319,11 @@ where
             
             // mask out, if this is block pointed by cursor
             let cursor_block_start_index = data_block_start_index::<T::Conf>(
-                cursor.block_cursor.level0_index, 
-                cursor.block_cursor.level1_next_index /*this is current index*/,
+                cursor.block_cursor.level0_index as usize, 
+                cursor.block_cursor.level1_next_index /*this is current index*/ as usize,
             );
             if data_block_iter.start_index == cursor_block_start_index{
-                data_block_iter.bit_block_iter.zero_first_n(cursor.data_next_index);
+                data_block_iter.bit_block_iter.zero_first_n(cursor.data_next_index as usize);
             }
             
             data_block_iter
@@ -345,11 +346,11 @@ where
          
         IndexCursor {
             block_cursor: BlockCursor { 
-                level0_index, 
+                level0_index: level0_index as u16, 
                 // This will actually point to current index, not to next one.
-                level1_next_index: level1_index     
+                level1_next_index: level1_index as u16
             },
-            data_next_index: self.data_block_iter.bit_block_iter.current(),
+            data_next_index: self.data_block_iter.bit_block_iter.current() as u32,
         }        
     }
 
@@ -399,7 +400,6 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO: ?? Still empty blocks ??
         // looping, because BlockIter may return empty DataBlocks.
         loop{
             if let Some(index) = self.data_block_iter.next(){

@@ -5,9 +5,9 @@ mod common;
 use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
-use hi_sparse_bitset::{BitSet, BitSetInterface, reduce, traverse_from, traverse_index_from};
+use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
 use hi_sparse_bitset::binary_op::BitAndOp;
-use hi_sparse_bitset::iter::{BlockIterator, BlockCursor, IndexCursor, SimpleBlockIter, SimpleIndexIter};
+use hi_sparse_bitset::iter::{IndexIterator, BlockIterator, BlockCursor, IndexCursor, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
 use roaring::RoaringBitmap;
@@ -120,7 +120,7 @@ fn hi_sparse_bitset_op_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>])
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
 
     let mut counter = 0;
-    intersection.traverse(|_|{
+    intersection.iter().traverse(|_|{
         counter += 1;
         Continue(())
     });
