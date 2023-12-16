@@ -12,10 +12,11 @@
 use crate::bit_block::BitBlock;
 use crate::{cache, INTERSECTION_ONLY, Primitive};
 use crate::cache::ReduceCache;
-use crate::iter::CachingBlockIter;
+use crate::iter::{CachingBlockIter, CachingIndexIter};
 
 type DefaultCache = cache::FixedCache<32>;
 pub(crate) type DefaultBlockIterator<T> = CachingBlockIter<T>;
+pub(crate) type DefaultIndexIterator<T> = CachingIndexIter<T>;
 
 /// [BitSet] configuration
 /// 

@@ -92,15 +92,15 @@ pub trait ReduceCacheImpl
     fn make_cache(sets: &Self::Sets) -> Self::CacheData;
     fn drop_cache(sets: &Self::Sets, cache: &mut ManuallyDrop<Self::CacheData>);
 
-    type Level1Blocks3;
-    unsafe fn update_level1_blocks3(
+    type Level1Blocks;
+    unsafe fn update_level1_blocks(
         sets: &Self::Sets,
         cache: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool);
-    unsafe fn data_mask_from_blocks3(
-        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    unsafe fn data_mask_from_blocks(
+        level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock;
 }
 
@@ -115,7 +115,7 @@ where
     type Set = S::Item;
     type Sets = S;
     type CacheData = ();
-    type Level1Blocks3 = (S, usize);
+    type Level1Blocks = (S, usize);
 
     /// We always return true.
     const EMPTY_LVL1_TOLERANCE: bool = true;
@@ -127,10 +127,10 @@ where
     fn drop_cache(_: &Self::Sets, _: &mut ManuallyDrop<Self::CacheData>) {}
 
     #[inline]
-    unsafe fn update_level1_blocks3(
+    unsafe fn update_level1_blocks(
         sets: &Self::Sets,
         _: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         level1_blocks.write((sets.clone(), level0_index));
@@ -139,11 +139,9 @@ where
         (reduce.level1_mask(level0_index), true)
     }
 
-    // TODO: try pass level0_index - we always have it during iteration.
-    //      This will allow not to store it in `update_level1_blocks3`
     #[inline]
-    unsafe fn data_mask_from_blocks3(
-        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    unsafe fn data_mask_from_blocks(
+        level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let (sets, level0_index) = level1_blocks;
 
@@ -153,7 +151,7 @@ where
 }
 
 #[inline(always)]
-unsafe fn update_level1_blocks3<Op, Conf, Sets>(
+unsafe fn update_level1_blocks<Op, Conf, Sets>(
     _: Op,
     sets: &Sets,
     cache_ptr: *mut <Sets::Item as LevelMasksExt>::CacheData,
@@ -214,7 +212,7 @@ where
 
 
 #[inline]
-unsafe fn data_mask_from_blocks3<Op, Set, Conf>(
+unsafe fn data_mask_from_blocks<Op, Set, Conf>(
     //_: Op,
     slice: &[Set::Level1Blocks],
     level1_index: usize
@@ -288,12 +286,12 @@ where
     type Set = S::Item;
     type Sets = S;
 
-    /// We use Level1Blocks3 directly, but childs may have data.
+    /// We use Level1Blocks directly, but childs may have data.
     /// Will be ZST, if no-one use. size = sets.len().
     type CacheData = [MaybeUninit<<Self::Set as LevelMasksExt>::CacheData>; N];
 
     /// Never drop, since array contain primitives, or array of primitives.
-    type Level1Blocks3 = (
+    type Level1Blocks = (
         [MaybeUninit<<Self::Set as LevelMasksExt>::Level1Blocks>; N],
         usize
     );
@@ -318,10 +316,10 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_blocks3(
+    unsafe fn update_level1_blocks(
         sets: &Self::Sets,
         cache_data: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         let (level1_blocks_storage, level1_blocks_len) = level1_blocks.assume_init_mut();
@@ -329,20 +327,20 @@ where
         let cache_ptr = cache_data.as_mut_ptr() as *mut <Self::Set as LevelMasksExt>::CacheData;
 
         let (mask, len, is_empty) =
-            update_level1_blocks3(Op::default(), sets, cache_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
+            update_level1_blocks(Op::default(), sets, cache_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
         *level1_blocks_len = len;
         (mask, is_empty)
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks3(
-        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    unsafe fn data_mask_from_blocks(
+        level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
             level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt>::Level1Blocks,
             level1_blocks.1
         );
-        data_mask_from_blocks3::<Op, Self::Set, Self::Conf>(slice, level1_index)
+        data_mask_from_blocks::<Op, Self::Set, Self::Conf>(slice, level1_index)
     }
 }
 
@@ -368,7 +366,7 @@ where
     );
 
     /// raw slice
-    type Level1Blocks3 = (
+    type Level1Blocks = (
         // This points to CacheData heap
         *const <Self::Set as LevelMasksExt>::Level1Blocks,
         usize
@@ -405,10 +403,10 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_blocks3(
+    unsafe fn update_level1_blocks(
         sets: &Self::Sets,
         cache_data: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks3>,
+        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         let (storage, child_cache) = cache_data;
@@ -417,7 +415,7 @@ where
         let cache_ptr = child_cache.as_mut_ptr() as *mut _;
 
         let (mask, len, is_empty) =
-            update_level1_blocks3(Op::default(), sets, cache_ptr, storage.as_mut_ptr(), level0_index);
+            update_level1_blocks(Op::default(), sets, cache_ptr, storage.as_mut_ptr(), level0_index);
 
         level1_blocks.write((
             // assume_init_ref array
@@ -429,13 +427,13 @@ where
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks3(
-        level1_blocks: &Self::Level1Blocks3, level1_index: usize
+    unsafe fn data_mask_from_blocks(
+        level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
             level1_blocks.0, level1_blocks.1
         );
-        data_mask_from_blocks3::<Op, Self::Set, Self::Conf>(slice, level1_index)
+        data_mask_from_blocks::<Op, Self::Set, Self::Conf>(slice, level1_index)
     }
 }
 
@@ -448,7 +446,7 @@ where
     Cache: ReduceCache
 {
     type CacheData = <Cache::Impl<Op, S> as ReduceCacheImpl>::CacheData;
-    type Level1Blocks = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks3;
+    type Level1Blocks = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks;
     const EMPTY_LVL1_TOLERANCE: bool = <Cache::Impl<Op, S> as ReduceCacheImpl>::EMPTY_LVL1_TOLERANCE;
 
     #[inline]
@@ -471,13 +469,13 @@ where
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::
-            update_level1_blocks3(&self.sets, cache_data, level1_blocks, level0_index)
+            update_level1_blocks(&self.sets, cache_data, level1_blocks, level0_index)
     }
 
     #[inline]
     unsafe fn data_mask_from_blocks(level1_blocks: &Self::Level1Blocks, level1_index: usize) -> <Self::Conf as Config>::DataBitBlock {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::
-            data_mask_from_blocks3(level1_blocks, level1_index)
+            data_mask_from_blocks(level1_blocks, level1_index)
     }
 }
 

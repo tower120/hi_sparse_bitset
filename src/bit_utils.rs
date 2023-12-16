@@ -4,8 +4,15 @@ use num_traits::int::PrimInt;
 use num_traits::WrappingNeg;
 
 /// Block ordering undefined. But same as [get_array_bit].
+/// 
+/// # Safety
+/// 
+/// `index` validity is not checked.
 #[inline]
-pub fn set_array_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &mut [T], index: usize) -> bool {
+pub unsafe fn set_array_bit_unchecked<const FLAG: bool, T>(blocks: &mut [T], index: usize) -> bool
+where
+    T: PrimInt + BitAndAssign + BitOrAssign
+{
     let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
     let block_index = index / bits_size;
 
@@ -13,13 +20,20 @@ pub fn set_array_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(
     // From https://stackoverflow.com/a/27589182
     let bit_index = index & (bits_size -1);
 
-    set_bit::<FLAG, T>(&mut blocks[block_index], bit_index)
+    set_bit_unchecked::<FLAG, T>(blocks.get_unchecked_mut(block_index), bit_index)
 }
 
 
 /// In machine endian.
+/// 
+/// # Safety
+/// 
+/// `bit_index` validity is not checked.
 #[inline]
-pub fn set_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(block: &mut T, bit_index: usize) -> bool {
+pub unsafe fn set_bit_unchecked<const FLAG: bool, T>(block: &mut T, bit_index: usize) -> bool
+where
+    T: PrimInt + BitAndAssign + BitOrAssign
+{
     let block_mask: T = T::one() << bit_index;
     let masked_block = *block & block_mask;
 
@@ -33,8 +47,15 @@ pub fn set_bit<const FLAG: bool, T: PrimInt + BitAndAssign + BitOrAssign>(block:
 }
 
 /// Block ordering undefined. But same as [set_array_bit].
+/// 
+/// # Safety
+/// 
+/// `index` validity is not checked.
 #[inline]
-pub fn get_array_bit<T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &[T], index: usize) -> bool {
+pub unsafe fn get_array_bit_unchecked<T>(blocks: &[T], index: usize) -> bool 
+where
+    T: PrimInt + BitAndAssign + BitOrAssign
+{
     let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
     let block_index = index / bits_size;
 
@@ -42,12 +63,16 @@ pub fn get_array_bit<T: PrimInt + BitAndAssign + BitOrAssign>(blocks: &[T], inde
     // From https://stackoverflow.com/a/27589182
     let bit_index = index & (bits_size -1);
 
-    get_bit(blocks[block_index], bit_index)
+    get_bit_unchecked(*blocks.get_unchecked(block_index), bit_index)
 }
 
 /// In machine endian.
+/// 
+/// # Safety
+/// 
+/// `bit_index` validity is not checked.
 #[inline]
-pub fn get_bit<T: PrimInt>(block: T, bit_index: usize) -> bool {
+pub unsafe fn get_bit_unchecked<T: PrimInt>(block: T, bit_index: usize) -> bool {
     let block_mask: T = T::one() << bit_index;
     let masked_block = block & block_mask;
     !masked_block.is_zero()

@@ -68,9 +68,20 @@
 //! [BitSetInterface] iterators can return [cursor()], pointing to current iterator position. 
 //! You can use [Cursor] to move ANY [BitSetInterface] iterator to it's position with [move_to].
 //! 
+//! You can also build cursor from index.
+//! 
 //! [cursor()]: crate::iter::BlockIterator::cursor
-//! [Cursor]: crate::iter::BlockIterCursor
+//! [Cursor]: crate::iter::BlockCursor
 //! [move_to]: crate::iter::BlockIterator::move_to
+//! 
+//! # Iterator::for_each
+//! 
+//! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - [traverse].
+//! For tight loops, traversing is observably faster then iterating.
+//! 
+//! [for_each]: std::iter::Iterator::for_each
+//! [try_for_each]: std::iter::Iterator::try_for_each
+//! [traverse]: crate::iter::IndexIterator::traverse
 //! 
 //! # DataBlocks
 //! 
@@ -97,6 +108,7 @@ mod bitset_interface;
 mod bitset_op;
 pub mod iter;
 pub mod cache;
+pub mod prelude;
 
 #[cfg(test)]
 mod test;
@@ -399,12 +411,20 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
     }
 }
 
-#[derive(Clone, Debug)]
+#[inline]
+fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{
+    let level0_offset = level0_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT + Conf::Level1BitBlock::SIZE_POT_EXPONENT);
+    let level1_offset = level1_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT);
+    level0_offset + level1_offset
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DataBlock<Block>{
     pub start_index: usize,
     pub bit_block: Block
 }
 impl<Block: BitBlock> DataBlock<Block>{
+    // TODO: remove
     /// traverse approx. 15% faster then iterator
     #[inline]
     pub fn traverse<F>(&self, mut f: F) -> ControlFlow<()>
@@ -450,15 +470,25 @@ impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
         }
     }
 }
+
+#[derive(Clone)]
 pub struct DataBlockIter<Block: BitBlock>{
     start_index: usize,
     bit_block_iter: Block::BitsIter
 }
 impl<Block: BitBlock> DataBlockIter<Block>{
+    /// Stable version of [try_for_each].
+    /// 
+    /// traverse approx. 15% faster then iterator
+    /// 
+    /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
-    pub(crate) fn empty() -> Self{
-        Self{ start_index: 0, bit_block_iter: BitQueue::empty() }
-    }
+    pub fn traverse<F>(self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>
+    {
+        self.bit_block_iter.traverse(|index| f(self.start_index + index))
+    }    
 }
 impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     type Item = usize;
@@ -466,6 +496,17 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.bit_block_iter.next().map(|index|self.start_index + index)
+    }
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(Self::Item)
+    {
+        self.traverse(|index| {
+            f(index);
+            ControlFlow::Continue(())
+        });
     }
 }
 

@@ -4,7 +4,7 @@ use crate::{BitSet, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
-use crate::config::{DefaultBlockIterator, Config};
+use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
 use crate::iter::{BlockIterator, IndexIterator};
 use crate::bitset_op::BitSetOp;
 use crate::reduce::Reduce;
@@ -172,24 +172,44 @@ pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
 }
 
 // User-side interface
-pub trait BitSetInterface: BitSetBase + IntoIterator<Item = usize> + LevelMasksExt {
-    type BlockIter<'a>: BlockIterator where Self: 'a;
+/// Bitset interface.
+/// 
+/// # Traversing
+/// 
+/// [BlockIter] and [Iter] have specialized `for_each()` implementation and `traverse()`.
+/// 
+/// Like with most Rust iterators, traversing[^traverse_def] is somewhat faster
+/// then iteration. In this particular case, it has noticeable difference in micro-benchmarks.
+/// Remember, that iteration is already super-fast, and any tiny change become important at that scale.
+/// Hence, this will have effect in really tight loops (like incrementing counter).
+///
+/// [^traverse_def]: Under "traverse" we understand function application for 
+/// each element of bitset.
+/// 
+/// [BlockIter]: Self::BlockIter
+/// [Iter]: Self::Iter
+pub trait BitSetInterface
+    : BitSetBase 
+    + IntoIterator<IntoIter = Self::IntoIndexIter> 
+    + LevelMasksExt 
+{
+    type BlockIter<'a>: BlockIterator<IndexIter = Self::Iter<'a>> where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
-    type Iter<'a>: IndexIterator<Item = usize> where Self: 'a;
+    type Iter<'a>: IndexIterator where Self: 'a;
     fn iter(&self) -> Self::Iter<'_>;
 
-    type IntoBlockIter: BlockIterator;
+    type IntoBlockIter: BlockIterator<IndexIter = Self::IntoIndexIter>;
     fn into_block_iter(self) -> Self::IntoBlockIter;
 
+    type IntoIndexIter: IndexIterator;
+
     fn contains(&self, index: usize) -> bool;
-    
-    fn is_empty(&self) -> bool;
 }
 
 impl<T: LevelMasksExt> BitSetInterface for T
 where
-    T: IntoIterator<Item = usize>
+    T: IntoIterator<IntoIter = DefaultIndexIterator<T>>
 {
     type BlockIter<'a> = DefaultBlockIterator<&'a T> where Self: 'a;
 
@@ -202,7 +222,7 @@ where
 
     #[inline]
     fn iter(&self) -> Self::Iter<'_> {
-        self.block_iter().as_indices()
+        DefaultIndexIterator::new(self)
     }
 
     type IntoBlockIter = DefaultBlockIterator<T>;
@@ -212,6 +232,8 @@ where
         DefaultBlockIterator::new(self)
     }
 
+    type IntoIndexIter = DefaultIndexIterator<T>;
+
     #[inline]
     fn contains(&self, index: usize) -> bool {
         let (level0_index, level1_index, data_index) = level_indices::<T::Conf>(index);
@@ -219,11 +241,6 @@ where
             let data_block = self.data_mask(level0_index, level1_index);
             data_block.get_bit(data_index)
         }
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.level0_mask().is_zero()
     }
 }
 
@@ -268,45 +285,6 @@ macro_rules! impl_all_ref {
         );
     }
 }
-
-
-// TODO: remove
-/*// Optimistic in-depth check.
-fn bitsets_eq_simple<L, R>(left: L, right: R) -> bool
-where
-    L: LevelMasks,
-    R: LevelMasks<Conf = L::Conf>,
-{
-    let left_level0_mask  = left.level0_mask();
-    let right_level0_mask = right.level0_mask();
-    
-    if left_level0_mask != right_level0_mask {
-        return false;
-    }
-    
-    use ControlFlow::*;
-    left_level0_mask.traverse_bits(|level0_index|{
-        let left_level1_mask  = unsafe{ left.level1_mask(level0_index) };
-        let right_level1_mask = unsafe{ right.level1_mask(level0_index) };
-        
-        if left_level1_mask != right_level1_mask {
-            return Break(()); 
-        }
-        
-        // simple-iter like
-        // TODO: change to cache iter -like
-        left_level1_mask.traverse_bits(|level1_index|{
-            let left_data  = unsafe{ left.data_mask(level0_index, level1_index) };
-            let right_data = unsafe{ right.data_mask(level0_index, level1_index) };
-            
-            if left_data == right_data{
-                Continue(())
-            }  else {
-                Break(())                 
-            }
-        })
-    }).is_continue()
-}*/
 
 // Optimistic depth-first check.
 fn bitsets_eq<L, R>(left: L, right: R) -> bool
@@ -385,11 +363,11 @@ macro_rules! impl_into_iter {
             $($where_bounds)*
         {
             type Item = usize;
-            type IntoIter = <<Self as BitSetInterface>::IntoBlockIter as BlockIterator>::IndexIter;
+            type IntoIter = DefaultIndexIterator<Self>;
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                self.into_block_iter().as_indices()
+                DefaultIndexIterator::new(self)
             }
         }
     };

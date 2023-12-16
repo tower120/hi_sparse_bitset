@@ -1,19 +1,24 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ops::ControlFlow;
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, iter_update_level1_blocks, LevelMasksExt};
-use crate::level_indices;
+use crate::{data_block_start_index, level_indices};
 
 use super::*;
 
 /// Caching block iterator.
 ///
-/// Constructed by [BitSetInterface], or acquired from [CachingIndexIter::as_blocks].
+/// Constructed by [BitSetInterface].
 /// 
 /// Cache pre-data level block pointers, making data blocks access faster.
 /// Also, can discard (on pre-data level) sets with empty level1 blocks from iteration.
 /// (See [binary_op] - this have no effect for AND operation, but can speed up all other)
+/// 
+/// # traverse / for_each
+/// 
+/// Block [traverse]/[for_each] is up to 25% faster then iteration.
 ///
 /// # Memory footprint
 ///
@@ -25,6 +30,8 @@ use super::*;
 /// [cache]: crate::cache
 /// [reduce]: crate::reduce()
 /// [binary_op]: crate::binary_op
+/// [traverse]: Self::traverse
+/// [for_each]: std::iter::Iterator::for_each
 pub struct CachingBlockIter<T>
 where
     T: LevelMasksExt,
@@ -35,6 +42,48 @@ where
     /// Never drop - since we're guaranteed to have them POD.
     level1_blocks: MaybeUninit<T::Level1Blocks>,
 }
+
+impl<T> Clone for CachingBlockIter<T>
+where
+    T: LevelMasksExt + Clone
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        /*const*/ let have_dynamic_cache = mem::size_of::<T::CacheData>() > 0;
+        
+        // bitwise copy cache for Non-Dynamic
+        if !have_dynamic_cache{
+            return Self { 
+                virtual_set  : self.virtual_set.clone(), 
+                state        : self.state.clone(),
+                cache_data   : unsafe{ std::ptr::read(&self.cache_data) },
+                level1_blocks: unsafe{ std::ptr::read(&self.level1_blocks) }
+            };
+        }
+        
+        // rebuild cache for Dynamic
+        let cache_data = self.virtual_set.make_cache();
+        let mut this = Self { 
+            virtual_set: self.virtual_set.clone(), 
+            state: self.state.clone(), 
+            cache_data: ManuallyDrop::new(cache_data),
+            level1_blocks: MaybeUninit::uninit()
+        };
+        
+        // Check if level0_index is valid.
+        //
+        // level0_index can be only invalid in initial state and for "end".
+        if this.state.level0_index < <T::Conf as Config>::Level0BitBlock::size()
+        {
+            let _ = unsafe {
+                iter_update_level1_blocks(&this.virtual_set, &mut this.cache_data, &mut this.level1_blocks, this.state.level0_index)
+            };                
+        }
+
+        this
+    }
+}
+
 
 impl<T> CachingBlockIter<T>
 where
@@ -64,31 +113,45 @@ impl<T> BlockIterator for CachingBlockIter<T>
 where
     T: LevelMasksExt,
 {
-    type DataBitBlock = <T::Conf as Config>::DataBitBlock;  
+    type Conf = T::Conf;
 
     #[inline]
-    fn cursor(&self) -> BlockIterCursor {
+    fn cursor(&self) -> BlockCursor<T::Conf> {
         // "initial state"?
         if self.state.level0_index == usize::MAX /*almost never*/ {
-            return BlockIterCursor::default();
+            return BlockCursor::default();
         }
         
-        BlockIterCursor {
-            level0_index     : self.state.level0_index,
-            level1_next_index: self.state.level1_iter.current(),
+        BlockCursor {
+            level0_index     : self.state.level0_index as u16,
+            level1_next_index: self.state.level1_iter.current() as u16,
+            phantom: PhantomData
         }
     }
 
     type IndexIter = CachingIndexIter<T>;
 
     #[inline]
-    fn as_indices(self) -> CachingIndexIter<T> {
-        CachingIndexIter::new(self)
+    fn into_indices(mut self) -> CachingIndexIter<T> {
+        let data_block_iter =
+            if let Some(data_block) = self.next(){
+                data_block.into_iter()
+            } else {
+                DataBlockIter { 
+                    start_index   : usize::MAX, 
+                    bit_block_iter: BitQueue::empty() 
+                }                
+            };
+        
+        CachingIndexIter{
+            block_iter: self,
+            data_block_iter
+        }
     }
     
     #[must_use]
     #[inline]
-    fn move_to(mut self, cursor: BlockIterCursor) -> Self{
+    fn move_to(mut self, cursor: BlockCursor<T::Conf>) -> Self{
         // Here we update State.
         
         // Reset level0 mask if we not in "initial state"
@@ -97,7 +160,8 @@ where
         }
         
         // Mask out level0 mask
-        self.state.level0_iter.zero_first_n(cursor.level0_index);
+        let cursor_level0_index = cursor.level0_index as usize;
+        self.state.level0_iter.zero_first_n(cursor_level0_index);
 
         if let Some(level0_index) = self.state.level0_iter.next(){
             self.state.level0_index = level0_index;
@@ -110,18 +174,47 @@ where
             
             // TODO: can we mask SIMD block directly? 
             // mask out level1 mask, if this is block pointed by cursor
-            if level0_index == cursor.level0_index{
-                self.state.level1_iter.zero_first_n(cursor.level1_next_index);
+            if level0_index == cursor_level0_index{
+                self.state.level1_iter.zero_first_n(cursor.level1_next_index as usize);
             }
         } else {
             // absolutely empty
             self.state.level1_iter  = BitQueue::empty();
-            self.state.level0_index = 1 << <T::Conf as Config>::DataBitBlock::SIZE_POT_EXPONENT; 
+            self.state.level0_index = <T::Conf as Config>::DataBitBlock::size(); 
         }
 
         self
     }
-  
+
+    #[inline]
+    fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
+    {
+        // state does not participate in drop
+        let state = unsafe{ std::ptr::read(&self.state) };
+        
+        // compiler SHOULD be able to detect and opt-out this branch away for
+        // traverse() after new() call.
+        if state.level0_index != usize::MAX{
+            let level0_index = state.level0_index;
+            
+            let ctrl = state.level1_iter.traverse(
+                |level1_index| level1_mask_traverse_fn::<T, _>(
+                    level0_index, level1_index, &self.level1_blocks, |b| f(b)
+                )
+            );
+            if ctrl.is_break(){
+                return ControlFlow::Break(());
+            }
+        }
+
+        state.level0_iter.traverse(
+            |level0_index| level0_mask_traverse_fn(
+                &self.virtual_set, level0_index, &mut self.cache_data, &mut self.level1_blocks, |b| f(b)
+            )    
+        )
+    }
 }
 
 impl<T> Iterator for CachingBlockIter<T>
@@ -165,6 +258,17 @@ where
 
         Some(DataBlock { start_index: block_start_index, bit_block: data_intersection })
     }
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(Self::Item)
+    {
+        self.traverse(|block| {
+            f(block);
+            ControlFlow::Continue(())
+        });
+    }
 }
 
 impl<T> Drop for CachingBlockIter<T>
@@ -180,11 +284,17 @@ where
 
 /// Caching index iterator.
 /// 
-/// Constructed by [BitSetInterface], or acquired from [CachingBlockIter::as_indices].
+/// Constructed by [BitSetInterface], or acquired from [CachingBlockIter::into_indices].
 /// 
 /// Same as [CachingBlockIter] but for indices.
+/// 
+/// # traverse / for_each
+/// 
+/// Index [traverse]/[for_each] is up to 2x faster then iteration.
 ///
-/// [BitSetInterface]: crate::BitSetInterface 
+/// [BitSetInterface]: crate::BitSetInterface
+/// [traverse]: Self::traverse
+/// [for_each]: std::iter::Iterator::for_each
 pub struct CachingIndexIter<T>
 where
     T: LevelMasksExt,
@@ -193,15 +303,33 @@ where
     data_block_iter: DataBlockIter<<T::Conf as Config>::DataBitBlock>,
 }
 
+impl<T> Clone for CachingIndexIter<T>
+where
+    T: LevelMasksExt + Clone
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self{
+            block_iter: self.block_iter.clone(),
+            data_block_iter: self.data_block_iter.clone(),
+        }
+    }
+}
+
 impl<T> CachingIndexIter<T>
 where
     T: LevelMasksExt,
 {
     #[inline]
-    pub fn new(block_iter: CachingBlockIter<T>) -> Self{
+    pub(crate) fn new(virtual_set: T) -> Self{
         Self{
-            block_iter,
-            data_block_iter: DataBlockIter::empty()
+            block_iter: CachingBlockIter::new(virtual_set),
+            data_block_iter: DataBlockIter{
+                // do not calc `start_index` now - will be calculated in 
+                // iterator, or in move_to.
+                start_index: 0, 
+                bit_block_iter: BitQueue::empty(),
+            }
         }
     }
 }
@@ -210,17 +338,12 @@ impl<T> IndexIterator for CachingIndexIter<T>
 where
     T: LevelMasksExt,
 {
-    type BlockIter = CachingBlockIter<T>;
-
-    #[inline]
-    fn as_blocks(self) -> Self::BlockIter{
-        self.block_iter
-    }
+    type Conf = T::Conf;
 
     #[must_use]
     #[inline]
-    fn move_to(mut self, cursor: IndexIterCursor) -> Self {
-        self.block_iter = self.block_iter.move_to(cursor.block_cursor.clone()/*TODO: Make block_cursor Copy*/);
+    fn move_to(mut self, cursor: IndexCursor<T::Conf>) -> Self {
+        self.block_iter = self.block_iter.move_to(cursor.block_cursor);
         
         self.data_block_iter = 
         if let Some(data_block) = self.block_iter.next(){
@@ -228,40 +351,82 @@ where
             
             // mask out, if this is block pointed by cursor
             let cursor_block_start_index = data_block_start_index::<T::Conf>(
-                cursor.block_cursor.level0_index, 
-                cursor.block_cursor.level1_next_index /*this is current index*/,
+                cursor.block_cursor.level0_index as usize, 
+                cursor.block_cursor.level1_next_index /*this is current index*/ as usize,
             );
             if data_block_iter.start_index == cursor_block_start_index{
-                data_block_iter.bit_block_iter.zero_first_n(cursor.data_next_index);
+                data_block_iter.bit_block_iter.zero_first_n(cursor.data_next_index as usize);
             }
             
             data_block_iter
         } else {
             // absolutely empty
-            DataBlockIter::empty()
+            // point to the end
+            DataBlockIter{
+                start_index: usize::MAX,
+                bit_block_iter: BitQueue::empty(),
+            }
         };       
 
         self 
     }    
 
     #[inline]
-    fn cursor(&self) -> IndexIterCursor {
+    fn cursor(&self) -> IndexCursor<T::Conf> {
         if self.block_iter.state.level0_index == usize::MAX{
-            return IndexIterCursor::default();
+            return IndexCursor::default();
         }
         
         // Extract level0_index, level1_index from block_start_index
         let (level0_index, level1_index, _) = level_indices::<T::Conf>(self.data_block_iter.start_index);
          
-        IndexIterCursor{
-            block_cursor: BlockIterCursor{ 
-                level0_index, 
+        IndexCursor {
+            block_cursor: BlockCursor { 
+                level0_index: level0_index as u16, 
                 // This will actually point to current index, not to next one.
-                level1_next_index: level1_index     
+                level1_next_index: level1_index as u16,
+                phantom: PhantomData
             },
-            data_next_index: self.data_block_iter.bit_block_iter.current(),
+            data_next_index: self.data_block_iter.bit_block_iter.current() as u32,
         }        
     }
+
+    #[inline]
+    fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>    
+    {
+        // state does not participate in drop
+        let state = unsafe{ std::ptr::read(&self.block_iter.state) };
+
+        if state.level0_index != usize::MAX{
+            let level0_index = state.level0_index;
+
+            // 1. traverse datablock
+            let ctrl = self.data_block_iter.traverse(|i| f(i));
+            if ctrl.is_break(){
+                return ControlFlow::Break(());
+            }
+
+            // 2. traverse rest of the level1 block
+            let ctrl = state.level1_iter.traverse(
+                |level1_index| level1_mask_traverse_fn::<T, _>(
+                    level0_index, level1_index, &self.block_iter.level1_blocks, 
+                    |b| b.traverse(|i| f(i))
+                )
+            );
+            if ctrl.is_break(){
+                return ControlFlow::Break(());
+            }
+        }
+
+        state.level0_iter.traverse(
+            |level0_index| level0_mask_traverse_fn(
+                &self.block_iter.virtual_set, level0_index, &mut self.block_iter.cache_data, &mut self.block_iter.level1_blocks, 
+                |b| b.traverse(|i| f(i))
+            )    
+        )        
+    }    
 }
 
 impl<T> Iterator for CachingIndexIter<T>
@@ -272,7 +437,6 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO: ?? Still empty blocks ??
         // looping, because BlockIter may return empty DataBlocks.
         loop{
             if let Some(index) = self.data_block_iter.next(){
@@ -286,4 +450,60 @@ where
             }
         }
     }
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(Self::Item)
+    {
+        self.traverse(|index| {
+            f(index);
+            ControlFlow::Continue(())
+        });
+    }    
+}
+
+
+#[inline]
+fn level1_mask_traverse_fn<S, F>(
+    level0_index: usize,
+    level1_index: usize,
+    level1_blocks: &MaybeUninit<S::Level1Blocks>,
+    mut f: F
+) -> ControlFlow<()>
+where
+    S: LevelMasksExt, 
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+{
+    let data_mask = unsafe {
+        S::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
+    };
+    
+    let block_start_index =
+        crate::data_block_start_index::<<S as BitSetBase>::Conf>(
+            level0_index, level1_index
+        );
+
+    f(DataBlock{ start_index: block_start_index, bit_block: data_mask })
+}
+
+#[inline]
+fn level0_mask_traverse_fn<S, F>(
+    set: &S,
+    level0_index: usize,
+    cache_data: &mut S::CacheData,
+    level1_blocks: &mut MaybeUninit<S::Level1Blocks>,
+    mut f: F
+) -> ControlFlow<()>
+where
+    S: LevelMasksExt, 
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+{
+    let level1_mask = unsafe {
+        iter_update_level1_blocks(&set, cache_data, level1_blocks, level0_index)
+    };
+    
+    level1_mask.traverse_bits(|level1_index|{
+        level1_mask_traverse_fn::<S, _>(level0_index, level1_index, level1_blocks, |b| f(b))
+    })
 }

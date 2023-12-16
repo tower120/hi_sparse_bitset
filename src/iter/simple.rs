@@ -2,6 +2,7 @@ use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::bitset_interface::LevelMasks;
 use crate::bit_queue::BitQueue;
 use num_traits::AsPrimitive;
+use crate::data_block_start_index;
 use super::*;
 
 /// Simple iterator - access each data block, by traversing all hierarchy
@@ -43,25 +44,28 @@ impl<T> BlockIterator for SimpleBlockIter<T>
 where
     T: LevelMasksExt
 {
-    type DataBitBlock = <T::Conf as Config>::DataBitBlock;
+    type Conf = T::Conf;
 
     #[inline]
-    fn cursor(&self) -> BlockIterCursor {
+    fn cursor(&self) -> BlockCursor<Self::Conf> {
         unimplemented!()
-        /*BlockIterCursor{
-            level0_index: self.state.level0_index,
-            level1_index: self.state.level1_iter.current(),
-        }*/
     }
 
     type IndexIter = SimpleIndexIter<T>;
 
     #[inline]
-    fn as_indices(self) -> Self::IndexIter {
+    fn into_indices(self) -> Self::IndexIter {
         SimpleIndexIter::new(self)
     }
 
-    fn move_to(self, _cursor: BlockIterCursor) -> Self {
+    fn move_to(self, _cursor: BlockCursor<Self::Conf>) -> Self {
+        unimplemented!()
+    }
+
+    fn traverse<F>(self, _f: F) -> ControlFlow<()> 
+    where 
+        F: FnMut(DataBlock<<Self::Conf as Config>::DataBitBlock>) -> ControlFlow<()> 
+    {
         unimplemented!()
     }
 }
@@ -110,4 +114,67 @@ where
     }
 }
 
-pub type SimpleIndexIter<T> = IndexIter<SimpleBlockIter<T>>;
+// It's just flatmap across block iterator.
+pub struct SimpleIndexIter<T>
+where
+    T: LevelMasks
+{
+    block_iter: SimpleBlockIter<T>,
+    data_block_iter: DataBlockIter<<T::Conf as Config>::DataBitBlock>,
+}
+impl<T> SimpleIndexIter<T>
+where
+    T: LevelMasks
+{
+    #[inline]
+    pub fn new(block_iter: SimpleBlockIter<T>) -> Self{
+        Self{
+            block_iter,
+            data_block_iter: DataBlockIter{
+                start_index: 0,
+                bit_block_iter: BitQueue::empty()
+            }
+        }
+    }
+}
+impl<T> IndexIterator for SimpleIndexIter<T>
+where
+    T: LevelMasks
+{
+    type Conf = T::Conf;
+
+    fn cursor(&self) -> IndexCursor<Self::Conf> {
+        unimplemented!()
+    }
+
+    fn move_to(self, _cursor: IndexCursor<Self::Conf>) -> Self {
+        unimplemented!()
+    }
+
+    fn traverse<F>(self, _f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
+        unimplemented!()
+    }
+}
+impl<T> Iterator for SimpleIndexIter<T>
+where
+    T: LevelMasks
+{
+    type Item = usize;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: ?? Still empty blocks ??
+        // looping, because BlockIter may return empty DataBlocks.
+        loop{
+            if let Some(index) = self.data_block_iter.next(){
+                return Some(index);
+            }
+
+            if let Some(data_block) = self.block_iter.next(){
+                self.data_block_iter = data_block.into_iter();
+            } else {
+                return None;
+            }
+        }
+    }
+}

@@ -5,7 +5,7 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::{BlockIterCursor, IndexIterCursor, IndexIterator};
+use crate::iter::{BlockCursor, IndexCursor, IndexIterator};
 use crate::bitset_op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
 use crate::iter::BlockIterator;
@@ -105,6 +105,7 @@ fn fuzzy_test(){
         const INDEX_MUL: usize = 10;
     }
     }
+    const MAX_CURSOR_READ_SESSION: usize = MAX_SIZE;
 
     let mut rng = rand::thread_rng();
     for _ in 0..REPEATS{
@@ -146,6 +147,19 @@ fn fuzzy_test(){
             for &index in &hash_set{
                 assert!(hi_set.contains(index));
             }
+            
+            // block traverse contains
+            hi_set.block_iter().traverse(|block|{ 
+                block.traverse(|index|{
+                    assert!(hash_set.contains(&index));
+                    ControlFlow::Continue(())     
+                })
+            });
+
+            // index traverse contains
+            hi_set.iter().for_each(|index|{ 
+                assert!(hash_set.contains(&index));
+            });            
 
             // non existent does not contains
             for &index in &removed{
@@ -158,6 +172,59 @@ fn fuzzy_test(){
             {
                 let other: HiSparseBitset = hi_set.iter().collect();
                 assert!(hi_set == other);
+            }
+
+            let mut hash_set_vec: Vec<usize> = hash_set.iter().copied().collect();
+            hash_set_vec.sort();
+            
+            // block traverse cursor sessions
+            {
+                let mut cursor = BlockCursor::start();
+                let mut traversed = Vec::new();
+
+                loop{
+                    let mut session_counter = rng.gen_range(0..MAX_CURSOR_READ_SESSION) as isize;                
+                    let ctrl = hi_set.block_iter().move_to(cursor).traverse(|block|{
+                        if session_counter <= 0{
+                            cursor = (&block).into();
+                            return ControlFlow::Break(());
+                        }
+                        session_counter -= block.len() as isize;
+
+                        traversed.extend(block);
+                        ControlFlow::Continue(())
+                    });
+                    if ctrl.is_continue(){
+                        break;
+                    }
+                }
+
+                assert_equal(traversed, hash_set_vec.iter().copied());
+            }
+            
+            // index traverse cursor sessions
+            {
+                let mut cursor = IndexCursor::start();
+                let mut traversed = Vec::new();
+
+                loop{
+                    let mut session_counter = rng.gen_range(0..MAX_CURSOR_READ_SESSION);
+                    let ctrl = hi_set.iter().move_to(cursor).traverse(|index|{
+                        if session_counter == 0{
+                            cursor = index.into();
+                            return ControlFlow::Break(());
+                        }
+                        session_counter -= 1;
+
+                        traversed.push(index);
+                        ControlFlow::Continue(())
+                    });
+                    if ctrl.is_continue(){
+                        break;
+                    }
+                }
+
+                assert_equal(traversed, hash_set_vec.iter().copied());
             }
         }
     }
@@ -221,8 +288,8 @@ where
         // non removed initial intersection set.
 
         // initial insert
-        let mut block_cursor = BlockIterCursor::default();
-        let mut index_cursor = IndexIterCursor::default();
+        let mut block_cursor = BlockCursor::default();
+        let mut index_cursor = IndexCursor::default();
         let mut initial_hashsets_intersection_for_blocks;
         let mut initial_hashsets_intersection_for_indices;
         {
@@ -296,7 +363,25 @@ where
 
                 let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
+                // through traverse
+                let mut traversed_cursor = BlockCursor::end();
+                let mut traversed_blocks = Vec::new();
+                {
+                    let mut blocks_to_consume = blocks_to_consume;
+                    intersection.clone().traverse(|block|{
+                        if blocks_to_consume == 0{
+                            traversed_cursor = BlockCursor::from(&block);
+                            return ControlFlow::Break(());
+                        }
+                        blocks_to_consume -= 1;
+                                                 
+                        traversed_blocks.push(block);
+                        ControlFlow::Continue(())
+                    });
+                };
+
                 // all intersections must be valid
+                let mut iterated_blocks = Vec::new();
                 loop{
                     if blocks_to_consume == 0{
                         break;
@@ -314,12 +399,20 @@ where
                                 ControlFlow::Continue(())
                             }
                         );
+                        
+                        iterated_blocks.push(block);
                     } else {
                         break;
                     }
                 }
+                
+                assert_equal(traversed_blocks, iterated_blocks);
 
                 block_cursor = intersection.cursor();
+                assert_eq!(
+                    intersection.clone().move_to(block_cursor).next(),
+                    intersection.clone().move_to(traversed_cursor).next()
+                );
             }
 
             // suspend/resume indices
@@ -331,18 +424,43 @@ where
                 
                 let indices_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_INDICES_CONSUME);
 
+                // through traverse
+                let mut traversed_cursor = IndexCursor::end();
+                let mut traversed_indices = Vec::new();
+                {
+                    let mut indices_to_consume = indices_to_consume;
+                    intersection.clone().traverse(|i|{
+                        if indices_to_consume == 0{
+                            traversed_cursor = i.into();
+                            return ControlFlow::Break(());
+                        }
+                        indices_to_consume -= 1;
+
+                        traversed_indices.push(i);                        
+                        ControlFlow::Continue(())
+                    });
+                }
+
+                // iteration
+                let mut iterated_indices = Vec::new();
                 for index in intersection.by_ref().take(indices_to_consume){
                     assert!(hashsets_intersection.contains(&index));
                     // We cannot guarantee that index will
                     // exists in initial intersection, since
                     // it could be added after initial fill.
                     initial_hashsets_intersection_for_indices.remove(&index);
+                    iterated_indices.push(index);
                 }
 
                 index_cursor = intersection.cursor();
+                assert_equal(traversed_indices, iterated_indices);
+                assert_eq!(
+                    intersection.clone().move_to(index_cursor).next(),
+                    intersection.clone().move_to(traversed_cursor).next()
+                );
             }
 
-            // reduce ext3 test
+            // reduce test
             {
                 let mut indices2 = Vec::new();
                 for block in reduce(hiset_op, hi_sets.iter()).unwrap().block_iter(){
@@ -478,7 +596,7 @@ fn one_intersection_test(){
     hi_set.insert(8760);
     hi_set.insert(521);
 
-    let cursor = BlockIterCursor::default();
+    let cursor = BlockCursor::default();
     let iter = 
         reduce(BitAndOp, [&hi_set].into_iter()).unwrap()
         .into_block_iter()
@@ -528,7 +646,7 @@ fn regression_test1() {
         let iter = 
             reduce(BitAndOp, hi_sets.iter()).unwrap()
             .into_block_iter()
-            .move_to(BlockIterCursor::default());
+            .move_to(BlockCursor::default());
         for block in iter{
             block.traverse(
                 |index|{
@@ -831,7 +949,6 @@ fn block_cursor_test_empty2(){
     assert!(iter.next().is_none());
 }
 
-
 #[test]
 fn index_cursor_test(){
     type HiSparseBitset = BitSet<config::_64bit>;
@@ -857,4 +974,12 @@ fn index_cursor_test2(){
     
     let mut iter = seq.iter().move_to(c);
     assert_eq!(iter.next().unwrap(), milestone);
+}
+
+#[test]
+fn empty_block_cursor_clone_regression() {
+    let set = HiSparseBitset::new();
+    let c = IndexCursor::end();
+    let i = set.iter().move_to(c);
+    let _ = i.clone();
 }
