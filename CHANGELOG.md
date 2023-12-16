@@ -6,7 +6,7 @@
 
 ### Changed 
 - General minor performance improvement (removed index check in bit-manipulation).
-- `BitSetInterface`'s `IntoIterator` now implements `IndexIter`.
+- `BitSetInterface`'s `IntoIterator` now implement `IndexIter`.
 - `BlockIterCursor` renamed to `BlockCursor`.
 - `IndexIterCursor` renamed to `IndexCursor`.
 - `BlockCursor` and `IndexCursor` now have `Conf` generic parameter.
@@ -34,9 +34,7 @@
 - `DataBlockIter::traverse`.
 - `DataBlockIter` specialized `for_each` implementation.
 - `DataBlock` now implements `Eq`.
-
-- `BitSet::is_empty`.
-- All `BitSetInterface`s now implements `Eq`.
+- All `BitSetInterface`s now implement `Eq`.
 - `BitSet` (without &) now implements `op`s too.
 
 ### Removed

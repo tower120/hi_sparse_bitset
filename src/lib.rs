@@ -326,11 +326,6 @@ impl<Conf: Config> BitSet<Conf> {
             unsafe{ std::hint::unreachable_unchecked(); }
         }
     }
-    
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.level0_mask().is_zero()
-    }
 }
 
 impl<Conf: Config> FromIterator<usize> for BitSet<Conf> {

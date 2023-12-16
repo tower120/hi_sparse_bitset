@@ -46,35 +46,10 @@ fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Con
     let reduce = reduce(BitAndOp, sets.iter()).unwrap();
 
     let mut counter = 0;
-    
-/*    traverse_from(&reduce, BlockIterCursor::default(), |block|{
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        })
-    });*/
-    
-    /* traverse_index_from(&reduce, IndexIterCursor::default(), |_|{
-        counter += 1;
-        Continue(())
-    }); */
-
-/*     reduce.block_iter().traverse(|block|{
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())    
-        })
-    }); */
-
     reduce.iter().traverse(|_|{
         counter += 1;
-        Continue(())    
-    });    
-    
-    /*reduce.traverse(|_|{
-        counter += 1;
         Continue(())
-    });*/
+    });
     counter
 }
 

@@ -139,8 +139,6 @@ where
         (reduce.level1_mask(level0_index), true)
     }
 
-    // TODO: try pass level0_index - we always have it during iteration.
-    //      This will allow not to store it in `update_level1_blocks`
     #[inline]
     unsafe fn data_mask_from_blocks(
         level1_blocks: &Self::Level1Blocks, level1_index: usize
