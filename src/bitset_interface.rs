@@ -197,13 +197,13 @@ pub trait BitSetInterface
     type BlockIter<'a>: BlockIterator<IndexIter = Self::Iter<'a>> where Self: 'a;
     fn block_iter(&self) -> Self::BlockIter<'_>;
 
-    type Iter<'a>: IndexIterator<BlockIter = Self::BlockIter<'a>> where Self: 'a;
+    type Iter<'a>: IndexIterator where Self: 'a;
     fn iter(&self) -> Self::Iter<'_>;
 
     type IntoBlockIter: BlockIterator<IndexIter = Self::IntoIndexIter>;
     fn into_block_iter(self) -> Self::IntoBlockIter;
 
-    type IntoIndexIter: IndexIterator<BlockIter = Self::IntoBlockIter>;
+    type IntoIndexIter: IndexIterator;
 
     fn contains(&self, index: usize) -> bool;
 }
@@ -223,7 +223,7 @@ where
 
     #[inline]
     fn iter(&self) -> Self::Iter<'_> {
-        self.block_iter().as_indices()
+        DefaultIndexIterator::new(self)
     }
 
     type IntoBlockIter = DefaultBlockIterator<T>;
@@ -368,7 +368,7 @@ macro_rules! impl_into_iter {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                self.into_block_iter().as_indices()
+                DefaultIndexIterator::new(self)
             }
         }
     };

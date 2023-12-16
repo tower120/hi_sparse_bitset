@@ -58,7 +58,7 @@ where
     type IndexIter = SimpleIndexIter<T>;
 
     #[inline]
-    fn as_indices(self) -> Self::IndexIter {
+    fn into_indices(self) -> Self::IndexIter {
         SimpleIndexIter::new(self)
     }
 

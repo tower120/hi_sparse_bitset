@@ -343,4 +343,15 @@ where
             };
         }
     }
+
+    #[inline]
+    fn for_each<F>(self, mut f: F)
+    where
+        F: FnMut(usize)
+    {
+        self.traverse(|i|{
+            f(i);
+            ControlFlow::Continue(())
+        });
+    }
 }

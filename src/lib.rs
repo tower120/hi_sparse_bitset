@@ -74,11 +74,12 @@
 //! 
 //! # Iterator::for_each
 //! 
-//! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - `traverse`.
+//! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - [traverse].
 //! For tight loops, traversing is observably faster then iterating.
 //! 
 //! [for_each]: std::iter::Iterator::for_each
 //! [try_for_each]: std::iter::Iterator::try_for_each
+//! [traverse]: crate::iter::IndexIterator::traverse
 //! 
 //! # DataBlocks
 //! 
@@ -105,6 +106,7 @@ mod bitset_interface;
 mod bitset_op;
 pub mod iter;
 pub mod cache;
+pub mod prelude;
 
 #[cfg(test)]
 mod test;
@@ -478,11 +480,11 @@ pub struct DataBlockIter<Block: BitBlock>{
     bit_block_iter: Block::BitsIter
 }
 impl<Block: BitBlock> DataBlockIter<Block>{
-    #[inline]
+/*    #[inline]
     pub(crate) fn empty() -> Self{
         Self{ start_index: 0, bit_block_iter: BitQueue::empty() }
     }
-
+*/
     /// Stable version of [try_for_each].
     /// 
     /// traverse approx. 15% faster then iterator

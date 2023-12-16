@@ -15,6 +15,11 @@ pub trait BitBlock
     + Sized + Copy + Clone
 {
     const SIZE_POT_EXPONENT: usize;
+    
+    #[inline]
+    /*const*/ fn size() -> usize {
+        1 << Self::SIZE_POT_EXPONENT
+    }
 
     fn zero() -> Self;
     fn is_zero(&self) -> bool;
@@ -27,22 +32,12 @@ pub trait BitBlock
     /// `bit_index` is guaranteed to be valid
     fn get_bit(&self, bit_index: usize) -> bool;
 
+    // TODO: This can be removed, since there is BitQueue::traverse
+    //       which do the same and perform the same in optimized build.
     /// Returns Break if traverse was breaked.
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;
-    
-    // TODO: remove
-    /// Returns Break if traverse was breaked.
-    /// 
-    /// `index` is guaranteed to be valid.
-    fn traverse_bits_from<F>(&self, index: usize, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>
-    {
-        unimplemented!()
-    }
-    
 
     type BitsIter: BitQueue;
     fn bits_iter(self) -> Self::BitsIter;
@@ -147,18 +142,7 @@ impl BitBlock for wide::u64x2{
     {
         let array = self.as_array_ref();
         bit_utils::traverse_array_one_bits(array, f)
-    }
-    
-    #[inline]
-    fn traverse_bits_from<F>(&self, index: usize, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>
-    {
-        let array = self.as_array_ref();
-        unsafe{
-            bit_utils::traverse_array_one_bits_from_unchecked(array, index, f)
-        }
-    }    
+    }  
 
     type BitsIter = ArrayBitQueue<u64, 2>;
     #[inline]

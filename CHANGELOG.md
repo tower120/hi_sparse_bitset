@@ -1,16 +1,29 @@
 # Changelog
 
 ## 0.3.0
+### Fix
+- `IndexIter::move_to` to the empty bitset area fix.
+
 ### Changed 
 - General minor performance improvement (removed index check in bit-manipulation).
 - `BitSetInterface`'s `IntoIterator` now implements `IndexIter`.
 - `BlockIterCursor` renamed to `BlockCursor`.
 - `IndexIterCursor` renamed to `IndexCursor`.
+- `BlockCursor` and `IndexCursor` now have `Conf` generic parameter.
 - both cursors now <= 64bit in size.
+- `BlockIter::as_indices` renamed to `BlockIter::into_indices`. 
 
 ### Added
 - `BlockCursor` now implements `Copy`.
 - `IndexCursor` now implements `Copy`.
+- `BlockCursor::start()`.
+- `BlockCursor::end()`.
+- `BlockCursor::from(usize)`.
+- `BlockCursor::from(&DataBlock)`.
+- `IndexCursor::start()`.
+- `IndexCursor::end()`.
+- `IndexCursor::from(usize)`.
+- `IndexCursor::from(&DataBlock)`.
 - `CachingBlockIter` now implements `Clone`.
 - `CachingIndexIter` now implements `Clone`.
 - `CachingBlockIter::traverse`.
@@ -25,6 +38,10 @@
 - `BitSet::is_empty`.
 - All `BitSetInterface`s now implements `Eq`.
 - `BitSet` (without &) now implements `op`s too.
+
+### Removed
+- `IndexIterator::as_blocks()` removed as redundant, the same can be achieved with cursor move. 
+  And the very need of moving from index iterator to block iterator is questionable.
 
 ## 0.2.0
 ### Changed

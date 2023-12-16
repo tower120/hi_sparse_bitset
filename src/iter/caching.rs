@@ -49,6 +49,19 @@ where
 {
     #[inline]
     fn clone(&self) -> Self {
+        /*const*/ let have_dynamic_cache = mem::size_of::<T::CacheData>() > 0;
+        
+        // bitwise copy cache for Non-Dynamic
+        if !have_dynamic_cache{
+            return Self { 
+                virtual_set  : self.virtual_set.clone(), 
+                state        : self.state.clone(),
+                cache_data   : unsafe{ std::ptr::read(&self.cache_data) },
+                level1_blocks: unsafe{ std::ptr::read(&self.level1_blocks) }
+            };
+        }
+        
+        // rebuild cache for Dynamic
         let cache_data = self.virtual_set.make_cache();
         let mut this = Self { 
             virtual_set: self.virtual_set.clone(), 
@@ -56,11 +69,16 @@ where
             cache_data: ManuallyDrop::new(cache_data),
             level1_blocks: MaybeUninit::uninit()
         };
-
-        // rebuild cache
-        let _ = unsafe {
-            iter_update_level1_blocks(&this.virtual_set, &mut this.cache_data, &mut this.level1_blocks, this.state.level0_index)
-        };
+        
+        // Check if level0_index is valid.
+        //
+        // level0_index can be only invalid in initial state and for "end".
+        if this.state.level0_index < <T::Conf as Config>::Level0BitBlock::size()
+        {
+            let _ = unsafe {
+                iter_update_level1_blocks(&this.virtual_set, &mut this.cache_data, &mut this.level1_blocks, this.state.level0_index)
+            };                
+        }
 
         this
     }
@@ -95,10 +113,10 @@ impl<T> BlockIterator for CachingBlockIter<T>
 where
     T: LevelMasksExt,
 {
-    type DataBitBlock = <T::Conf as Config>::DataBitBlock;  
+    type Conf = T::Conf;
 
     #[inline]
-    fn cursor(&self) -> BlockCursor {
+    fn cursor(&self) -> BlockCursor<T::Conf> {
         // "initial state"?
         if self.state.level0_index == usize::MAX /*almost never*/ {
             return BlockCursor::default();
@@ -107,19 +125,33 @@ where
         BlockCursor {
             level0_index     : self.state.level0_index as u16,
             level1_next_index: self.state.level1_iter.current() as u16,
+            phantom: PhantomData
         }
     }
 
     type IndexIter = CachingIndexIter<T>;
 
     #[inline]
-    fn as_indices(self) -> CachingIndexIter<T> {
-        CachingIndexIter::new(self)
+    fn into_indices(mut self) -> CachingIndexIter<T> {
+        let data_block_iter =
+            if let Some(data_block) = self.next(){
+                data_block.into_iter()
+            } else {
+                DataBlockIter { 
+                    start_index   : usize::MAX, 
+                    bit_block_iter: BitQueue::empty() 
+                }                
+            };
+        
+        CachingIndexIter{
+            block_iter: self,
+            data_block_iter
+        }
     }
     
     #[must_use]
     #[inline]
-    fn move_to(mut self, cursor: BlockCursor) -> Self{
+    fn move_to(mut self, cursor: BlockCursor<T::Conf>) -> Self{
         // Here we update State.
         
         // Reset level0 mask if we not in "initial state"
@@ -148,7 +180,7 @@ where
         } else {
             // absolutely empty
             self.state.level1_iter  = BitQueue::empty();
-            self.state.level0_index = 1 << <T::Conf as Config>::DataBitBlock::SIZE_POT_EXPONENT; 
+            self.state.level0_index = <T::Conf as Config>::DataBitBlock::size(); 
         }
 
         self
@@ -252,7 +284,7 @@ where
 
 /// Caching index iterator.
 /// 
-/// Constructed by [BitSetInterface], or acquired from [CachingBlockIter::as_indices].
+/// Constructed by [BitSetInterface], or acquired from [CachingBlockIter::into_indices].
 /// 
 /// Same as [CachingBlockIter] but for indices.
 /// 
@@ -289,10 +321,15 @@ where
     T: LevelMasksExt,
 {
     #[inline]
-    pub fn new(block_iter: CachingBlockIter<T>) -> Self{
+    pub(crate) fn new(virtual_set: T) -> Self{
         Self{
-            block_iter,
-            data_block_iter: DataBlockIter::empty()
+            block_iter: CachingBlockIter::new(virtual_set),
+            data_block_iter: DataBlockIter{
+                // do not calc `start_index` now - will be calculated in 
+                // iterator, or in move_to.
+                start_index: 0, 
+                bit_block_iter: BitQueue::empty(),
+            }
         }
     }
 }
@@ -301,17 +338,12 @@ impl<T> IndexIterator for CachingIndexIter<T>
 where
     T: LevelMasksExt,
 {
-    type BlockIter = CachingBlockIter<T>;
-
-    #[inline]
-    fn as_blocks(self) -> Self::BlockIter{
-        self.block_iter
-    }
+    type Conf = T::Conf;
 
     #[must_use]
     #[inline]
-    fn move_to(mut self, cursor: IndexCursor) -> Self {
-        self.block_iter = self.block_iter.move_to(cursor.block_cursor.clone()/*TODO: Make block_cursor Copy*/);
+    fn move_to(mut self, cursor: IndexCursor<T::Conf>) -> Self {
+        self.block_iter = self.block_iter.move_to(cursor.block_cursor);
         
         self.data_block_iter = 
         if let Some(data_block) = self.block_iter.next(){
@@ -329,14 +361,18 @@ where
             data_block_iter
         } else {
             // absolutely empty
-            DataBlockIter::empty()
+            // point to the end
+            DataBlockIter{
+                start_index: usize::MAX,
+                bit_block_iter: BitQueue::empty(),
+            }
         };       
 
         self 
     }    
 
     #[inline]
-    fn cursor(&self) -> IndexCursor {
+    fn cursor(&self) -> IndexCursor<T::Conf> {
         if self.block_iter.state.level0_index == usize::MAX{
             return IndexCursor::default();
         }
@@ -348,7 +384,8 @@ where
             block_cursor: BlockCursor { 
                 level0_index: level0_index as u16, 
                 // This will actually point to current index, not to next one.
-                level1_next_index: level1_index as u16
+                level1_next_index: level1_index as u16,
+                phantom: PhantomData
             },
             data_next_index: self.data_block_iter.bit_block_iter.current() as u32,
         }        
