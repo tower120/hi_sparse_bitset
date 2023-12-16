@@ -62,7 +62,7 @@ where
         unimplemented!()
     }
 
-    fn traverse<F>(self, f: F) -> ControlFlow<()> 
+    fn traverse<F>(self, _f: F) -> ControlFlow<()> 
     where 
         F: FnMut(DataBlock<<Self::Conf as Config>::DataBitBlock>) -> ControlFlow<()> 
     {
@@ -147,11 +147,11 @@ where
         unimplemented!()
     }
 
-    fn move_to(self, cursor: IndexCursor<Self::Conf>) -> Self {
+    fn move_to(self, _cursor: IndexCursor<Self::Conf>) -> Self {
         unimplemented!()
     }
 
-    fn traverse<F>(self, f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
+    fn traverse<F>(self, _f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
         unimplemented!()
     }
 }
