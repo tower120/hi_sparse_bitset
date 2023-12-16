@@ -68,6 +68,8 @@
 //! [BitSetInterface] iterators can return [cursor()], pointing to current iterator position. 
 //! You can use [Cursor] to move ANY [BitSetInterface] iterator to it's position with [move_to].
 //! 
+//! You can also build cursor from index.
+//! 
 //! [cursor()]: crate::iter::BlockIterator::cursor
 //! [Cursor]: crate::iter::BlockCursor
 //! [move_to]: crate::iter::BlockIterator::move_to
@@ -480,11 +482,6 @@ pub struct DataBlockIter<Block: BitBlock>{
     bit_block_iter: Block::BitsIter
 }
 impl<Block: BitBlock> DataBlockIter<Block>{
-/*    #[inline]
-    pub(crate) fn empty() -> Self{
-        Self{ start_index: 0, bit_block_iter: BitQueue::empty() }
-    }
-*/
     /// Stable version of [try_for_each].
     /// 
     /// traverse approx. 15% faster then iterator

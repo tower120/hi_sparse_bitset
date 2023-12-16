@@ -10,7 +10,7 @@ use super::*;
 
 /// Caching block iterator.
 ///
-/// Constructed by [BitSetInterface], or acquired from [CachingIndexIter::as_blocks].
+/// Constructed by [BitSetInterface].
 /// 
 /// Cache pre-data level block pointers, making data blocks access faster.
 /// Also, can discard (on pre-data level) sets with empty level1 blocks from iteration.

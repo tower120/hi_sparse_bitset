@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops::ControlFlow;
 
-use crate::block::Block;
 use crate::{DataBlock, DataBlockIter, level_indices};
 use crate::bit_block::BitBlock;
 use crate::config::Config;
@@ -66,7 +65,9 @@ impl<Conf: Config> BlockCursor<Conf>{
     
     /// Constructs cursor that points to the end of bitset.
     ///
-    /// Iterator [moved_to] this cursor will always return `None`. 
+    /// Iterator [moved to] this cursor will always return `None`. 
+    /// 
+    /// [moved to]: crate::iter::BlockIterator::move_to
     #[inline]
     pub fn end() -> Self{
         Self{
@@ -138,7 +139,9 @@ impl<Conf: Config> IndexCursor<Conf>{
     
     /// Constructs cursor that points to the end of the bitset.
     ///
-    /// Iterator [moved_to] this cursor will always return `None`. 
+    /// Iterator [moved to] this cursor will always return `None`. 
+    /// 
+    /// [moved to]: crate::iter::IndexIterator::move_to
     #[inline]
     pub fn end() -> Self{
         Self{
@@ -222,6 +225,8 @@ pub trait BlockIterator
     /// This means that if you [move_to] iterator to cursor, 
     /// iterator will be in the same position as now. IOW - cursor points
     /// to the NEXT element.
+    /// 
+    /// [move_to]: Self::move_to
     fn cursor(&self) -> BlockCursor<Self::Conf>;
 
     type IndexIter: IndexIterator;
@@ -263,69 +268,4 @@ pub trait IndexIterator
     fn traverse<F>(self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;
-}
-
-// TODO: Remove this, or move to simple_iter
-// It's just flatmap across block iterator.
-#[cfg(feature = "simple_iter")]
-pub struct IndexIter<T>
-where
-    T: BlockIterator
-{
-    block_iter: T,
-    data_block_iter: DataBlockIter<T::DataBitBlock>,
-}
-#[cfg(feature = "simple_iter")]
-impl<T> IndexIter<T>
-where
-    T: BlockIterator
-{
-    #[inline]
-    pub fn new(block_iter: T) -> Self{
-        Self{
-            block_iter,
-            data_block_iter: DataBlockIter::empty()
-        }
-    }
-}
-#[cfg(feature = "simple_iter")]
-impl<T> IndexIterator for IndexIter<T>
-where
-    T: BlockIterator
-{
-    fn cursor(&self) -> IndexCursor {
-        unimplemented!()     
-    }
-
-    fn move_to(self, _cursor: IndexCursor) -> Self {
-        unimplemented!()
-    }
-
-    fn traverse<F>(self, f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
-        unimplemented!()
-    }
-}
-#[cfg(feature = "simple_iter")]
-impl<T> Iterator for IndexIter<T>
-where
-    T: BlockIterator
-{
-    type Item = usize;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO: ?? Still empty blocks ??
-        // looping, because BlockIter may return empty DataBlocks.
-        loop{
-            if let Some(index) = self.data_block_iter.next(){
-                return Some(index);
-            }
-
-            if let Some(data_block) = self.block_iter.next(){
-                self.data_block_iter = data_block.into_iter();
-            } else {
-                return None;
-            }
-        }
-    }
 }

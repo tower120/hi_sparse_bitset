@@ -1,12 +1,11 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{ControlFlow, Range};
-use std::ops::ControlFlow::Break;
-use crate::{BitSet, DataBlock, level_indices};
+use std::ops::ControlFlow;
+use crate::{BitSet, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
-use crate::iter::{BlockIterator, BlockCursor, IndexIterator, IndexCursor, CachingIndexIter};
+use crate::iter::{BlockIterator, IndexIterator};
 use crate::bitset_op::BitSetOp;
 use crate::reduce::Reduce;
 
