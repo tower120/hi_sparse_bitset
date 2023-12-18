@@ -128,18 +128,22 @@ _(By wrapping bitsets in Mutex(es))_
 
 ### Invariant intersection
 
-If intersection of bitsets _(or any other operation)_ does not change with possible bitset mutations - you're guaranteed to correctly traverse all of its elements.
+If intersection of bitsets _(or any other operation)_ does not change with possible bitsets mutations - you're guaranteed to correctly traverse all of its elements.
 
 ### Bitsets mutations narrows intersection/union
 
-If in intersection, only `remove` operation mutates bitsets - this guarantees that you will traverse all elements that still exists. (thou this elements can be different at different point in time)
+If in intersection, only `remove` operation mutates bitsets - this guarantees that you will not loose any valid elements at the end of "multi-session iteration".
 
 ### Speculative iteration
 
 For other cases - you're guaranteed to proceed forward, without repeated elements.
-_(On each iteration session you'll see initial valid elements + some valid new ones)_
+_(In each iteration session you'll see initial valid elements + some valid new ones)_
 You can use this if you don't need to traverse EXACT intersection. For example, if you
 process intersection of the same bitsets over and over in a loop.
+
+# Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version differences.
 
 # Known alternatives
 
