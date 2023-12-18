@@ -289,27 +289,6 @@ where
             let start_index = self.bit_block_index*size_of::<P>()*8;
             return bit_utils::traverse_array_one_bits( slice, |i|f(start_index + i));
         }
-        
-        /* // 1. Traverse active
-        let block: P = unsafe{
-            mem::transmute_copy(&self.bit_block_iters[0])
-        };
-        let start_index = self.bit_block_index*size_of::<P>()*8; 
-        let ctrl = bit_utils::traverse_one_bits(block, |i|f(start_index + i));
-        if ctrl.is_break(){
-            return Break(());
-        }
-        
-        // 2. Traverse the rest
-        let from_index = self.bit_block_index + 1;
-        let slice: &[P] = unsafe{std::slice::from_raw_parts(
-            // cast is safe because OneBitsIter<P> transmutable to P.
-            self.bit_block_iters.as_ptr().add(from_index).cast(),
-            N-from_index
-        )};
-        // TODO: do better
-        let start_index = from_index*size_of::<P>()*8; 
-        bit_utils::traverse_array_one_bits( slice, |i|f(start_index+i)) */
     }
 
 

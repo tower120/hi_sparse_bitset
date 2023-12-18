@@ -14,12 +14,54 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 
 /// Cache is not used.
 ///
-/// This also discards cache usage for all underlying [reduce] operations.
-/// Cache still can be applied on top of NoCache operation.
+/// If reduced iterator contains other nested reduce operations - all of them
+/// WILL NOT use cache as well.
 ///
-/// # Example
+/// # Example 1
 ///
-/// TODO
+/// ```
+/// # use itertools::assert_equal;
+/// # use hi_sparse_bitset::{reduce, reduce_w_cache};
+/// # use hi_sparse_bitset::binary_op::{BitAndOp, BitOrOp};
+/// # use hi_sparse_bitset::cache::NoCache;
+/// # type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
+/// let su1 = [BitSet::from([1,2]), BitSet::from([5,6])];
+/// let union1 = reduce(BitOrOp, su1.iter()).unwrap();
+///
+/// let su2 = [BitSet::from([1,3]), BitSet::from([4,6])];
+/// let union2 = reduce(BitOrOp, su2.iter()).unwrap();
+///
+/// let si = [union1, union2];
+/// let intersection = reduce_w_cache(BitAndOp, si.iter(), NoCache).unwrap();
+///
+/// // Not only `intersection` will be computed without cache,
+/// // but also `union1` and `union2`.
+/// assert_equal(intersection, [1,6]);
+///
+/// ```
+/// 
+/// # Example 2
+///
+/// ```
+/// # use itertools::assert_equal;
+/// # use hi_sparse_bitset::{reduce, reduce_w_cache};
+/// # use hi_sparse_bitset::binary_op::{BitAndOp, BitOrOp};
+/// # use hi_sparse_bitset::cache::NoCache;
+/// # type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
+/// let su1 = [BitSet::from([1,2]), BitSet::from([5,6])];
+/// let union1 = reduce_w_cache(BitOrOp, su1.iter(), NoCache).unwrap();
+///
+/// let su2 = [BitSet::from([1,3]), BitSet::from([4,6])];
+/// let union2 = reduce_w_cache(BitOrOp, su2.iter(), NoCache).unwrap();
+///
+/// let si = [union1, union2];
+/// let intersection = reduce(BitAndOp, si.iter()).unwrap();
+///
+/// // Only `union1` and `union2` will not use cache, `intersection`
+/// // will be computed with cache.
+/// assert_equal(intersection, [1,6]);
+///
+/// ```
 /// 
 /// [reduce]: crate::reduce()
 #[derive(Default, Copy, Clone)]

@@ -35,6 +35,7 @@
 - `DataBlockIter` specialized `for_each` implementation.
 - `DataBlock` now implements `Eq`.
 - All `BitSetInterface`s now implement `Eq`.
+- All `BitSetInterface`s now implement `Debug`.
 - `BitSet` (without &) now implements `op`s too.
 
 ### Removed

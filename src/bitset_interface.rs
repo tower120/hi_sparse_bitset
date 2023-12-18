@@ -1,5 +1,6 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
+use std::fmt;
 use crate::{BitSet, level_indices};
 use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
@@ -374,3 +375,17 @@ macro_rules! impl_into_iter {
 }
 impl_all!(impl_into_iter);
 impl_all_ref!(impl_into_iter);
+
+macro_rules! impl_debug {
+    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
+        impl<$($generics),*> fmt::Debug for $t
+        where
+            $($where_bounds)*
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_list().entries(self.iter()).finish()
+            }
+        }
+    };
+}
+impl_all!(impl_debug);

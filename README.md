@@ -63,36 +63,28 @@ See doc for more info.
 
 It is faster than hashsets and pure bitsets for all inter-bitset operations
 and all cases in orders of magnitude. It is even faster than 
-hibitset, despite hi_sparse_bitset having additional source of
-indirection. See benchmarks.
+hibitset. See benchmarks.
 
 ## Against `hibitset`
 
 Despite the fact that `hi_sparse_bitset` have layer of indirection for accessing
 each level, it is faster (sometimes significantly) then `hibitset` for all operations.
 
-On top of that, it is also **algorithmically** faster than `hibitset` for 
+On top of that, it is also **algorithmically** faster than `hibitset` in 
 non-intersection inter-bitset operations due to caching iterator, which
-can skip bitsets with empty data blocks on pre-data level. 
-
-Technical details:
-_Hierarchical structure of both `hibitset` and `hi_sparse_bitset` is most
-friendly to intersection operations. Doing, for example, union between bitsets,
-requires for each level of each bitset to take bitblocks and OR them. `hi_sparse_bitset`
-cache level1 blocks during iteration (as a form of iteration optimisation, since it access 
-blocks through indirection), 
-and can skip the empty ones. That excludes bitsets with empty level1 blocks completely 
-from participating in data level operation._
+can skip bitsets with empty level1 blocks. 
 
 ## Against `roaring`
 
 `roaring` is a hybrid bitset, that use sorted array of bitblocks for set with large integers,
 and big fixed-sized bitset for a small ones.
-We'll consider case for intersecting `roaring` sets with large integers.
+Let's consider case for intersecting `roaring` sets, that contain large integers.
 In order to find intersection, it binary search for bitblocks with the same start index,
 then intersect each bitblock. Operation of binary searching matching bitblock 
 is algorithmically more complex O(log N), then directly traversing intersected 
 bitblock in hierarchy, which is close to O(1) for each resulted bitblock.
+Plus, hierarchical bitset discard groups of non-intersected blocks
+early, due to its tree-like nature.
 
 # DataBlock operations
 
@@ -108,7 +100,8 @@ In addition to "the usual" bitset-to-bitset(binary) operations,
 you can apply operation to iterator of bitsets (reduce/fold).
 In this way, you not only apply operation to the arbitrary
 number of bitsets, but also have the same result type,
-for any bitsets count. And of course, you can have reduce on reduce on reduce...
+for any bitsets count. Which allows to have nested reduce
+operations.
 
 # Ordered/sorted
 
@@ -122,16 +115,31 @@ Which means, that you can use it even if container was mutated.
 
 ## Multi-session iteration
 
-This way you can suspend and later resume your iteration 
+With cursor you can suspend and later resume your iteration 
 session. For example, you can create an intersection between several bitsets, iterate it
 to a certain point, and obtain an iterator cursor. Then, later,
 you can make an intersection between the same bitsets (but possibly in different state),
 and resume iteration from the last point you stopped, using cursor.
 
-## Multi-threaded env use-case
+## Thread safe multi-session iteration
 
-In multithreaded env, you can lock your bitsets, read part of intersection into buffer,
-unlock, process buffer, repeat until the end.
+You can use "multi-session iteration" in multithreaded env too.
+_(By wrapping bitsets in Mutex(es))_
+
+### Invariant intersection
+
+If intersection of bitsets _(or any other operation)_ does not change with possible bitset mutations - you're guaranteed to correctly traverse all of its elements.
+
+### Bitsets mutations narrows intersection/union
+
+If in intersection, only `remove` operation mutates bitsets - this guarantees that you will traverse all elements that still exists. (thou this elements can be different at different point in time)
+
+### Speculative iteration
+
+For other cases - you're guaranteed to proceed forward, without repeated elements.
+_(On each iteration session you'll see initial valid elements + some valid new ones)_
+You can use this if you don't need to traverse EXACT intersection. For example, if you
+process intersection of the same bitsets over and over in a loop.
 
 # Known alternatives
 
