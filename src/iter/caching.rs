@@ -19,6 +19,14 @@ use super::*;
 /// # traverse / for_each
 /// 
 /// Block [traverse]/[for_each] is up to 25% faster then iteration.
+/// 
+/// # Empty blocks
+/// 
+/// Block iterator may occasionally return empty blocks.
+/// This is for performance reasons - it is faster to just iterate/traverse empty
+/// blocks through, then to add adding additional `is_empty` check in the middle of the loop.
+/// 
+/// TODO: consider changing this behavior.
 ///
 /// # Memory footprint
 ///
@@ -221,40 +229,6 @@ where
     }    
 }
 
-
-impl<T> BlockIterator for CachingBlockIter<T>
-where
-    T: LevelMasksExt,
-{
-    type Conf = T::Conf;
-
-    #[inline]
-    fn cursor(&self) -> BlockCursor<T::Conf> {
-        Self::cursor(self)
-    }
-
-    type IndexIter = CachingIndexIter<T>;
-
-    #[inline]
-    fn into_indices(self) -> CachingIndexIter<T> {
-        Self::into_indices(self)
-    }
-    
-    #[must_use]
-    #[inline]
-    fn move_to(self, cursor: BlockCursor<T::Conf>) -> Self{
-        Self::move_to(self, cursor)
-    }
-
-    #[inline]
-    fn traverse<F>(self, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
-    {
-        Self::traverse(self, f)
-    }
-}
-
 impl<T> Iterator for CachingBlockIter<T>
 where
     T: LevelMasksExt,
@@ -405,7 +379,7 @@ where
         self 
     }    
 
-    /// Same as [BlockIterator::cursor], but for index.
+    /// Same as [CachingBlockIter::cursor], but for index.
     #[inline]
     pub fn cursor(&self) -> IndexCursor<T::Conf> {
         if self.block_iter.state.level0_index == usize::MAX{
@@ -465,32 +439,6 @@ where
             )    
         )        
     }        
-}
-
-impl<T> IndexIterator for CachingIndexIter<T>
-where
-    T: LevelMasksExt,
-{
-    type Conf = T::Conf;
-
-    #[must_use]
-    #[inline]
-    fn move_to(self, cursor: IndexCursor<T::Conf>) -> Self {
-        Self::move_to(self, cursor)
-    }    
-
-    #[inline]
-    fn cursor(&self) -> IndexCursor<T::Conf> {
-        Self::cursor(self)
-    }
-
-    #[inline]
-    fn traverse<F>(self, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>    
-    {
-        Self::traverse(self, f)
-    }    
 }
 
 impl<T> Iterator for CachingIndexIter<T>

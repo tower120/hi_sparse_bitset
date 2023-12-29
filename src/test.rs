@@ -5,10 +5,9 @@ use itertools::assert_equal;
 use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
-use crate::iter::{BlockCursor, IndexCursor, IndexIterator};
+use crate::iter::{BlockCursor, IndexCursor};
 use crate::bitset_op::BitSetOp;
 use crate::bitset_interface::BitSetInterface;
-use crate::iter::BlockIterator;
 
 use super::*;
 

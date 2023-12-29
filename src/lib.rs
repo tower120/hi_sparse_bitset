@@ -70,9 +70,9 @@
 //! 
 //! You can also build cursor from index.
 //! 
-//! [cursor()]: crate::iter::BlockIterator::cursor
-//! [Cursor]: crate::iter::BlockCursor
-//! [move_to]: crate::iter::BlockIterator::move_to
+//! [cursor()]: crate::iter::CachingIndexIter::cursor
+//! [Cursor]: crate::iter::IndexCursor
+//! [move_to]: crate::iter::CachingIndexIter::move_to
 //! 
 //! # Iterator::for_each
 //! 
@@ -81,7 +81,7 @@
 //! 
 //! [for_each]: std::iter::Iterator::for_each
 //! [try_for_each]: std::iter::Iterator::try_for_each
-//! [traverse]: crate::iter::IndexIterator::traverse
+//! [traverse]: crate::iter::CachingIndexIter::traverse
 //! 
 //! # DataBlocks
 //! 

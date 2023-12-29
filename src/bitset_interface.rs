@@ -176,7 +176,7 @@ pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
 /// 
 /// # Traversing
 /// 
-/// [BlockIter] and [Iter] have specialized `for_each()` implementation and `traverse()`.
+/// [CachingBlockIter] and [CachingIndexIter] have specialized `for_each()` implementation and `traverse()`.
 /// 
 /// Like with most Rust iterators, traversing[^traverse_def] is somewhat faster
 /// then iteration. In this particular case, it has noticeable difference in micro-benchmarks.
@@ -186,8 +186,8 @@ pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
 /// [^traverse_def]: Under "traverse" we understand function application for 
 /// each element of bitset.
 /// 
-/// [BlockIter]: Self::BlockIter
-/// [Iter]: Self::Iter
+/// [CachingBlockIter]: crate::iter::CachingBlockIter
+/// [CachingIndexIter]: crate::iter::CachingIndexIter
 pub trait BitSetInterface
     : BitSetBase 
     + IntoIterator<IntoIter = DefaultIndexIterator<Self>> 

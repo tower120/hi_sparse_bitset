@@ -40,37 +40,6 @@ where
 }
 
 
-impl<T> BlockIterator for SimpleBlockIter<T>
-where
-    T: LevelMasksExt
-{
-    type Conf = T::Conf;
-
-    #[inline]
-    fn cursor(&self) -> BlockCursor<Self::Conf> {
-        unimplemented!()
-    }
-
-    type IndexIter = SimpleIndexIter<T>;
-
-    #[inline]
-    fn into_indices(self) -> Self::IndexIter {
-        SimpleIndexIter::new(self)
-    }
-
-    fn move_to(self, _cursor: BlockCursor<Self::Conf>) -> Self {
-        unimplemented!()
-    }
-
-    fn traverse<F>(self, _f: F) -> ControlFlow<()> 
-    where 
-        F: FnMut(DataBlock<<Self::Conf as Config>::DataBitBlock>) -> ControlFlow<()> 
-    {
-        unimplemented!()
-    }
-}
-
-
 impl<T> Iterator for SimpleBlockIter<T>
 where
     T: LevelMasks,
@@ -135,24 +104,6 @@ where
                 bit_block_iter: BitQueue::empty()
             }
         }
-    }
-}
-impl<T> IndexIterator for SimpleIndexIter<T>
-where
-    T: LevelMasks
-{
-    type Conf = T::Conf;
-
-    fn cursor(&self) -> IndexCursor<Self::Conf> {
-        unimplemented!()
-    }
-
-    fn move_to(self, _cursor: IndexCursor<Self::Conf>) -> Self {
-        unimplemented!()
-    }
-
-    fn traverse<F>(self, _f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
-        unimplemented!()
     }
 }
 impl<T> Iterator for SimpleIndexIter<T>

@@ -231,7 +231,6 @@ mod test{
     use itertools::assert_equal;
     use rand::Rng;
     use crate::reduce;
-    use crate::bitset_interface::BitSetInterface;
     use super::*;
 
     type HiSparseBitset = crate::BitSet<crate::config::_64bit>;

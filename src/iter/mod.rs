@@ -2,7 +2,6 @@
 
 use std::marker::PhantomData;
 use std::mem;
-use std::ops::ControlFlow;
 
 use crate::{DataBlock, DataBlockIter, level_indices};
 use crate::bit_block::BitBlock;
@@ -18,7 +17,7 @@ pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
 /// Block iterator cursor, or position of iterable.
 /// 
-/// Created by [BlockIterator::cursor()], used by [BlockIterator::move_to()].
+/// Created by [CachingBlockIter::cursor()], used by [CachingBlockIter::move_to()].
 /// Also can be built [from] index and DataBlock.
 /// 
 /// [from]: Self::from
@@ -67,7 +66,7 @@ impl<Conf: Config> BlockCursor<Conf>{
     ///
     /// Iterator [moved to] this cursor will always return `None`. 
     /// 
-    /// [moved to]: crate::iter::BlockIterator::move_to
+    /// [moved to]: CachingBlockIter::move_to
     #[inline]
     pub fn end() -> Self{
         Self{
@@ -111,7 +110,7 @@ impl<Conf: Config> From<&DataBlock<Conf::DataBitBlock>> for BlockCursor<Conf>{
 
 /// Index iterator cursor.
 /// 
-/// Created by [IndexIterator::cursor()], used by [IndexIterator::move_to()].
+/// Created by [CachingIndexIter::cursor()], used by [CachingIndexIter::move_to()].
 /// Also can be built [from] index and DataBlock.
 /// 
 /// [from]: Self::from
@@ -141,7 +140,7 @@ impl<Conf: Config> IndexCursor<Conf>{
     ///
     /// Iterator [moved to] this cursor will always return `None`. 
     /// 
-    /// [moved to]: crate::iter::IndexIterator::move_to
+    /// [moved to]: CachingIndexIter::move_to
     #[inline]
     pub fn end() -> Self{
         Self{
@@ -201,71 +200,4 @@ impl<Conf: Config> Clone for State<Conf>{
             level0_index: self.level0_index.clone() 
         }
     }
-}
-
-/// Block iterator.
-/// 
-/// # Empty blocks
-/// 
-/// Block iterator may occasionally return empty blocks.
-/// This is for performance reasons - it is faster to just iterate/traverse empty
-/// blocks through, then to add adding additional `is_empty` check in the middle of the loop.
-/// 
-/// TODO: consider changing this behavior.
-/// 
-/// [BitSet]: crate::BitSet
-pub trait BlockIterator
-    : Iterator<Item = DataBlock<<Self::Conf as Config>::DataBitBlock>> 
-    + Sized
-{
-    type Conf: Config;
-
-    /// Constructs cursor for BlockIterator, with current iterator position.
-    /// 
-    /// This means that if you [move_to] iterator to cursor, 
-    /// iterator will be in the same position as now. IOW - cursor points
-    /// to the NEXT element.
-    /// 
-    /// [move_to]: Self::move_to
-    fn cursor(&self) -> BlockCursor<Self::Conf>;
-
-    type IndexIter: IndexIterator;
-
-    /// Into index iterator.
-    fn into_indices(self) -> Self::IndexIter;
-
-    /// Move iterator to cursor position.
-    /// 
-    /// Fast O(1) operation.
-    fn move_to(self, cursor: BlockCursor<Self::Conf>) -> Self;
-
-    /// Stable [try_for_each] version.
-    /// 
-    /// [try_for_each]: std::iter::Iterator::try_for_each
-    fn traverse<F>(self, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(DataBlock<<Self::Conf as Config>::DataBitBlock>) -> ControlFlow<()>;
-}
-
-/// Index iterator.
-pub trait IndexIterator
-    : Iterator<Item = usize>
-    + Sized
-{
-    type Conf: Config;
-
-    /// Same as [BlockIterator::cursor], but for index.
-    fn cursor(&self) -> IndexCursor<Self::Conf>;
-
-    /// Move iterator to cursor position.
-    /// 
-    /// Fast O(1) operation.
-    fn move_to(self, cursor: IndexCursor<Self::Conf>) -> Self;
-
-    /// Stable [try_for_each] version.
-    /// 
-    /// [try_for_each]: std::iter::Iterator::try_for_each
-    fn traverse<F>(self, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>;
 }
