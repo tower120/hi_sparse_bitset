@@ -1,7 +1,6 @@
 //! Example of using traverse() with cursor.
 
 fn main(){
-    use hi_sparse_bitset::prelude::*;
     use hi_sparse_bitset::iter::IndexCursor;
     use std::ops::ControlFlow::*;
     

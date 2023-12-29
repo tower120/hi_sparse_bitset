@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+### Changed
+-  `BitSetInterface` changed (simplified).
+
+### Added
+- `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetIntreface` in 
+order to prevent the need of `BitSetInterface` import.
+- `CachingIndexIter` now duplicate `IndexIterator`.
+- `CachingBlockIter` now duplicate `BlockIterator`.
+
 ## 0.3.0
 ### Fix
 - `IndexIter::move_to` to the empty bitset area fix.

@@ -7,7 +7,7 @@ use crate::binary_op::*;
 use crate::BitSet;
 use crate::bit_block::BitBlock;
 use crate::reduce::Reduce;
-use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, /*duplicate_bitset_interface,*/ LevelMasks, LevelMasksExt};
 use crate::config::Config;
 
 /// Binary operation application, as lazy bitset.
@@ -29,6 +29,14 @@ impl<Op, S1, S2> BitSetOp<Op, S1, S2>{
         BitSetOp { s1, s2, phantom:PhantomData }
     }
 }
+
+/*duplicate_bitset_interface!(
+    impl<Op, S1, S2> for BitSetOp<Op, S1, S2> 
+    where
+        Op: BinaryOp,
+        S1: LevelMasksExt,
+        S2: LevelMasksExt<Conf = S1::Conf>,
+);*/
 
 impl<Op, S1, S2> BitSetBase for BitSetOp<Op, S1, S2>
 where

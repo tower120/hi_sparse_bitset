@@ -108,7 +108,6 @@ mod bitset_interface;
 mod bitset_op;
 pub mod iter;
 pub mod cache;
-pub mod prelude;
 
 #[cfg(test)]
 mod test;
@@ -216,7 +215,10 @@ impl<Conf: Config> Clone for BitSet<Conf> {
     }
 }
 
-impl<Conf: Config> BitSet<Conf> {
+impl<Conf> BitSet<Conf> 
+where
+    Conf: Config
+{
     #[inline]
     pub fn new() -> Self{
         Self::default()

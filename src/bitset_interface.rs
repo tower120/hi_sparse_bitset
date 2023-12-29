@@ -6,7 +6,6 @@ use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
-use crate::iter::{BlockIterator, IndexIterator};
 use crate::bitset_op::BitSetOp;
 use crate::reduce::Reduce;
 
@@ -191,58 +190,14 @@ pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
 /// [Iter]: Self::Iter
 pub trait BitSetInterface
     : BitSetBase 
-    + IntoIterator<IntoIter = Self::IntoIndexIter> 
+    + IntoIterator<IntoIter = DefaultIndexIterator<Self>> 
     + LevelMasksExt 
+    + Sized
 {
-    type BlockIter<'a>: BlockIterator<IndexIter = Self::Iter<'a>> where Self: 'a;
-    fn block_iter(&self) -> Self::BlockIter<'_>;
-
-    type Iter<'a>: IndexIterator where Self: 'a;
-    fn iter(&self) -> Self::Iter<'_>;
-
-    type IntoBlockIter: BlockIterator<IndexIter = Self::IntoIndexIter>;
-    fn into_block_iter(self) -> Self::IntoBlockIter;
-
-    type IntoIndexIter: IndexIterator;
-
+    fn block_iter(&self) -> DefaultBlockIterator<&'_ Self>;
+    fn iter(&self) -> DefaultIndexIterator<&'_ Self>;
+    fn into_block_iter(self) -> DefaultBlockIterator<Self>;
     fn contains(&self, index: usize) -> bool;
-}
-
-impl<T: LevelMasksExt> BitSetInterface for T
-where
-    T: IntoIterator<IntoIter = DefaultIndexIterator<T>>
-{
-    type BlockIter<'a> = DefaultBlockIterator<&'a T> where Self: 'a;
-
-    #[inline]
-    fn block_iter(&self) -> Self::BlockIter<'_> {
-        DefaultBlockIterator::new(self)
-    }
-
-    type Iter<'a> = <Self::BlockIter<'a> as BlockIterator>::IndexIter where Self: 'a;
-
-    #[inline]
-    fn iter(&self) -> Self::Iter<'_> {
-        DefaultIndexIterator::new(self)
-    }
-
-    type IntoBlockIter = DefaultBlockIterator<T>;
-
-    #[inline]
-    fn into_block_iter(self) -> Self::IntoBlockIter {
-        DefaultBlockIterator::new(self)
-    }
-
-    type IntoIndexIter = DefaultIndexIterator<T>;
-
-    #[inline]
-    fn contains(&self, index: usize) -> bool {
-        let (level0_index, level1_index, data_index) = level_indices::<T::Conf>(index);
-        unsafe{
-            let data_block = self.data_mask(level0_index, level1_index);
-            data_block.get_bit(data_index)
-        }
-    }
 }
 
 macro_rules! impl_all {
@@ -286,6 +241,70 @@ macro_rules! impl_all_ref {
         );
     }
 }
+
+macro_rules! impl_bitset_interface {
+    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
+        impl<$($generics),*> BitSetInterface for $t
+        where
+            $($where_bounds)*
+        {
+            #[inline]
+            fn block_iter(&self) -> crate::config::DefaultBlockIterator<&'_ Self> {
+                crate::config::DefaultBlockIterator::new(self)
+            }
+        
+            #[inline]
+            fn iter(&self) -> crate::config::DefaultIndexIterator<&'_ Self> {
+                crate::config::DefaultIndexIterator::new(self)
+            }
+        
+            #[inline]
+            fn into_block_iter(self) -> crate::config::DefaultBlockIterator<Self> {
+                crate::config::DefaultBlockIterator::new(self)
+            }
+        
+            #[inline]
+            fn contains(&self, index: usize) -> bool {
+                let (level0_index, level1_index, data_index) = 
+                    level_indices::<<Self as BitSetBase>::Conf>(index);
+                unsafe{
+                    let data_block = self.data_mask(level0_index, level1_index);
+                    data_block.get_bit(data_index)
+                }
+            }            
+        }     
+    }    
+}
+impl_all!(impl_bitset_interface);
+impl_all_ref!(impl_bitset_interface);
+
+/// Duplicate/forward part of BitSetInterface to prevent the need of it's import.  
+macro_rules! duplicate_bitset_interface {
+    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
+        impl<$($generics),*> $t
+        where
+            $($where_bounds)*
+        {
+            #[inline]
+            pub fn block_iter<'a>(&'a self) -> crate::config::DefaultBlockIterator<&'a Self> 
+            {
+                crate::config::DefaultBlockIterator::new(self)
+            }   
+            
+            #[inline]
+            pub fn iter<'a>(&'a self) -> crate::config::DefaultIndexIterator<&'a Self> 
+            {
+                crate::config::DefaultIndexIterator::new(self)
+            }
+            
+            #[inline]
+            pub fn contains(&self, index: usize) -> bool {
+                BitSetInterface::contains(self, index)
+            }
+        }
+    }
+}
+impl_all!(duplicate_bitset_interface);
 
 // Optimistic depth-first check.
 fn bitsets_eq<L, R>(left: L, right: R) -> bool

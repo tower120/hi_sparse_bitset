@@ -106,17 +106,16 @@ where
             level1_blocks: MaybeUninit::uninit()
         }
     }
-}
-
-
-impl<T> BlockIterator for CachingBlockIter<T>
-where
-    T: LevelMasksExt,
-{
-    type Conf = T::Conf;
-
+    
+    /// Constructs cursor for BlockIterator, with current iterator position.
+    /// 
+    /// This means that if you [move_to] iterator to cursor, 
+    /// iterator will be in the same position as now. IOW - cursor points
+    /// to the NEXT element.
+    /// 
+    /// [move_to]: Self::move_to    
     #[inline]
-    fn cursor(&self) -> BlockCursor<T::Conf> {
+    pub fn cursor(&self) -> BlockCursor<T::Conf> {
         // "initial state"?
         if self.state.level0_index == usize::MAX /*almost never*/ {
             return BlockCursor::default();
@@ -128,11 +127,10 @@ where
             phantom: PhantomData
         }
     }
-
-    type IndexIter = CachingIndexIter<T>;
-
+    
+    /// Into index iterator.
     #[inline]
-    fn into_indices(mut self) -> CachingIndexIter<T> {
+    pub fn into_indices(mut self) -> CachingIndexIter<T> {
         let data_block_iter =
             if let Some(data_block) = self.next(){
                 data_block.into_iter()
@@ -147,11 +145,14 @@ where
             block_iter: self,
             data_block_iter
         }
-    }
+    }  
     
+    /// Move iterator to cursor position.
+    /// 
+    /// Fast O(1) operation.
     #[must_use]
     #[inline]
-    fn move_to(mut self, cursor: BlockCursor<T::Conf>) -> Self{
+    pub fn move_to(mut self, cursor: BlockCursor<T::Conf>) -> Self{
         // Here we update State.
         
         // Reset level0 mask if we not in "initial state"
@@ -186,8 +187,11 @@ where
         self
     }
 
+    /// Stable [try_for_each] version.
+    /// 
+    /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
-    fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    pub fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
     where
         F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
     {
@@ -214,6 +218,40 @@ where
                 &self.virtual_set, level0_index, &mut self.cache_data, &mut self.level1_blocks, |b| f(b)
             )    
         )
+    }    
+}
+
+
+impl<T> BlockIterator for CachingBlockIter<T>
+where
+    T: LevelMasksExt,
+{
+    type Conf = T::Conf;
+
+    #[inline]
+    fn cursor(&self) -> BlockCursor<T::Conf> {
+        Self::cursor(self)
+    }
+
+    type IndexIter = CachingIndexIter<T>;
+
+    #[inline]
+    fn into_indices(self) -> CachingIndexIter<T> {
+        Self::into_indices(self)
+    }
+    
+    #[must_use]
+    #[inline]
+    fn move_to(self, cursor: BlockCursor<T::Conf>) -> Self{
+        Self::move_to(self, cursor)
+    }
+
+    #[inline]
+    fn traverse<F>(self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
+    {
+        Self::traverse(self, f)
     }
 }
 
@@ -332,17 +370,13 @@ where
             }
         }
     }
-}
-
-impl<T> IndexIterator for CachingIndexIter<T>
-where
-    T: LevelMasksExt,
-{
-    type Conf = T::Conf;
-
+    
+    /// Move iterator to cursor position.
+    /// 
+    /// Fast O(1) operation.
     #[must_use]
     #[inline]
-    fn move_to(mut self, cursor: IndexCursor<T::Conf>) -> Self {
+    pub fn move_to(mut self, cursor: IndexCursor<T::Conf>) -> Self {
         self.block_iter = self.block_iter.move_to(cursor.block_cursor);
         
         self.data_block_iter = 
@@ -371,8 +405,9 @@ where
         self 
     }    
 
+    /// Same as [BlockIterator::cursor], but for index.
     #[inline]
-    fn cursor(&self) -> IndexCursor<T::Conf> {
+    pub fn cursor(&self) -> IndexCursor<T::Conf> {
         if self.block_iter.state.level0_index == usize::MAX{
             return IndexCursor::default();
         }
@@ -391,8 +426,11 @@ where
         }        
     }
 
+    /// Stable [try_for_each] version.
+    /// 
+    /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
-    fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    pub fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>    
     {
@@ -426,6 +464,32 @@ where
                 |b| b.traverse(|i| f(i))
             )    
         )        
+    }        
+}
+
+impl<T> IndexIterator for CachingIndexIter<T>
+where
+    T: LevelMasksExt,
+{
+    type Conf = T::Conf;
+
+    #[must_use]
+    #[inline]
+    fn move_to(self, cursor: IndexCursor<T::Conf>) -> Self {
+        Self::move_to(self, cursor)
+    }    
+
+    #[inline]
+    fn cursor(&self) -> IndexCursor<T::Conf> {
+        Self::cursor(self)
+    }
+
+    #[inline]
+    fn traverse<F>(self, f: F) -> ControlFlow<()>
+    where
+        F: FnMut(usize) -> ControlFlow<()>    
+    {
+        Self::traverse(self, f)
     }    
 }
 
