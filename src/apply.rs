@@ -41,12 +41,11 @@ where
     S2: LevelMasks<Conf = S1::Conf>,
 {
     type Conf = S1::Conf;
-
-    #[inline]
-    fn is_trusted_hierarchy() -> bool {
-        Op::TRUSTED_HIERARCHY
-        & S1::is_trusted_hierarchy() & S2::is_trusted_hierarchy()
-    }
+    
+    /// true if S1, S2 and Op are `TrustedHierarchy`. 
+    const TRUSTED_HIERARCHY: bool = 
+        Op::TRUSTED_HIERARCHY 
+        & S1::TRUSTED_HIERARCHY & S2::TRUSTED_HIERARCHY;
 }
 
 impl<Op, S1, S2> LevelMasks for Apply<Op, S1, S2>

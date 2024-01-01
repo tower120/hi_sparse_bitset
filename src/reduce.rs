@@ -28,11 +28,9 @@ where
     S::Item: LevelMasks
 {
     type Conf = <S::Item as BitSetBase>::Conf;
-    
-    #[inline]
-    fn is_trusted_hierarchy() -> bool {
-        Op::TRUSTED_HIERARCHY & S::Item::is_trusted_hierarchy() 
-    }    
+
+    /// true if S and Op are `TrustedHierarchy`.
+    const TRUSTED_HIERARCHY: bool = Op::TRUSTED_HIERARCHY & S::Item::TRUSTED_HIERARCHY;
 }
 
 impl<Op, S, Cache> LevelMasks for Reduce<Op, S, Cache>

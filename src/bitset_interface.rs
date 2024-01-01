@@ -13,8 +13,8 @@ use crate::reduce::Reduce;
 pub trait BitSetBase {
     type Conf: Config;
     
-    /// NOTE: Should be const. Computes and acts as const though.
-    fn is_trusted_hierarchy() -> bool;
+    /// Does this bitset have `TrustedHierarchy`?
+    const TRUSTED_HIERARCHY: bool;
 }
 
 /// Basic interface for accessing block masks. Can work with [SimpleIter].
@@ -90,11 +90,7 @@ pub trait LevelMasksExt: LevelMasks{
 
 impl<'a, T: LevelMasks> BitSetBase for &'a T {
     type Conf = T::Conf;
-    
-    #[inline]
-    fn is_trusted_hierarchy() -> bool{
-        T::is_trusted_hierarchy()
-    }
+    const TRUSTED_HIERARCHY: bool = T::TRUSTED_HIERARCHY;
 }
 impl<'a, T: LevelMasks> LevelMasks for &'a T {
     #[inline]
@@ -263,7 +259,7 @@ macro_rules! impl_all_ref {
 }
 
 fn bitset_is_empty<S: LevelMasksExt>(bitset: S) -> bool {
-    if S::is_trusted_hierarchy(){
+    if S::TRUSTED_HIERARCHY{
         return bitset.level0_mask().is_zero();
     }
     
@@ -361,8 +357,7 @@ where
     let right_level0_mask = right.level0_mask();
 
     // We can do early return with TrustedHierarchy. 
-    /*const*/ let is_trusted_hierarchy = 
-        L::is_trusted_hierarchy() & R::is_trusted_hierarchy();
+    /*const*/ let is_trusted_hierarchy = L::TRUSTED_HIERARCHY & R::TRUSTED_HIERARCHY;
     
     let level0_mask = 
         if is_trusted_hierarchy{

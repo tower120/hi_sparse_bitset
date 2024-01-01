@@ -89,7 +89,7 @@
 //! is guaranteed to correspond to non-empty block.
 //! That may be not true for [difference] and [symmetric difference] operation result.
 //! 
-//! You can check if bitset has TrustedHierarchy with [is_trusted_hierarchy()]. 
+//! You can check if bitset has TrustedHierarchy with [BitSetBase::TRUSTED_HIERARCHY]. 
 //! 
 //! Bitsets with TrustedHierarchy are faster to compare with [Eq] and
 //! have O(1) [is_empty()].
@@ -97,7 +97,6 @@
 //! [difference]: ops::Sub
 //! [symmetric difference]: ops::Xor
 //! [is_empty()]: BitSetInterface::is_empty
-//! [is_trusted_hierarchy()]: BitSetBase::is_trusted_hierarchy()  
 //! 
 //! # DataBlocks
 //! 
@@ -371,11 +370,7 @@ impl<Conf: Config, const N: usize> From<[usize; N]> for BitSet<Conf> {
 
 impl<Conf: Config> BitSetBase for BitSet<Conf>{
     type Conf = Conf;
-
-    #[inline]
-    fn is_trusted_hierarchy() -> bool {
-        true
-    }
+    const TRUSTED_HIERARCHY: bool = true;
 }
 
 impl<Conf: Config> LevelMasks for BitSet<Conf>{
