@@ -105,7 +105,7 @@ pub mod config;
 pub mod binary_op;
 mod reduce;
 mod bitset_interface;
-mod bitset_op;
+mod bitset_app;
 pub mod iter;
 pub mod cache;
 
@@ -127,7 +127,7 @@ use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
-pub use bitset_op::BitSetOp;
+pub use bitset_app::BitSetApp;
 pub use reduce::Reduce;
 
 /// Use any other operation then intersection(and) require
@@ -514,13 +514,13 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
 
 /// Creates a lazy bitset, as [BinaryOp] application between two bitsets.
 #[inline]
-pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetOp<Op, S1, S2>
+pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetApp<Op, S1, S2>
 where
     Op: BinaryOp,
     S1: BitSetInterface,
     S2: BitSetInterface<Conf = <S1 as BitSetBase>::Conf>,
 {
-    BitSetOp::new(op, s1, s2)
+    BitSetApp::new(op, s1, s2)
 }
 
 /// Creates a lazy bitset, as bitsets iterator reduction.
