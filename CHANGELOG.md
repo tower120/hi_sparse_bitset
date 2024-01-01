@@ -1,17 +1,23 @@
 # Changelog
 
 ## 0.4.0
+### Fix
+- `Eq` did not work correctly between !`TrustedHierarchy` bitsets.
+
 ### Changed
 -  `BitSetInterface` changed (simplified).
 - `BitSetOp` renamed to `Apply`.
 - `BinaryOp` renamed to `BitSetOp`.
 - `binary_op` module renamed to `ops`.
+- All former `binary_op` operations renamed.
 
 ### Added
 - `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetInterface` in 
 order to prevent the need of `BitSetInterface` import.
 - `CachingIndexIter` now have former `IndexIterator` functionality.
 - `CachingBlockIter` now have former `BlockIterator` functionality.
+- `BitSetInterface::is_empty()`.
+- `BitSetBase::is_trusted_hierarchy()`.
 
 ### Removed
 - `IndexIterator` removed.

@@ -1,10 +1,10 @@
 //! Operations for [apply] and [reduce].
 //!
-//! * [BitAndOp] is the only operation that can discard blocks early
+//! * [And] is the only operation that can discard blocks early
 //! on hierarchy level during traverse. Complexity-wise this is the fastest operation.
-//! * [BitOrOp] - does not need to discard any blocks, since it is a merge operation by definition.
-//! * [BitXorOp] - have [BitOrOp] performance.
-//! * [BitSubOp] - traverse all left operand bitset blocks.
+//! * [Or] - does not need to discard any blocks, since it is a merge operation by definition.
+//! * [Xor] - have [Or] performance.
+//! * [Sub] - traverse all left operand bitset blocks.
 //!
 //! You can make your own operation by implementing [BitSetOp].
 //!
@@ -25,6 +25,10 @@ use crate::bit_block::BitBlock;
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
 pub trait BitSetOp: Default + Copy + 'static{
+    /// Will operation between two TrustedHierarchy bitsets produce 
+    /// TrustedHierarchy as well?
+    const TRUSTED_HIERARCHY: bool;
+    
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
 
@@ -36,8 +40,10 @@ pub trait BitSetOp: Default + Copy + 'static{
 /// 
 /// Will traverse only intersected blocks of left and right.
 #[derive(Default, Copy, Clone)]
-pub struct BitAndOp;
-impl BitSetOp for BitAndOp {
+pub struct And;
+impl BitSetOp for And {
+    const TRUSTED_HIERARCHY: bool = true;
+    
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitAnd::bitand(left, right)
@@ -53,8 +59,10 @@ impl BitSetOp for BitAndOp {
 /// 
 /// Will traverse all blocks of left and right. (Since all of them participate in merge)
 #[derive(Default, Copy, Clone)]
-pub struct BitOrOp;
-impl BitSetOp for BitOrOp {
+pub struct Or;
+impl BitSetOp for Or {
+    const TRUSTED_HIERARCHY: bool = true;
+    
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
@@ -68,10 +76,12 @@ impl BitSetOp for BitOrOp {
 
 /// Symmetric difference.
 /// 
-/// Have performance of [BitOrOp].
+/// Have performance of [Or].
 #[derive(Default, Copy, Clone)]
-pub struct BitXorOp;
-impl BitSetOp for BitXorOp {
+pub struct Xor;
+impl BitSetOp for Xor {
+    const TRUSTED_HIERARCHY: bool = false;
+    
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
@@ -87,8 +97,10 @@ impl BitSetOp for BitXorOp {
 /// 
 /// Have performance of traversing left operand.
 #[derive(Default, Copy, Clone)]
-pub struct BitSubOp;
-impl BitSetOp for BitSubOp {
+pub struct Sub;
+impl BitSetOp for Sub {
+    const TRUSTED_HIERARCHY: bool = false;
+    
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, _right: T) -> T {
         left

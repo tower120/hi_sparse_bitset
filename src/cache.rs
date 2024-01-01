@@ -22,17 +22,17 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// ```
 /// # use itertools::assert_equal;
 /// # use hi_sparse_bitset::{reduce, reduce_w_cache};
-/// # use hi_sparse_bitset::ops::{BitAndOp, BitOrOp};
+/// # use hi_sparse_bitset::ops::{And, Or};
 /// # use hi_sparse_bitset::cache::NoCache;
 /// # type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 /// let su1 = [BitSet::from([1,2]), BitSet::from([5,6])];
-/// let union1 = reduce(BitOrOp, su1.iter()).unwrap();
+/// let union1 = reduce(Or, su1.iter()).unwrap();
 ///
 /// let su2 = [BitSet::from([1,3]), BitSet::from([4,6])];
-/// let union2 = reduce(BitOrOp, su2.iter()).unwrap();
+/// let union2 = reduce(Or, su2.iter()).unwrap();
 ///
 /// let si = [union1, union2];
-/// let intersection = reduce_w_cache(BitAndOp, si.iter(), NoCache).unwrap();
+/// let intersection = reduce_w_cache(And, si.iter(), NoCache).unwrap();
 ///
 /// // Not only `intersection` will be computed without cache,
 /// // but also `union1` and `union2`.
@@ -45,17 +45,17 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// ```
 /// # use itertools::assert_equal;
 /// # use hi_sparse_bitset::{reduce, reduce_w_cache};
-/// # use hi_sparse_bitset::ops::{BitAndOp, BitOrOp};
+/// # use hi_sparse_bitset::ops::{And, Or};
 /// # use hi_sparse_bitset::cache::NoCache;
 /// # type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 /// let su1 = [BitSet::from([1,2]), BitSet::from([5,6])];
-/// let union1 = reduce_w_cache(BitOrOp, su1.iter(), NoCache).unwrap();
+/// let union1 = reduce_w_cache(Or, su1.iter(), NoCache).unwrap();
 ///
 /// let su2 = [BitSet::from([1,3]), BitSet::from([4,6])];
-/// let union2 = reduce_w_cache(BitOrOp, su2.iter(), NoCache).unwrap();
+/// let union2 = reduce_w_cache(Or, su2.iter(), NoCache).unwrap();
 ///
 /// let si = [union1, union2];
-/// let intersection = reduce(BitAndOp, si.iter()).unwrap();
+/// let intersection = reduce(And, si.iter()).unwrap();
 ///
 /// // Only `union1` and `union2` will not use cache, `intersection`
 /// // will be computed with cache.

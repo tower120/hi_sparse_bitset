@@ -3,7 +3,7 @@ use std::iter::zip;
 
 use itertools::assert_equal;
 use rand::Rng;
-use crate::ops::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
+use crate::ops::{And, Or, Sub, Xor};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::{BlockCursor, IndexCursor};
 use crate::apply::Apply;
@@ -562,28 +562,28 @@ where
 
 #[test]
 fn fuzzy_and_test(){
-    fuzzy_reduce_test(BitAndOp, |l,r| l&r);
+    fuzzy_reduce_test(And, |l, r| l&r);
 }
 
 #[test]
 fn fuzzy_or_test(){
-    fuzzy_reduce_test(BitOrOp, |l,r| l|r);
+    fuzzy_reduce_test(Or, |l, r| l|r);
 }
 
 #[test]
 fn fuzzy_xor_test(){
-    fuzzy_reduce_test(BitXorOp, |l,r| l^r);
+    fuzzy_reduce_test(Xor, |l, r| l^r);
 }
 
 // Sub, probably, should not be used with reduce. But for test it will work.
 #[test]
 fn fuzzy_sub_test(){
-    fuzzy_reduce_test(BitSubOp, |l,r| l-r);
+    fuzzy_reduce_test(Sub, |l, r| l-r);
 }
 
 #[test]
 fn empty_intersection_test(){
-    let reduced = reduce(BitAndOp, std::iter::empty::<&HiSparseBitset>());
+    let reduced = reduce(And, std::iter::empty::<&HiSparseBitset>());
     assert!(reduced.is_none());
 }
 
@@ -597,7 +597,7 @@ fn one_intersection_test(){
 
     let cursor = BlockCursor::default();
     let iter = 
-        reduce(BitAndOp, [&hi_set].into_iter()).unwrap()
+        reduce(And, [&hi_set].into_iter()).unwrap()
         .into_block_iter()
         .move_to(cursor);
 
@@ -643,7 +643,7 @@ fn regression_test1() {
     {
         let mut indices2 = Vec::new();
         let iter = 
-            reduce(BitAndOp, hi_sets.iter()).unwrap()
+            reduce(And, hi_sets.iter()).unwrap()
             .into_block_iter()
             .move_to(BlockCursor::default());
         for block in iter{
@@ -665,14 +665,14 @@ fn resume_valid_level1_index_miri_test(){
     let s2 = s1.clone();
 
     let list = [s1, s2];
-    let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
+    let r = reduce_w_cache(And, list.iter(), DynamicCache).unwrap();
     let cursor = {
         let mut i =  r.block_iter();
         i.next().unwrap();
         i.cursor()
     };
 
-    let r = reduce_w_cache(BitAndOp, list.iter(), DynamicCache).unwrap();
+    let r = reduce_w_cache(And, list.iter(), DynamicCache).unwrap();
 
     let mut i = r.block_iter().move_to(cursor);
     i.next();
@@ -698,11 +698,11 @@ fn reduce2_test() {
     let hi_sets = [hi_set1, hi_set2, hi_set3];
     let hi_set_refs = [&hi_sets[0], &hi_sets[1], &hi_sets[2]];
 
-    let result = reduce(BitAndOp, hi_sets.iter()).unwrap();
+    let result = reduce(And, hi_sets.iter()).unwrap();
     let intersections = result.iter();
     assert_equal(intersections, [1,3]);
 
-    let result = reduce(BitAndOp, hi_set_refs.iter().copied()).unwrap();
+    let result = reduce(And, hi_set_refs.iter().copied()).unwrap();
     let intersections = result.iter();
     assert_equal(intersections, [1,3]);
 }
@@ -726,7 +726,7 @@ fn reduce_or_test(){
         let hi_set2: HiSparseBitset = hi_set2_in.clone().into_iter().collect();
 
         let hi_sets = [&hi_set1, &hi_set2];
-        let union = reduce(BitOrOp, hi_sets.iter().copied()).unwrap();
+        let union = reduce(Or, hi_sets.iter().copied()).unwrap();
 
         let mut out = Vec::new();
         for block in union.block_iter(){
@@ -755,8 +755,8 @@ fn op_or_regression_test1(){
 
     let group1 = [&h1, &h2];
     let group2 = [&h3, &h4];
-    let reduce1 = reduce(BitOrOp, group1.iter().copied()).unwrap();
-    let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
+    let reduce1 = reduce(Or, group1.iter().copied()).unwrap();
+    let reduce2 = reduce(Or, group2.iter().copied()).unwrap();
 
     let op = reduce1 | reduce2;
     let iter = op.block_iter();
@@ -785,7 +785,7 @@ fn reduce_xor_test(){
         let hi_set2: HiSparseBitset = hi_set2_in.clone().into_iter().collect();
 
         let hi_sets = [&hi_set1, &hi_set2];
-        let reduce = reduce(BitXorOp, hi_sets.iter().copied()).unwrap();
+        let reduce = reduce(Xor, hi_sets.iter().copied()).unwrap();
 
         let mut out = Vec::new();
         for block in reduce.block_iter(){
@@ -811,7 +811,7 @@ fn multilayer_test(){
         HiSparseBitset::from_iter(seq1.into_iter()),
         HiSparseBitset::from_iter(seq1.into_iter()),
     ];
-    let and1 = reduce(BitAndOp, hi_sets1.iter()).unwrap();
+    let and1 = reduce(And, hi_sets1.iter()).unwrap();
 
     let seq2 = [3,4,5];
     let hi_sets2 = [
@@ -819,7 +819,7 @@ fn multilayer_test(){
         HiSparseBitset::from_iter(seq2.into_iter()),
         HiSparseBitset::from_iter(seq2.into_iter()),
     ];
-    let and2 = reduce(BitAndOp, hi_sets2.iter()).unwrap();
+    let and2 = reduce(And, hi_sets2.iter()).unwrap();
 
     let seq3 = [5,6,7];
     let hi_sets3 = [
@@ -827,10 +827,10 @@ fn multilayer_test(){
         HiSparseBitset::from_iter(seq3.into_iter()),
         HiSparseBitset::from_iter(seq3.into_iter()),
     ];
-    let and3 = reduce(BitAndOp, hi_sets3.iter()).unwrap();
+    let and3 = reduce(And, hi_sets3.iter()).unwrap();
 
     let ands = [and1, and2, and3];
-    let or = reduce(BitOrOp, ands.iter()).unwrap();
+    let or = reduce(Or, ands.iter()).unwrap();
     let or_collected: Vec<_> = or.block_iter().flat_map(|block|block.iter()).collect();
 
     assert_equal(or_collected, [1,2,3,4,5,6,7]);
@@ -847,17 +847,17 @@ fn multilayer_or_test(){
         HiSparseBitset::from([1,2,3]),
         HiSparseBitset::from([3,4,5]),
     ];
-    let or1 = reduce(BitOrOp, sets1.iter()).unwrap();
+    let or1 = reduce(Or, sets1.iter()).unwrap();
 
     let offset = LEVEL_1*2;
     let sets2 = [
         HiSparseBitset::from([offset+1,offset+2,offset+3]),
         HiSparseBitset::from([offset+3,offset+4,offset+5]),
     ];
-    let or2 = reduce(BitOrOp, sets2.iter()).unwrap();
+    let or2 = reduce(Or, sets2.iter()).unwrap();
 
     let higher_kind = [or1, or2];
-    let higher_kind_or = reduce(BitOrOp, higher_kind.iter()).unwrap();
+    let higher_kind_or = reduce(Or, higher_kind.iter()).unwrap();
 
     let or_collected: Vec<_> = higher_kind_or.block_iter().flat_map(|block|block.iter()).collect();
     assert_equal(or_collected, [1,2,3,4,5, offset+1,offset+2,offset+3,offset+4,offset+5]);
@@ -883,11 +883,11 @@ fn multilayer_fixed_dynamic_cache(){
 
     let group1 = [seq1, seq2];
     let group2 = [seq3, seq4];
-    let or1 = reduce_w_cache(BitOrOp, group1.iter(), DynamicCache).unwrap();
-    let or2 = reduce_w_cache(BitOrOp, group2.iter(), DynamicCache).unwrap();
+    let or1 = reduce_w_cache(Or, group1.iter(), DynamicCache).unwrap();
+    let or2 = reduce_w_cache(Or, group2.iter(), DynamicCache).unwrap();
 
     let group_finale = [or1, or2];
-    let and = reduce_w_cache(BitAndOp, group_finale.iter(), FixedCache::<32>).unwrap();
+    let and = reduce_w_cache(And, group_finale.iter(), FixedCache::<32>).unwrap();
 
     assert_equal(and.iter(), [5]);
 }
@@ -981,4 +981,18 @@ fn empty_block_cursor_clone_regression() {
     let c = IndexCursor::end();
     let i = set.iter().move_to(c);
     let _ = i.clone();
+}
+
+#[test]
+fn non_trusted_hierarchy_eq_test(){
+    let set1 = HiSparseBitset::from([
+        10, 64000, 10000
+    ]);
+    let set2 = HiSparseBitset::from([
+        64000
+    ]);
+    let set3 = HiSparseBitset::from([
+        10, 10000
+    ]);
+    assert_eq!(set1 - set2, set3);
 }

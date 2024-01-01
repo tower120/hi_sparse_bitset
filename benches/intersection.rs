@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
-use hi_sparse_bitset::ops::BitAndOp;
+use hi_sparse_bitset::ops::And;
 use hi_sparse_bitset::iter::{BlockCursor, IndexCursor, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
@@ -19,18 +19,18 @@ use crate::common::bench;
 // ---- REDUCE -----
 // === Block iter ===
 fn hi_sparse_bitset_reduce_and_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(BitAndOp, sets.iter()).unwrap();
+    let reduce = reduce(And, sets.iter()).unwrap();
     SimpleBlockIter::new(reduce).count()
 }
 
 fn hi_sparse_bitset_reduce_and_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(BitAndOp, sets.iter()).unwrap();
+    let reduce = reduce(And, sets.iter()).unwrap();
     reduce.into_block_iter().count()
 }
 
 // === Traverse ===
 fn hi_sparse_bitset_reduce_and_simple_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(BitAndOp, sets.iter()).unwrap();
+    let reduce = reduce(And, sets.iter()).unwrap();
 
     let mut counter = 0;
     for block in SimpleBlockIter::new(reduce) {
@@ -43,7 +43,7 @@ fn hi_sparse_bitset_reduce_and_simple_traverse<Conf: Config>(sets: &[BitSet<Conf
 }
 
 fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(BitAndOp, sets.iter()).unwrap();
+    let reduce = reduce(And, sets.iter()).unwrap();
 
     let mut counter = 0;
     reduce.iter().traverse(|_|{
@@ -55,12 +55,12 @@ fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Con
 
 // === Iter ===
 fn hi_sparse_bitset_reduce_and_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(BitAndOp, sets.iter()).unwrap();
+    let reduce = reduce(And, sets.iter()).unwrap();
     SimpleIndexIter::new(SimpleBlockIter::new(reduce)).count()
 }
 
 fn hi_sparse_bitset_reduce_and_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(BitAndOp, sets.iter()).unwrap();
+    let reduce = reduce(And, sets.iter()).unwrap();
     reduce.into_iter().count()
 }
 

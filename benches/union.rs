@@ -13,22 +13,22 @@ use crate::common::bench;
 
 // ---- REDUCE ----
 fn hi_sparse_bitset_reduce_or_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = reduce(BitOrOp, sets.iter()).unwrap();
+    let union = reduce(Or, sets.iter()).unwrap();
     SimpleBlockIter::new(union).count()
 }
 
 fn hi_sparse_bitset_reduce_or_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = reduce(BitOrOp, sets.iter()).unwrap();
+    let union = reduce(Or, sets.iter()).unwrap();
     union.into_block_iter().count()
 }
 
 fn hi_sparse_bitset_reduce_or_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = reduce(BitOrOp, sets.iter()).unwrap();
+    let union = reduce(Or, sets.iter()).unwrap();
     SimpleIndexIter::new(SimpleBlockIter::new(union)).count()
 }
 
 fn hi_sparse_bitset_reduce_or_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = reduce(BitOrOp, sets.iter()).unwrap();
+    let union = reduce(Or, sets.iter()).unwrap();
     union.into_iter().count()
 }
 
