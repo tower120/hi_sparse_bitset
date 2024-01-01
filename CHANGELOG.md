@@ -5,7 +5,7 @@
 -  `BitSetInterface` changed (simplified).
 
 ### Added
-- `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetIntreface` in 
+- `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetInterface` in 
 order to prevent the need of `BitSetInterface` import.
 - `CachingIndexIter` now have former `IndexIterator` functionality.
 - `CachingBlockIter` now have former `BlockIterator` functionality.
