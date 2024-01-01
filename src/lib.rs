@@ -105,7 +105,7 @@ pub mod config;
 pub mod ops;
 mod reduce;
 mod bitset_interface;
-mod bitset_app;
+mod apply;
 pub mod iter;
 pub mod cache;
 
@@ -126,8 +126,8 @@ use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
-pub use bitset_interface::{BitSetBase, BitSetInterface};
-pub use bitset_app::BitSetApp;
+pub use bitset_interface::{BitSetBase, BitSetInterface, TrustedHierarchy};
+pub use apply::Apply;
 pub use reduce::Reduce;
 
 /// Use any other operation then intersection(and) require
@@ -413,6 +413,8 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
     }
 }
 
+impl<Conf: Config> TrustedHierarchy for BitSet<Conf>{}
+
 #[inline]
 fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{
     let level0_offset = level0_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT + Conf::Level1BitBlock::SIZE_POT_EXPONENT);
@@ -514,13 +516,13 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
 
 /// Creates a lazy bitset, as [BitSetOp] application between two bitsets.
 #[inline]
-pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetApp<Op, S1, S2>
+pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> Apply<Op, S1, S2>
 where
     Op: BitSetOp,
     S1: BitSetInterface,
     S2: BitSetInterface<Conf = <S1 as BitSetBase>::Conf>,
 {
-    BitSetApp::new(op, s1, s2)
+    Apply::new(op, s1, s2)
 }
 
 /// Creates a lazy bitset, as bitsets iterator reduction.
