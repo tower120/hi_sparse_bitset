@@ -37,7 +37,7 @@ use super::*;
 /// [BitSetInterface]: crate::BitSetInterface
 /// [cache]: crate::cache
 /// [reduce]: crate::reduce()
-/// [binary_op]: crate::binary_op
+/// [binary_op]: crate::ops
 /// [traverse]: Self::traverse
 /// [for_each]: std::iter::Iterator::for_each
 pub struct CachingBlockIter<T>

@@ -2,7 +2,7 @@ fn main(){
     use itertools::assert_equal;
 
     use hi_sparse_bitset::reduce;    
-    use hi_sparse_bitset::binary_op::*;
+    use hi_sparse_bitset::ops::*;
     
     type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
     let bitset1 = BitSet::from([1,2,3,4]);

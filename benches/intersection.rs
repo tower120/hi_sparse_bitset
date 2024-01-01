@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 use std::collections::HashSet;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
-use hi_sparse_bitset::binary_op::BitAndOp;
+use hi_sparse_bitset::ops::BitAndOp;
 use hi_sparse_bitset::iter::{BlockCursor, IndexCursor, SimpleBlockIter, SimpleIndexIter};
 use ControlFlow::*;
 use criterion::measurement::Measurement;

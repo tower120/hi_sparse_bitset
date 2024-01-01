@@ -3,7 +3,7 @@ use std::iter::zip;
 
 use itertools::assert_equal;
 use rand::Rng;
-use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
+use crate::ops::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::{BlockCursor, IndexCursor};
 use crate::bitset_app::BitSetApp;
@@ -229,7 +229,7 @@ fn fuzzy_test(){
     }
 }
 
-fn fuzzy_reduce_test<Op: BinaryOp, H>(hiset_op: Op, hashset_op: H)
+fn fuzzy_reduce_test<Op: BitSetOp, H>(hiset_op: Op, hashset_op: H)
 where
     H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>,
     H: Copy
@@ -478,7 +478,7 @@ where
             {
                 fn run<Op, S1, S2>(op: BitSetApp<Op, S1, S2>) -> Vec<usize>
                 where
-                    Op: BinaryOp,
+                    Op: BitSetOp,
                     S1: LevelMasksExt,
                     S2: LevelMasksExt<Conf = S1::Conf>,
                 {

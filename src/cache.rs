@@ -8,7 +8,7 @@
 //! [CachingBlockIter]: crate::iter::CachingBlockIter
 //! [reduce]: crate::reduce()
 
-use crate::binary_op::BinaryOp;
+use crate::ops::BitSetOp;
 use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCacheImpl};
 
@@ -22,7 +22,7 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// ```
 /// # use itertools::assert_equal;
 /// # use hi_sparse_bitset::{reduce, reduce_w_cache};
-/// # use hi_sparse_bitset::binary_op::{BitAndOp, BitOrOp};
+/// # use hi_sparse_bitset::ops::{BitAndOp, BitOrOp};
 /// # use hi_sparse_bitset::cache::NoCache;
 /// # type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 /// let su1 = [BitSet::from([1,2]), BitSet::from([5,6])];
@@ -45,7 +45,7 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// ```
 /// # use itertools::assert_equal;
 /// # use hi_sparse_bitset::{reduce, reduce_w_cache};
-/// # use hi_sparse_bitset::binary_op::{BitAndOp, BitOrOp};
+/// # use hi_sparse_bitset::ops::{BitAndOp, BitOrOp};
 /// # use hi_sparse_bitset::cache::NoCache;
 /// # type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 /// let su1 = [BitSet::from([1,2]), BitSet::from([5,6])];
@@ -97,7 +97,7 @@ pub trait ReduceCache: Default + 'static{
             Conf = <S::Item as BitSetBase>::Conf
         >
     where
-        Op: BinaryOp,
+        Op: BitSetOp,
         S: Iterator + Clone,
         S::Item: LevelMasksExt;
 }
@@ -106,7 +106,7 @@ impl ReduceCache for NoCache{
     const MAX_LEN: usize = usize::MAX;
     type Impl<Op, S> = NonCachedImpl<Op, S>
     where
-        Op: BinaryOp,
+        Op: BitSetOp,
         S: Iterator + Clone,
         S::Item: LevelMasksExt;
 }
@@ -115,7 +115,7 @@ impl<const N: usize> ReduceCache for FixedCache<N>{
     const MAX_LEN: usize = N;
     type Impl<Op, S> = FixedCacheImpl<Op, S, N>
     where
-        Op: BinaryOp,
+        Op: BitSetOp,
         S: Iterator + Clone,
         S::Item: LevelMasksExt;
 }
@@ -124,7 +124,7 @@ impl ReduceCache for DynamicCache{
     const MAX_LEN: usize = usize::MAX;
     type Impl<Op, S> = DynamicCacheImpl<Op, S>
     where
-        Op: BinaryOp,
+        Op: BitSetOp,
         S: Iterator + Clone,
         S::Item: LevelMasksExt;
 }

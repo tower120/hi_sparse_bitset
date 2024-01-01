@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAnd, BitOr, BitXor, Sub};
-use crate::binary_op::*;
+use crate::ops::*;
 use crate::BitSet;
 use crate::bit_block::BitBlock;
 use crate::reduce::Reduce;
@@ -32,7 +32,7 @@ impl<Op, S1, S2> BitSetApp<Op, S1, S2>{
 
 impl<Op, S1, S2> BitSetBase for BitSetApp<Op, S1, S2>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S1: LevelMasks,
     S2: LevelMasks<Conf = S1::Conf>,
 {
@@ -41,7 +41,7 @@ where
 
 impl<Op, S1, S2> LevelMasks for BitSetApp<Op, S1, S2>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S1: LevelMasks,
     S2: LevelMasks<Conf= S1::Conf>,
 {
@@ -73,7 +73,7 @@ where
 
 impl<Op, S1, S2> LevelMasksExt for BitSetApp<Op, S1, S2>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S1: LevelMasksExt,
     S2: LevelMasksExt<Conf = S1::Conf>,
 {
@@ -273,7 +273,7 @@ mod test{
 
         fn test<Op, S1, S2>(h: BitSetApp<Op, S1, S2>, s: HashSet<usize>)
         where
-            Op: BinaryOp,
+            Op: BitSetOp,
             S1: LevelMasksExt<Conf = S2::Conf>,
             S2: LevelMasksExt,
         {

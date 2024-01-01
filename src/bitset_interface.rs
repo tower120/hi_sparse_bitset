@@ -2,7 +2,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
 use std::fmt;
 use crate::{BitSet, level_indices};
-use crate::binary_op::BinaryOp;
+use crate::ops::BitSetOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
@@ -216,14 +216,14 @@ macro_rules! impl_all {
         $macro_name!(
             impl<Op, S1, S2> for BitSetApp<Op, S1, S2>
             where
-                Op: BinaryOp,
+                Op: BitSetOp,
                 S1: LevelMasksExt<Conf = S2::Conf>,
                 S2: LevelMasksExt
         );
         $macro_name!(
             impl<Op, S, Storage> for Reduce<Op, S, Storage>
             where
-                Op: BinaryOp,
+                Op: BitSetOp,
                 S: Iterator + Clone,
                 S::Item: LevelMasksExt,
                 Storage: ReduceCache
@@ -237,14 +237,14 @@ macro_rules! impl_all_ref {
         $macro_name!(
             impl<'a, Op, S1, S2> for &'a BitSetApp<Op, S1, S2>
             where
-                Op: BinaryOp,
+                Op: BitSetOp,
                 S1: LevelMasksExt<Conf = S2::Conf>,
                 S2: LevelMasksExt
         );
         $macro_name!(
             impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
             where
-                Op: BinaryOp,
+                Op: BitSetOp,
                 S: Iterator + Clone,
                 S::Item: LevelMasksExt,
                 Storage: ReduceCache
