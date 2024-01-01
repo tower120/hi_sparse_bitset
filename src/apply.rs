@@ -2,7 +2,7 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{BitAnd, BitOr, BitXor, Sub};
+//use std::ops::{BitAnd, BitOr, BitXor, Sub};
 use crate::ops::*;
 use crate::BitSet;
 use crate::bit_block::BitBlock;
@@ -12,9 +12,13 @@ use crate::config::Config;
 
 /// Binary operation application, as lazy bitset.
 ///
-/// Created by [apply], or by performing [BitOr], [BitAnd], [BitXor],
+/// Created by [apply], or by applying [BitOr], [BitAnd], [BitXor],
 /// [Sub] operations on [BitSetInterface]s.
 /// 
+/// [BitOr]: std::ops::BitOr
+/// [BitAnd]: std::ops::BitAnd 
+/// [BitXor]: std::ops::BitXor
+/// [Sub]: std::ops::Sub
 /// [apply]: crate::apply()
 /// [BitSetInterface]: crate::BitSetInterface
 #[derive(Clone)]
@@ -37,6 +41,12 @@ where
     S2: LevelMasks<Conf = S1::Conf>,
 {
     type Conf = S1::Conf;
+
+    #[inline]
+    fn is_trusted_hierarchy() -> bool {
+        Op::TRUSTED_HIERARCHY
+        & S1::is_trusted_hierarchy() & S2::is_trusted_hierarchy()
+    }
 }
 
 impl<Op, S1, S2> LevelMasks for Apply<Op, S1, S2>
@@ -111,7 +121,7 @@ where
             &mut cache_data.1, &mut level1_blocks.1, level0_index
         );
 
-        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<And>();
         if !is_intersection {
         if !S1::EMPTY_LVL1_TOLERANCE {
             level1_blocks.2.write(v1);
@@ -130,7 +140,7 @@ where
         level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         // intersection can never point to empty blocks.
-        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<And>();
 
         let m0 = if S1::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.2.assume_init(){
             S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index)
@@ -153,57 +163,57 @@ where
 macro_rules! impl_op {
     (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
 
-        impl<$($generics),*, Rhs> BitAnd<Rhs> for $t
+        impl<$($generics),*, Rhs> std::ops::BitAnd<Rhs> for $t
         where
             $($where_bounds)*
         {
-            type Output = Apply<BitAndOp, $t, Rhs>;
+            type Output = Apply<And, $t, Rhs>;
 
             /// Returns intersection of self and rhs bitsets.
             #[inline]
             fn bitand(self, rhs: Rhs) -> Self::Output{
-                Apply::new(BitAndOp, self, rhs)    
+                Apply::new(And, self, rhs)    
             }
         }
 
-        impl<$($generics),*, Rhs> BitOr<Rhs> for $t
+        impl<$($generics),*, Rhs> std::ops::BitOr<Rhs> for $t
         where
             $($where_bounds)*
         {
-            type Output = Apply<BitOrOp, $t, Rhs>;
+            type Output = Apply<Or, $t, Rhs>;
 
             /// Returns union of self and rhs bitsets.
             #[inline]
             fn bitor(self, rhs: Rhs) -> Self::Output{
-                Apply::new(BitOrOp, self, rhs)    
+                Apply::new(Or, self, rhs)    
             }
         }
 
-        impl<$($generics),*, Rhs> BitXor<Rhs> for $t
+        impl<$($generics),*, Rhs> std::ops::BitXor<Rhs> for $t
         where
             $($where_bounds)*
         {
-            type Output = Apply<BitXorOp, $t, Rhs>;
+            type Output = Apply<Xor, $t, Rhs>;
 
             /// Returns symmetric difference of self and rhs bitsets.
             #[inline]
             fn bitxor(self, rhs: Rhs) -> Self::Output{
-                Apply::new(BitXorOp, self, rhs)    
+                Apply::new(Xor, self, rhs)    
             }
         }        
 
-        impl<$($generics),*, Rhs> Sub<Rhs> for $t
+        impl<$($generics),*, Rhs> std::ops::Sub<Rhs> for $t
         where
             $($where_bounds)*
         {
-            type Output = Apply<BitSubOp, $t, Rhs>;
+            type Output = Apply<Sub, $t, Rhs>;
 
             /// Returns difference of self and rhs bitsets. 
             ///
             /// _Or relative complement of rhs in self._
             #[inline]
             fn sub(self, rhs: Rhs) -> Self::Output{
-                Apply::new(BitSubOp, self, rhs)    
+                Apply::new(Sub, self, rhs)    
             }
         }    
 
@@ -295,8 +305,8 @@ mod test{
         // Reduce <-> Reduce
         let group1 = [&hiset1, &hiset2];
         let group2 = [&hiset3, &hiset4];
-        let reduce1 = reduce(BitOrOp, group1.iter().copied()).unwrap();
-        let reduce2 = reduce(BitOrOp, group2.iter().copied()).unwrap();
+        let reduce1 = reduce(Or, group1.iter().copied()).unwrap();
+        let reduce2 = reduce(Or, group2.iter().copied()).unwrap();
         let set_or1 = &set1 | &set2;
         let set_or2 = &set3 | &set4;
         test(

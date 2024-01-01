@@ -2,8 +2,8 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 use std::{mem, slice};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::LevelMasks;
-use crate::ops::{BitSetOp, BitAndOp};
+use crate::{assume, LevelMasks};
+use crate::ops::{BitSetOp, And};
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::config::Config;
@@ -28,6 +28,11 @@ where
     S::Item: LevelMasks
 {
     type Conf = <S::Item as BitSetBase>::Conf;
+    
+    #[inline]
+    fn is_trusted_hierarchy() -> bool {
+        Op::TRUSTED_HIERARCHY & S::Item::is_trusted_hierarchy() 
+    }    
 }
 
 impl<Op, S, Cache> LevelMasks for Reduce<Op, S, Cache>
@@ -169,7 +174,7 @@ where
     // empty masks/blocks queried.
     //
     // P.S. should be const, but act as const anyway.
-    let is_intersection = TypeId::of::<Op>() == TypeId::of::<BitAndOp>();
+    let is_intersection = TypeId::of::<Op>() == TypeId::of::<And>();
 
     // Overwrite only non-empty blocks.
     let mut cache_index = 0;
@@ -184,8 +189,7 @@ where
             );
 
             if is_intersection{
-                // assume(is_not_empty)
-                if !is_not_empty{ std::hint::unreachable_unchecked(); }
+                assume!(is_not_empty);
                 index += 1;
                 cache_index = index;
             } else {
@@ -200,8 +204,7 @@ where
 
     let is_empty =
         if is_intersection{
-            // assume index != 0
-            if index==0 { std::hint::unreachable_unchecked(); }
+            assume!(index != 0);
             true
         } else {
             index!=0

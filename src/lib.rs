@@ -83,6 +83,22 @@
 //! [try_for_each]: std::iter::Iterator::try_for_each
 //! [traverse]: crate::iter::CachingIndexIter::traverse
 //! 
+//! # TrustedHierarchy
+//! 
+//! TrustedHierarchy means that each raised bit in hierarchy bitblock
+//! is guaranteed to correspond to non-empty block.
+//! That may be not true for [difference] and [symmetric difference] operation result.
+//! 
+//! You can check if bitset has TrustedHierarchy with [is_trusted_hierarchy()]. 
+//! 
+//! Bitsets with TrustedHierarchy are faster to compare with [Eq] and
+//! have O(1) [is_empty()].
+//!
+//! [difference]: ops::Sub
+//! [symmetric difference]: ops::Xor
+//! [is_empty()]: BitSetInterface::is_empty
+//! [is_trusted_hierarchy()]: BitSetBase::is_trusted_hierarchy()  
+//! 
 //! # DataBlocks
 //! 
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
@@ -126,7 +142,7 @@ use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
-pub use bitset_interface::{BitSetBase, BitSetInterface, TrustedHierarchy};
+pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
 
@@ -138,6 +154,15 @@ const INTERSECTION_ONLY: bool = false;
 
 pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
 impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> Primitive for T{}
+
+macro_rules! assume {
+    ($e: expr) => {
+        if !($e){
+            std::hint::unreachable_unchecked();
+        }
+    };
+}
+pub(crate) use assume;
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -324,9 +349,7 @@ where
     pub unsafe fn remove_unchecked(&mut self, index: usize) {
         // TODO: make sure compiler actually get rid of unused code.
         let ok = self.remove(index);
-        if !ok {
-            unsafe{ std::hint::unreachable_unchecked(); }
-        }
+        unsafe{ assume!(ok); }
     }
 }
 
@@ -348,6 +371,11 @@ impl<Conf: Config, const N: usize> From<[usize; N]> for BitSet<Conf> {
 
 impl<Conf: Config> BitSetBase for BitSet<Conf>{
     type Conf = Conf;
+
+    #[inline]
+    fn is_trusted_hierarchy() -> bool {
+        true
+    }
 }
 
 impl<Conf: Config> LevelMasks for BitSet<Conf>{
@@ -412,8 +440,6 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
         *data_block.mask()
     }
 }
-
-impl<Conf: Config> TrustedHierarchy for BitSet<Conf>{}
 
 #[inline]
 fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{

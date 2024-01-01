@@ -1,7 +1,7 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
 use std::fmt;
-use crate::{BitSet, level_indices};
+use crate::{assume, BitSet, level_indices};
 use crate::ops::BitSetOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
@@ -12,6 +12,9 @@ use crate::reduce::Reduce;
 // We have this separate trait with Config, to avoid making LevelMasks public.
 pub trait BitSetBase {
     type Conf: Config;
+    
+    /// NOTE: Should be const. Computes and acts as const though.
+    fn is_trusted_hierarchy() -> bool;
 }
 
 /// Basic interface for accessing block masks. Can work with [SimpleIter].
@@ -87,6 +90,11 @@ pub trait LevelMasksExt: LevelMasks{
 
 impl<'a, T: LevelMasks> BitSetBase for &'a T {
     type Conf = T::Conf;
+    
+    #[inline]
+    fn is_trusted_hierarchy() -> bool{
+        T::is_trusted_hierarchy()
+    }
 }
 impl<'a, T: LevelMasks> LevelMasks for &'a T {
     #[inline]
@@ -163,10 +171,7 @@ pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
     let (level1_mask, valid) = unsafe {
         set.update_level1_blocks(cache_data, level1_blocks, level0_index)
     };
-    if !valid {
-        // level1_mask can not be empty here
-        unsafe { std::hint::unreachable_unchecked() }
-    }
+    assume!(valid);
     level1_mask
 }
 
@@ -197,19 +202,23 @@ pub trait BitSetInterface
     fn iter(&self) -> DefaultIndexIterator<&'_ Self>;
     fn into_block_iter(self) -> DefaultBlockIterator<Self>;
     fn contains(&self, index: usize) -> bool;
+    fn is_empty(&self) -> bool;
 }
 
-/// BitSet that have no pointers to empty blocks in hierarchy.
+/*/// BitSet that have no pointers to empty blocks in hierarchy.
 /// 
 /// This is usually by default, but some virtual bitsets may break this rule,
 /// for example all union operations are not `TrustedHierarchy`.
+/// 
+/// Trusted hierarchy speed ups [Eq] operation between two `TrustedHierarchy` bitsets.
+/// And have fast O(1) [is_empty] operation.  
 pub trait TrustedHierarchy: BitSetInterface {
     /// O(1)
     #[inline]
     fn is_empty(&self) -> bool {
         self.level0_mask().is_zero()
     }
-}
+}*/
 
 macro_rules! impl_all {
     ($macro_name: ident) => {
@@ -253,6 +262,21 @@ macro_rules! impl_all_ref {
     }
 }
 
+fn bitset_is_empty<S: LevelMasksExt>(bitset: S) -> bool {
+    if S::is_trusted_hierarchy(){
+        return bitset.level0_mask().is_zero();
+    }
+    
+    use ControlFlow::*;
+    DefaultBlockIterator::new(bitset).traverse(|block|{
+        if block.is_empty(){
+            Break(())
+        } else {
+            Continue(())
+        }
+    }).is_break()
+}
+
 macro_rules! impl_bitset_interface {
     (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
         impl<$($generics),*> BitSetInterface for $t
@@ -282,7 +306,12 @@ macro_rules! impl_bitset_interface {
                     let data_block = self.data_mask(level0_index, level1_index);
                     data_block.get_bit(data_index)
                 }
-            }            
+            }    
+            
+            #[inline]
+            fn is_empty(&self) -> bool {
+                bitset_is_empty(self)
+            }
         }     
     }    
 }
@@ -312,6 +341,11 @@ macro_rules! duplicate_bitset_interface {
             pub fn contains(&self, index: usize) -> bool {
                 BitSetInterface::contains(self, index)
             }
+            
+            #[inline]
+            pub fn is_empty(&self) -> bool {
+                BitSetInterface::is_empty(self)
+            }
         }
     }
 }
@@ -325,10 +359,21 @@ where
 {
     let left_level0_mask  = left.level0_mask();
     let right_level0_mask = right.level0_mask();
+
+    // We can do early return with TrustedHierarchy. 
+    /*const*/ let is_trusted_hierarchy = 
+        L::is_trusted_hierarchy() & R::is_trusted_hierarchy();
     
-    if left_level0_mask != right_level0_mask {
-        return false;
-    }
+    let level0_mask = 
+        if is_trusted_hierarchy{
+            if left_level0_mask != right_level0_mask {
+                return false;
+            }  
+            left_level0_mask
+        } else {
+            // skip only 0's on both sides
+            left_level0_mask | right_level0_mask
+        };
     
     let mut left_cache_data  = left.make_cache();
     let mut right_cache_data = right.make_cache();
@@ -337,24 +382,42 @@ where
     let mut right_level1_blocks = MaybeUninit::uninit();
     
     use ControlFlow::*;
-    left_level0_mask.traverse_bits(|level0_index|{
-        let left_level1_mask = unsafe {
-            iter_update_level1_blocks(&left, &mut left_cache_data, &mut left_level1_blocks, level0_index)
+    level0_mask.traverse_bits(|level0_index|{
+        let (left_level1_mask, left_valid) = unsafe {
+            left.update_level1_blocks(&mut left_cache_data, &mut left_level1_blocks, level0_index)
         };
-        let right_level1_mask  = unsafe {
-            iter_update_level1_blocks(&right, &mut right_cache_data, &mut right_level1_blocks, level0_index)
+        let (right_level1_mask, right_valid) = unsafe {
+            right.update_level1_blocks(&mut right_cache_data, &mut right_level1_blocks, level0_index)
         };
         
-        if left_level1_mask != right_level1_mask {
-            return Break(()); 
-        }
+        let level1_mask =
+            if is_trusted_hierarchy {
+                unsafe{
+                    assume!(left_valid);
+                    assume!(right_valid);
+                }
+                if left_level1_mask != right_level1_mask {
+                    return Break(());
+                }
+                left_level1_mask
+            } else{
+                left_level1_mask | right_level1_mask
+            };
         
-        left_level1_mask.traverse_bits(|level1_index|{
+        level1_mask.traverse_bits(|level1_index|{
             let left_data = unsafe {
-                L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+                if is_trusted_hierarchy || L::EMPTY_LVL1_TOLERANCE || left_valid {
+                    L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+                } else {
+                    <L::Conf as Config>::DataBitBlock::zero()
+                }
             };
             let right_data = unsafe {
-                R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+                if is_trusted_hierarchy || R::EMPTY_LVL1_TOLERANCE || right_valid {
+                    R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+                } else {
+                    <R::Conf as Config>::DataBitBlock::zero()
+                }
             };
             
             if left_data == right_data{

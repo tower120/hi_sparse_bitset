@@ -12,7 +12,7 @@ fn main(){
     let bitsets = [bitset1, bitset2, bitset3];
     
     // reduce on bitsets iterator
-    let intersection = reduce(BitAndOp, bitsets.iter()).unwrap();
+    let intersection = reduce(And, bitsets.iter()).unwrap();
     assert_equal(&intersection, [3,4]);
     
     // operation between different types
