@@ -6,7 +6,7 @@
 //! * [BitXorOp] - have [BitOrOp] performance.
 //! * [BitSubOp] - traverse all left operand bitset blocks.
 //!
-//! You can make your own operation by implementing [BinaryOp].
+//! You can make your own operation by implementing [BitSetOp].
 //!
 //! [apply]: crate::apply()
 //! [reduce]: crate::reduce()
@@ -24,7 +24,7 @@ use crate::bit_block::BitBlock;
 /// to "data blocks".
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
-pub trait BinaryOp: Default + Copy + 'static{
+pub trait BitSetOp: Default + Copy + 'static{
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
 
@@ -32,14 +32,12 @@ pub trait BinaryOp: Default + Copy + 'static{
     fn data_op<T: BitBlock>(left: T, right: T) -> T;
 }
 
-// TODO: rename structs?
-
 /// Intersection
 /// 
 /// Will traverse only intersected blocks of left and right.
 #[derive(Default, Copy, Clone)]
 pub struct BitAndOp;
-impl BinaryOp for BitAndOp {
+impl BitSetOp for BitAndOp {
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitAnd::bitand(left, right)
@@ -56,7 +54,7 @@ impl BinaryOp for BitAndOp {
 /// Will traverse all blocks of left and right. (Since all of them participate in merge)
 #[derive(Default, Copy, Clone)]
 pub struct BitOrOp;
-impl BinaryOp for BitOrOp {
+impl BitSetOp for BitOrOp {
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
@@ -73,7 +71,7 @@ impl BinaryOp for BitOrOp {
 /// Have performance of [BitOrOp].
 #[derive(Default, Copy, Clone)]
 pub struct BitXorOp;
-impl BinaryOp for BitXorOp {
+impl BitSetOp for BitXorOp {
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
@@ -90,7 +88,7 @@ impl BinaryOp for BitXorOp {
 /// Have performance of traversing left operand.
 #[derive(Default, Copy, Clone)]
 pub struct BitSubOp;
-impl BinaryOp for BitSubOp {
+impl BitSetOp for BitSubOp {
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, _right: T) -> T {
         left

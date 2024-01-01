@@ -4,6 +4,8 @@
 ### Changed
 -  `BitSetInterface` changed (simplified).
 - `BitSetOp` renamed to `BitSetApp`.
+- `BinaryOp` renamed to `BitSetOp`.
+- `binary_op` module renamed to `ops`.
 
 ### Added
 - `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetInterface` in 

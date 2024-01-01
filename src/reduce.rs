@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::{mem, slice};
 use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::LevelMasks;
-use crate::binary_op::{BinaryOp, BitAndOp};
+use crate::ops::{BitSetOp, BitAndOp};
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksExt};
 use crate::config::Config;
@@ -23,7 +23,7 @@ pub struct Reduce<Op, S, Cache> {
 
 impl<Op, S, Cache> BitSetBase for Reduce<Op, S, Cache>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasks
 {
@@ -32,7 +32,7 @@ where
 
 impl<Op, S, Cache> LevelMasks for Reduce<Op, S, Cache>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasks
 {
@@ -107,7 +107,7 @@ pub trait ReduceCacheImpl
 pub struct NonCachedImpl<Op, T>(PhantomData<(Op, T)>);
 impl<Op, S> ReduceCacheImpl for NonCachedImpl<Op, S>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
 {
@@ -159,7 +159,7 @@ unsafe fn update_level1_blocks<Op, Conf, Sets>(
     level0_index: usize
 ) -> (<Conf as Config>::Level1BitBlock, usize/*len*/, bool/*is_empty*/)
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     Conf: Config,
     Sets: Iterator + Clone,
     Sets::Item: LevelMasksExt<Conf=Conf>,
@@ -218,7 +218,7 @@ unsafe fn data_mask_from_blocks<Op, Set, Conf>(
     level1_index: usize
 ) -> <Conf as Config>::DataBitBlock
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     Conf: Config,
     Set: LevelMasksExt<Conf=Conf>,
 {
@@ -272,13 +272,13 @@ where
 
 pub struct FixedCacheImpl<Op, S, const N: usize>(PhantomData<(Op, S)>)
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt;
 
 impl<Op, S, const N: usize> ReduceCacheImpl for FixedCacheImpl<Op, S, N>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
 {
@@ -347,7 +347,7 @@ where
 pub struct DynamicCacheImpl<Op, S>(PhantomData<(Op, S)>);
 impl<Op, S> ReduceCacheImpl for DynamicCacheImpl<Op, S>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt
 {
@@ -440,7 +440,7 @@ where
 
 impl<Op, S, Cache> LevelMasksExt for Reduce<Op, S, Cache>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: LevelMasksExt,
     Cache: ReduceCache

@@ -5,7 +5,7 @@ mod common;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use criterion::measurement::Measurement;
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
-use hi_sparse_bitset::binary_op::*;
+use hi_sparse_bitset::ops::*;
 use hi_sparse_bitset::config::Config;
 use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
 use crate::common::bench;

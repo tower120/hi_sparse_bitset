@@ -56,7 +56,7 @@
 //! 
 //! Use [apply()]  to apply inter-bitset operation between two bitsets. Also [&], [|], [`^`], [-].
 //! 
-//! You can define your own inter-bitset operation, by implementing [BinaryOp].
+//! You can define your own inter-bitset operation, by implementing [BitSetOp].
 //! 
 //! [&]: std::ops::BitAnd
 //! [|]: std::ops::BitOr
@@ -102,7 +102,7 @@ mod bit_block;
 pub mod bit_queue;
 mod bit_utils;
 pub mod config;
-pub mod binary_op;
+pub mod ops;
 mod reduce;
 mod bitset_interface;
 mod bitset_app;
@@ -120,7 +120,7 @@ use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
 use config::Config;
 use block::Block;
 use level::Level;
-use binary_op::BinaryOp;
+use ops::BitSetOp;
 pub use bit_block::BitBlock;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
@@ -512,11 +512,11 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     }
 }
 
-/// Creates a lazy bitset, as [BinaryOp] application between two bitsets.
+/// Creates a lazy bitset, as [BitSetOp] application between two bitsets.
 #[inline]
 pub fn apply<Op, S1, S2>(op: Op, s1: S1, s2: S2) -> BitSetApp<Op, S1, S2>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S1: BitSetInterface,
     S2: BitSetInterface<Conf = <S1 as BitSetBase>::Conf>,
 {
@@ -541,7 +541,7 @@ pub fn reduce<Conf, Op, S>(op: Op, sets: S)
    -> Option<reduce::Reduce<Op, S, Conf::DefaultCache>>
 where
     Conf: Config,
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: BitSetInterface<Conf = Conf>,
 {
@@ -564,7 +564,7 @@ where
 pub fn reduce_w_cache<Op, S, Cache>(_: Op, sets: S, _: Cache)
     -> Option<reduce::Reduce<Op, S, Cache>>
 where
-    Op: BinaryOp,
+    Op: BitSetOp,
     S: Iterator + Clone,
     S::Item: BitSetInterface,
     Cache: ReduceCache
