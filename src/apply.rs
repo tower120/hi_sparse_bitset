@@ -18,19 +18,19 @@ use crate::config::Config;
 /// [apply]: crate::apply()
 /// [BitSetInterface]: crate::BitSetInterface
 #[derive(Clone)]
-pub struct BitSetApp<Op, S1, S2>{
+pub struct Apply<Op, S1, S2>{
     pub(crate) s1: S1,
     pub(crate) s2: S2,
     pub(crate) phantom: PhantomData<Op>
 }
-impl<Op, S1, S2> BitSetApp<Op, S1, S2>{
+impl<Op, S1, S2> Apply<Op, S1, S2>{
     #[inline]
     pub(crate) fn new(_:Op, s1:S1, s2:S2) -> Self{
-        BitSetApp { s1, s2, phantom:PhantomData }
+        Apply { s1, s2, phantom:PhantomData }
     }
 }
 
-impl<Op, S1, S2> BitSetBase for BitSetApp<Op, S1, S2>
+impl<Op, S1, S2> BitSetBase for Apply<Op, S1, S2>
 where
     Op: BitSetOp,
     S1: LevelMasks,
@@ -39,7 +39,7 @@ where
     type Conf = S1::Conf;
 }
 
-impl<Op, S1, S2> LevelMasks for BitSetApp<Op, S1, S2>
+impl<Op, S1, S2> LevelMasks for Apply<Op, S1, S2>
 where
     Op: BitSetOp,
     S1: LevelMasks,
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<Op, S1, S2> LevelMasksExt for BitSetApp<Op, S1, S2>
+impl<Op, S1, S2> LevelMasksExt for Apply<Op, S1, S2>
 where
     Op: BitSetOp,
     S1: LevelMasksExt,
@@ -157,12 +157,12 @@ macro_rules! impl_op {
         where
             $($where_bounds)*
         {
-            type Output = BitSetApp<BitAndOp, $t, Rhs>;
+            type Output = Apply<BitAndOp, $t, Rhs>;
 
             /// Returns intersection of self and rhs bitsets.
             #[inline]
             fn bitand(self, rhs: Rhs) -> Self::Output{
-                BitSetApp::new(BitAndOp, self, rhs)    
+                Apply::new(BitAndOp, self, rhs)    
             }
         }
 
@@ -170,12 +170,12 @@ macro_rules! impl_op {
         where
             $($where_bounds)*
         {
-            type Output = BitSetApp<BitOrOp, $t, Rhs>;
+            type Output = Apply<BitOrOp, $t, Rhs>;
 
             /// Returns union of self and rhs bitsets.
             #[inline]
             fn bitor(self, rhs: Rhs) -> Self::Output{
-                BitSetApp::new(BitOrOp, self, rhs)    
+                Apply::new(BitOrOp, self, rhs)    
             }
         }
 
@@ -183,12 +183,12 @@ macro_rules! impl_op {
         where
             $($where_bounds)*
         {
-            type Output = BitSetApp<BitXorOp, $t, Rhs>;
+            type Output = Apply<BitXorOp, $t, Rhs>;
 
             /// Returns symmetric difference of self and rhs bitsets.
             #[inline]
             fn bitxor(self, rhs: Rhs) -> Self::Output{
-                BitSetApp::new(BitXorOp, self, rhs)    
+                Apply::new(BitXorOp, self, rhs)    
             }
         }        
 
@@ -196,14 +196,14 @@ macro_rules! impl_op {
         where
             $($where_bounds)*
         {
-            type Output = BitSetApp<BitSubOp, $t, Rhs>;
+            type Output = Apply<BitSubOp, $t, Rhs>;
 
             /// Returns difference of self and rhs bitsets. 
             ///
             /// _Or relative complement of rhs in self._
             #[inline]
             fn sub(self, rhs: Rhs) -> Self::Output{
-                BitSetApp::new(BitSubOp, self, rhs)    
+                Apply::new(BitSubOp, self, rhs)    
             }
         }    
 
@@ -212,8 +212,8 @@ macro_rules! impl_op {
 
 impl_op!(impl<Conf> for BitSet<Conf> where Conf: Config);
 impl_op!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
-impl_op!(impl<Op, S1, S2> for BitSetApp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
-impl_op!(impl<'a, Op, S1, S2> for &'a BitSetApp<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
+impl_op!(impl<Op, S1, S2> for Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
+impl_op!(impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
 impl_op!(impl<Op, S, Storage> for Reduce<Op, S, Storage> where);
 impl_op!(impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage> where);
 
@@ -271,7 +271,7 @@ mod test{
         let set3: HashSet<usize> = v3.iter().copied().collect();
         let set4: HashSet<usize> = v4.iter().copied().collect();
 
-        fn test<Op, S1, S2>(h: BitSetApp<Op, S1, S2>, s: HashSet<usize>)
+        fn test<Op, S1, S2>(h: Apply<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BitSetOp,
             S1: LevelMasksExt<Conf = S2::Conf>,
