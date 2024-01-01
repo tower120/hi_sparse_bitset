@@ -3,6 +3,7 @@
 ## 0.4.0
 ### Changed
 -  `BitSetInterface` changed (simplified).
+- `BitSetOp` renamed to `BitSetApp`.
 
 ### Added
 - `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetInterface` in 

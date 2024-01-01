@@ -6,8 +6,18 @@ use crate::binary_op::BinaryOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
-use crate::bitset_op::BitSetOp;
+use crate::bitset_app::BitSetApp;
 use crate::reduce::Reduce;
+
+/// BitSet that have only non-empty elements in hierarchy blocks.
+/// (There could be no pointers to empty blocks in hierarchy)
+/// 
+/// This is usually by default, but some virtual bitsets may break this rule,
+/// for example all union operations are not `TrustedHierarchy`.
+pub trait TrustedHierarchy {
+    /// O(1)
+    fn is_empty(&self) -> bool;
+}
 
 // We have this separate trait with Config, to avoid making LevelMasks public.
 pub trait BitSetBase {
@@ -204,7 +214,7 @@ macro_rules! impl_all {
     ($macro_name: ident) => {
         $macro_name!(impl<Conf> for BitSet<Conf> where Conf: Config);
         $macro_name!(
-            impl<Op, S1, S2> for BitSetOp<Op, S1, S2>
+            impl<Op, S1, S2> for BitSetApp<Op, S1, S2>
             where
                 Op: BinaryOp,
                 S1: LevelMasksExt<Conf = S2::Conf>,
@@ -225,7 +235,7 @@ macro_rules! impl_all_ref {
     ($macro_name: ident) => {
         $macro_name!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
         $macro_name!(
-            impl<'a, Op, S1, S2> for &'a BitSetOp<Op, S1, S2>
+            impl<'a, Op, S1, S2> for &'a BitSetApp<Op, S1, S2>
             where
                 Op: BinaryOp,
                 S1: LevelMasksExt<Conf = S2::Conf>,

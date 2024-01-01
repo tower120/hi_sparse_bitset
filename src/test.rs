@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::binary_op::{BitAndOp, BitOrOp, BitSubOp, BitXorOp};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::{BlockCursor, IndexCursor};
-use crate::bitset_op::BitSetOp;
+use crate::bitset_app::BitSetApp;
 use crate::bitset_interface::BitSetInterface;
 
 use super::*;
@@ -476,7 +476,7 @@ where
 
             // op
             {
-                fn run<Op, S1, S2>(op: BitSetOp<Op, S1, S2>) -> Vec<usize>
+                fn run<Op, S1, S2>(op: BitSetApp<Op, S1, S2>) -> Vec<usize>
                 where
                     Op: BinaryOp,
                     S1: LevelMasksExt,
@@ -495,24 +495,24 @@ where
                     indices2
                 }
 
-                let op = BitSetOp::new(hiset_op, &hi_sets[0], &hi_sets[1]);
+                let op = BitSetApp::new(hiset_op, &hi_sets[0], &hi_sets[1]);
                 let indices2 = match hi_sets.len(){
                     2 => {
                         Some(run(op))
                     },
                     3 => {
-                        let op = BitSetOp::new(hiset_op, op, &hi_sets[2]);
+                        let op = BitSetApp::new(hiset_op, op, &hi_sets[2]);
                         Some(run(op))
                     },
                     4 => {
-                        let op = BitSetOp::new(hiset_op, op, &hi_sets[2]);
-                        let op = BitSetOp::new(hiset_op, op, &hi_sets[3]);
+                        let op = BitSetApp::new(hiset_op, op, &hi_sets[2]);
+                        let op = BitSetApp::new(hiset_op, op, &hi_sets[3]);
                         Some(run(op))
                     },
                     5 => {
-                        let op = BitSetOp::new(hiset_op, op, &hi_sets[2]);
-                        let op = BitSetOp::new(hiset_op, op, &hi_sets[3]);
-                        let op = BitSetOp::new(hiset_op, op, &hi_sets[4]);
+                        let op = BitSetApp::new(hiset_op, op, &hi_sets[2]);
+                        let op = BitSetApp::new(hiset_op, op, &hi_sets[3]);
+                        let op = BitSetApp::new(hiset_op, op, &hi_sets[4]);
                         Some(run(op))
                     },
                     _ => {
