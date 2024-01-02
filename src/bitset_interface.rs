@@ -1,12 +1,14 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
 use std::fmt;
-use crate::{assume, BitSet, level_indices};
+use std::ptr::null_mut;
+use crate::{assume, BitSet, DataBlock, level_indices};
 use crate::ops::BitSetOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
 use crate::apply::Apply;
+use crate::iter::CachingBlockIter;
 use crate::reduce::Reduce;
 
 // We have this separate trait with Config, to avoid making LevelMasks public.
@@ -385,43 +387,127 @@ where
             right.update_level1_blocks(&mut right_cache_data, &mut right_level1_blocks, level0_index)
         };
         
-        let level1_mask =
-            if is_trusted_hierarchy {
-                unsafe{
-                    assume!(left_valid);
-                    assume!(right_valid);
-                }
-                if left_level1_mask != right_level1_mask {
-                    return Break(());
-                }
-                left_level1_mask
-            } else{
-                left_level1_mask | right_level1_mask
-            };
-        
-        level1_mask.traverse_bits(|level1_index|{
-            let left_data = unsafe {
-                if is_trusted_hierarchy || L::EMPTY_LVL1_TOLERANCE || left_valid {
-                    L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
-                } else {
-                    <L::Conf as Config>::DataBitBlock::zero()
-                }
-            };
-            let right_data = unsafe {
-                if is_trusted_hierarchy || R::EMPTY_LVL1_TOLERANCE || right_valid {
-                    R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
-                } else {
-                    <R::Conf as Config>::DataBitBlock::zero()
-                }
-            };
-            
-            if left_data == right_data{
-                Continue(())
-            }  else {
-                Break(())                 
+        if is_trusted_hierarchy {
+            unsafe{ 
+                assume!(left_valid);
+                assume!(right_valid);
             }
-        })
+            if left_level1_mask != right_level1_mask {
+                return Break(());
+            }
+        }
+        
+        if is_trusted_hierarchy || (left_valid & right_valid) {
+            let level1_mask =
+                if is_trusted_hierarchy {
+                    left_level1_mask
+                } else{
+                    left_level1_mask | right_level1_mask
+                };
+            
+            level1_mask.traverse_bits(|level1_index|{
+                let left_data = unsafe {
+                    L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+                };
+                let right_data = unsafe {
+                    R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+                };
+                
+                if left_data == right_data{
+                    Continue(())
+                }  else {
+                    Break(())                 
+                }
+            })            
+        } else if left_valid /*right is zero*/ {
+            if L::TRUSTED_HIERARCHY{
+                return if left_level1_mask.is_zero() {
+                    Continue(())
+                } else {
+                    Break(())
+                }
+            }
+            
+            left_level1_mask.traverse_bits(|level1_index|{
+                let left_data = unsafe{
+                    L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+                };
+                if left_data.is_zero() {
+                    Continue(())
+                }  else {
+                    Break(())                 
+                }                
+            })
+        } else if right_valid /*left is zero*/ {
+            if R::TRUSTED_HIERARCHY{
+                return if right_level1_mask.is_zero() {
+                    Continue(())
+                } else {
+                    Break(())
+                }
+            }
+            
+            right_level1_mask.traverse_bits(|level1_index|{
+                let right_data = unsafe{
+                    R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+                };
+                if right_data.is_zero() {
+                    Continue(())
+                }  else {
+                    Break(())                 
+                }                
+            })            
+        } else {
+            // both are empty - its ok - just move on.
+            Continue(())
+        }
     }).is_continue()
+}
+
+// TODO: benchmark
+fn bitsets_eq_w_iter<L, R>(left: L, right: R) -> bool
+where
+    L: LevelMasksExt,
+    R: LevelMasksExt<Conf = L::Conf>,
+{
+    let mut left_iter  = CachingBlockIter::new(left);
+    let mut right_iter = CachingBlockIter::new(right);
+    
+    loop{
+        let left_block = {
+            // TODO: Do not skip for TRUSTED_HIERARCHY
+            let mut iter = left_iter.by_ref().skip_while(|block| block.is_empty());
+            if let Some(block) = iter.next() {
+                block
+            } else {
+                for block in right_iter {
+                    if !block.is_empty(){
+                        return false;
+                    }
+                }
+                return true;
+            }
+        };
+        
+        let right_block = {
+            // TODO: Do not skip for TRUSTED_HIERARCHY
+            let mut iter = right_iter.by_ref().skip_while(|block| block.is_empty());
+            if let Some(block) = iter.next() {
+                block
+            } else {
+                for block in left_iter {
+                    if !block.is_empty(){
+                        return false;
+                    }
+                }
+                return true;
+            }
+        };
+        
+        if left_block != right_block {
+            return false;
+        }
+    };
 }
 
 macro_rules! impl_eq {
@@ -433,7 +519,8 @@ macro_rules! impl_eq {
         {
             #[inline]
             fn eq(&self, other: &Rhs) -> bool {
-                bitsets_eq(self, other)
+                bitsets_eq_w_iter(self, other)
+                //bitsets_eq(self, other)
             }
         }        
         

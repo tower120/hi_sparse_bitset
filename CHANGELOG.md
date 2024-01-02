@@ -17,7 +17,7 @@ order to prevent the need of `BitSetInterface` import.
 - `CachingIndexIter` now have former `IndexIterator` functionality.
 - `CachingBlockIter` now have former `BlockIterator` functionality.
 - `BitSetInterface::is_empty()`.
-- `BitSetBase::is_trusted_hierarchy()`.
+- `BitSetBase::TRUSTED_HIERARCHY`.
 
 ### Removed
 - `IndexIterator` removed.
