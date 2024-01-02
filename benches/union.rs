@@ -10,6 +10,14 @@ use hi_sparse_bitset::config::Config;
 use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
 use crate::common::bench;
 
+fn hi_sparse_bitset_eq<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
+    let union = reduce(Xor, sets.iter()).unwrap();
+    let union2 = reduce(Xor, sets.iter()).unwrap();
+
+    (union == union2) as usize
+}
+
+
 
 // ---- REDUCE ----
 fn hi_sparse_bitset_reduce_or_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
@@ -115,6 +123,10 @@ pub fn bench_iter(c: &mut Criterion) {
         for (name, (hi_sparse_sets, hibitsets)) in &datas {
             let hi_sparse_sets = hi_sparse_sets.as_slice();
             let hibitsets = hibitsets.as_slice();
+            
+            bench(group, "hi_sparse_bitset_eq", name, hi_sparse_sets, hi_sparse_bitset_eq);
+            continue;
+            
 
             // ---- REDUCE ----
             bench(group, "hi_sparse_bitset_reduce_or_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_or_simple_block_iter);
