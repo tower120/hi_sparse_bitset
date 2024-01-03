@@ -23,7 +23,10 @@ algorithmic complexity on operations between bitsets.
 ## Usage 
 
 ```rust
+use hi_sparse_bitset::reduce;    
+use hi_sparse_bitset::ops::*;
 type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
+
 let bitset1 = BitSet::from([1,2,3,4]);
 let bitset2 = BitSet::from([3,4,5,6]);
 let bitset3 = BitSet::from([3,4,7,8]);
@@ -31,7 +34,7 @@ let bitset4 = BitSet::from([4,9,10]);
 let bitsets = [bitset1, bitset2, bitset3];
 
 // reduce on bitsets iterator
-let intersection = reduce(BitAndOp, bitsets.iter()).unwrap();
+let intersection = reduce(And, bitsets.iter()).unwrap();
 assert_equal(&intersection, [3,4]);
 
 // operation between different types
