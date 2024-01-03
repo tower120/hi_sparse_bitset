@@ -1,14 +1,12 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
 use std::fmt;
-use std::ptr::null_mut;
-use crate::{assume, BitSet, DataBlock, level_indices};
+use crate::{assume, BitSet, level_indices};
 use crate::ops::BitSetOp;
 use crate::bit_block::BitBlock;
 use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
 use crate::apply::Apply;
-use crate::iter::CachingBlockIter;
 use crate::reduce::Reduce;
 
 // We have this separate trait with Config, to avoid making LevelMasks public.
@@ -200,23 +198,12 @@ pub trait BitSetInterface
     fn iter(&self) -> DefaultIndexIterator<&'_ Self>;
     fn into_block_iter(self) -> DefaultBlockIterator<Self>;
     fn contains(&self, index: usize) -> bool;
+    
+    /// O(1) if [TRUSTED_HIERARCHY], O(N) otherwise.
+    /// 
+    /// [TRUSTED_HIERARCHY]: BitSetBase::TRUSTED_HIERARCHY
     fn is_empty(&self) -> bool;
 }
-
-/*/// BitSet that have no pointers to empty blocks in hierarchy.
-/// 
-/// This is usually by default, but some virtual bitsets may break this rule,
-/// for example all union operations are not `TrustedHierarchy`.
-/// 
-/// Trusted hierarchy speed ups [Eq] operation between two `TrustedHierarchy` bitsets.
-/// And have fast O(1) [is_empty] operation.  
-pub trait TrustedHierarchy: BitSetInterface {
-    /// O(1)
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.level0_mask().is_zero()
-    }
-}*/
 
 macro_rules! impl_all {
     ($macro_name: ident) => {
@@ -340,6 +327,7 @@ macro_rules! duplicate_bitset_interface {
                 BitSetInterface::contains(self, index)
             }
             
+            /// See [BitSetInterface::is_empty()]
             #[inline]
             pub fn is_empty(&self) -> bool {
                 BitSetInterface::is_empty(self)
@@ -464,52 +452,6 @@ where
     }).is_continue()
 }
 
-// TODO: benchmark
-fn bitsets_eq_w_iter<L, R>(left: L, right: R) -> bool
-where
-    L: LevelMasksExt,
-    R: LevelMasksExt<Conf = L::Conf>,
-{
-    let mut left_iter  = CachingBlockIter::new(left);
-    let mut right_iter = CachingBlockIter::new(right);
-    
-    loop{
-        let left_block = {
-            // TODO: Do not skip for TRUSTED_HIERARCHY
-            let mut iter = left_iter.by_ref().skip_while(|block| block.is_empty());
-            if let Some(block) = iter.next() {
-                block
-            } else {
-                for block in right_iter {
-                    if !block.is_empty(){
-                        return false;
-                    }
-                }
-                return true;
-            }
-        };
-        
-        let right_block = {
-            // TODO: Do not skip for TRUSTED_HIERARCHY
-            let mut iter = right_iter.by_ref().skip_while(|block| block.is_empty());
-            if let Some(block) = iter.next() {
-                block
-            } else {
-                for block in left_iter {
-                    if !block.is_empty(){
-                        return false;
-                    }
-                }
-                return true;
-            }
-        };
-        
-        if left_block != right_block {
-            return false;
-        }
-    };
-}
-
 macro_rules! impl_eq {
     (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
         impl<$($generics),*,Rhs> PartialEq<Rhs> for $t
@@ -517,10 +459,12 @@ macro_rules! impl_eq {
             $($where_bounds)*,
             Rhs: BitSetInterface<Conf = <Self as BitSetBase>::Conf>
         {
+            /// Works faster with [TRUSTED_HIERARCHY].
+            /// 
+            /// [TRUSTED_HIERARCHY]: BitSetBase::TRUSTED_HIERARCHY
             #[inline]
             fn eq(&self, other: &Rhs) -> bool {
-                bitsets_eq_w_iter(self, other)
-                //bitsets_eq(self, other)
+                bitsets_eq(self, other)
             }
         }        
         
