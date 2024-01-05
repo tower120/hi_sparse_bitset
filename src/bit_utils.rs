@@ -1,5 +1,5 @@
 use std::mem::size_of;
-use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, ControlFlow};
+use std::ops::ControlFlow;
 use crate::Primitive;
 
 /// Block ordering undefined. But same as [get_array_bit].
