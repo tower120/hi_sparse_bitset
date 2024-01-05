@@ -2,15 +2,10 @@ use std::marker::PhantomData;
 use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 
-use num_traits::{PrimInt, Zero};
-use crate::INTERSECTION_ONLY;
+use crate::{INTERSECTION_ONLY, Primitive};
 
 #[derive(Clone)]
-pub struct Block<Mask, BlockIndex, BlockIndices>
-where
-    Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
-{
+pub struct Block<Mask, BlockIndex, BlockIndices> {
     mask: Mask,
     /// Next level block indices
     block_indices: BlockIndices,
@@ -41,9 +36,19 @@ where
 impl<Mask, BlockIndex, BlockIndices> Block<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndex: PrimInt,
+    BlockIndex: Primitive,
     BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
 {
+    #[inline]
+    pub unsafe fn raw_mask(&self) -> &Mask{
+        &self.mask
+    } 
+    
+    #[inline]
+    pub unsafe fn raw_mask_mut(&mut self) -> &mut Mask{
+        &mut self.mask
+    } 
+    
     /// # Safety
     ///
     /// index is not checked.
@@ -94,7 +99,7 @@ where
             // If we have block_indices section (compile-time check)
             if !size_of::<BlockIndices>().is_zero(){
                 let block_indices = self.block_indices.as_mut();
-                *block_indices.get_unchecked_mut(index) = BlockIndex::zero();
+                *block_indices.get_unchecked_mut(index) = BlockIndex::ZERO;
             }
         }
         prev

@@ -18,7 +18,6 @@ simple_iter = []
 simd = ["dep:wide"]
 
 [dependencies]
-num-traits = "0.2"
 wide = { version = "0.7.13", optional = true }
 
 [dev-dependencies]

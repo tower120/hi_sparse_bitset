@@ -19,7 +19,7 @@ fn saturating_shl(i: u64, n: u32) -> u64{
 fn saturating_shl<P: Primitive>(p: P, n: usize) -> P {
     let bits = size_of::<P>() * 8;
     if n >= bits{
-        P::zero()
+        P::ZERO
     } else {
         p << n
     }
@@ -95,12 +95,12 @@ where
 {
     #[inline]
     fn empty() -> Self {
-        Self::new(P::zero())
+        Self::new(P::ZERO)
     }
 
     #[inline]
     fn filled() -> Self {
-        Self::new(P::max_value())
+        Self::new(P::MAX)
     }
 
     /* #[inline]
@@ -113,7 +113,7 @@ where
         let block: &mut P = unsafe{
             mem::transmute(&mut self.bit_block_iter)
         };
-        let mask = saturating_shl(P::max_value(), n);
+        let mask = saturating_shl(P::MAX, n);
         *block &= mask;
     }
 
@@ -181,14 +181,14 @@ where
     #[inline]
     fn empty() -> Self {
         Self{
-            bit_block_iters: [one_bits_iter(P::zero()); N],
+            bit_block_iters: [one_bits_iter(P::ZERO); N],
             bit_block_index: N-1,
         }
     }
 
     #[inline]
     fn filled() -> Self {
-        Self::new([P::max_value(); N])
+        Self::new([P::MAX; N])
     }
 
 /*     #[inline]
@@ -212,7 +212,7 @@ where
         // clamp to empty
         if element_index >= N {
             //*self = Self::empty(); 
-            self.bit_block_iters[0] = one_bits_iter(P::zero());
+            self.bit_block_iters[0] = one_bits_iter(P::ZERO);
             self.bit_block_index = N-1;
             return;
         }
@@ -259,7 +259,7 @@ where
         unsafe /* zero_first_n */ {
             let active_block_iter = &mut self.bit_block_iters[0];
             let block: &mut P = mem::transmute(active_block_iter);
-            *block &= P::max_value() << bit_index;            
+            *block &= P::MAX << bit_index;            
         }
     }
 

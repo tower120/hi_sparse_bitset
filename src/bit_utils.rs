@@ -1,7 +1,6 @@
 use std::mem::size_of;
 use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign, ControlFlow};
-use num_traits::int::PrimInt;
-use num_traits::WrappingNeg;
+use crate::Primitive;
 
 /// Block ordering undefined. But same as [get_array_bit].
 /// 
@@ -11,7 +10,7 @@ use num_traits::WrappingNeg;
 #[inline]
 pub unsafe fn set_array_bit_unchecked<const FLAG: bool, T>(blocks: &mut [T], index: usize) -> bool
 where
-    T: PrimInt + BitAndAssign + BitOrAssign
+    T: Primitive
 {
     let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
     let block_index = index / bits_size;
@@ -32,9 +31,9 @@ where
 #[inline]
 pub unsafe fn set_bit_unchecked<const FLAG: bool, T>(block: &mut T, bit_index: usize) -> bool
 where
-    T: PrimInt + BitAndAssign + BitOrAssign
+    T: Primitive
 {
-    let block_mask: T = T::one() << bit_index;
+    let block_mask: T = T::ONE << bit_index;
     let masked_block = *block & block_mask;
 
     if FLAG {
@@ -54,7 +53,7 @@ where
 #[inline]
 pub unsafe fn get_array_bit_unchecked<T>(blocks: &[T], index: usize) -> bool 
 where
-    T: PrimInt + BitAndAssign + BitOrAssign
+    T: Primitive
 {
     let bits_size: usize = size_of::<T>() * 8;      // compile-time known value
     let block_index = index / bits_size;
@@ -72,8 +71,8 @@ where
 /// 
 /// `bit_index` validity is not checked.
 #[inline]
-pub unsafe fn get_bit_unchecked<T: PrimInt>(block: T, bit_index: usize) -> bool {
-    let block_mask: T = T::one() << bit_index;
+pub unsafe fn get_bit_unchecked<T: Primitive>(block: T, bit_index: usize) -> bool {
+    let block_mask: T = T::ONE << bit_index;
     let masked_block = block & block_mask;
     !masked_block.is_zero()
 }
@@ -82,7 +81,7 @@ pub unsafe fn get_bit_unchecked<T: PrimInt>(block: T, bit_index: usize) -> bool 
 #[inline]
 pub fn traverse_array_one_bits<P, F>(array: &[P], mut f: F) -> ControlFlow<()>
 where
-    P: PrimInt + BitXorAssign + WrappingNeg,
+    P: Primitive,
     F: FnMut(usize) -> ControlFlow<()>
 {
     let len = array.len();
@@ -105,7 +104,7 @@ where
 #[inline]
 pub fn traverse_one_bits<P, F>(mut element: P, mut f: F) -> ControlFlow<()>
 where
-    P: PrimInt + BitXorAssign + WrappingNeg,
+    P: Primitive,
     F: FnMut(usize) -> ControlFlow<()>
 {
     // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
@@ -143,7 +142,7 @@ pub struct OneBitsIter<P>{
 }
 impl<P> Iterator for OneBitsIter<P>
 where
-    P: PrimInt + BitXorAssign + WrappingNeg,
+    P: Primitive,
 {
     type Item = usize;
 

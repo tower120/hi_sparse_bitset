@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+### Optimization
+- On each level, instead of empty block indices Vec, intrusive single linked list now used.
+  This completely eliminates this kind of memory overhead. Previously, if you would fill `_256bit` bitset,
+  and then clear it - you would end up with additional 132Kb memory overhead from the list of free blocks.
+  Considering that preallocated bitblocks themselves took 2Mb - thats save more then 5% of memory.
+
+### Removed
+- `num_traits` dependency removed.
+
 ## 0.4.0
 ### Fix
 - `Eq` did not work correctly between !`TrustedHierarchy` bitsets.
