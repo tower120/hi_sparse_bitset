@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 
-use crate::{INTERSECTION_ONLY, Primitive};
+use crate::{PREALLOCATED_EMPTY_BLOCK, Primitive};
 
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndex, BlockIndices> {
@@ -22,7 +22,7 @@ where
         Self {
             mask: Mask::zero(),
             block_indices:
-                if INTERSECTION_ONLY{
+                if !PREALLOCATED_EMPTY_BLOCK {
                     unsafe{MaybeUninit::uninit().assume_init()}
                 } else {
                     // All indices 0.
@@ -95,7 +95,7 @@ where
         // mask
         let prev = self.mask.set_bit::<false>(index);
         // don't touch block_index - it state is irrelevant
-        if !INTERSECTION_ONLY {
+        if PREALLOCATED_EMPTY_BLOCK {
             // If we have block_indices section (compile-time check)
             if !size_of::<BlockIndices>().is_zero(){
                 let block_indices = self.block_indices.as_mut();

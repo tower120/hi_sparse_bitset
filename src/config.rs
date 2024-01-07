@@ -10,7 +10,7 @@
 //! [BitSet]: crate::BitSet
 
 use crate::bit_block::BitBlock;
-use crate::{cache, INTERSECTION_ONLY, Primitive};
+use crate::{cache, PREALLOCATED_EMPTY_BLOCK, Primitive};
 use crate::cache::ReduceCache;
 use crate::iter::{CachingBlockIter, CachingIndexIter};
 
@@ -85,7 +85,7 @@ pub trait Config: 'static {
             * (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
             * (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
     
-        if !INTERSECTION_ONLY{
+        if PREALLOCATED_EMPTY_BLOCK {
             // We occupy one block for "empty" at each level, except root.
             max_range = max_range
                 - (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
