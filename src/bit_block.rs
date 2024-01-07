@@ -24,6 +24,9 @@ pub trait BitBlock
     fn zero() -> Self;
     fn is_zero(&self) -> bool;
 
+    fn first_u64(&self) -> &u64;
+    fn first_u64_mut(&mut self) -> &mut u64;
+
     /// Returns previous bit
     /// 
     /// `bit_index` is guaranteed to be valid
@@ -59,6 +62,16 @@ impl BitBlock for u64{
     #[inline]
     fn is_zero(&self) -> bool {
         *self == 0
+    }
+
+    #[inline]
+    fn first_u64(&self) -> &u64 {
+        self
+    }
+    
+    #[inline]
+    fn first_u64_mut(&mut self) -> &mut u64 {
+        self
     }
 
     #[inline]
@@ -122,6 +135,16 @@ impl BitBlock for wide::u64x2{
     }
 
     #[inline]
+    fn first_u64(&self) -> &u64 {
+        unsafe{ self.as_array_ref().get_unchecked(0) }
+    }
+    
+    #[inline]
+    fn first_u64_mut(&mut self) -> &mut u64 {
+        unsafe{ self.as_array_mut().get_unchecked_mut(0) }
+    }
+
+    #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
         unsafe{
             bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
@@ -178,6 +201,16 @@ impl BitBlock for wide::u64x4{
     #[inline]
     fn is_zero(&self) -> bool {
         *self == Self::zero()
+    }
+    
+    #[inline]
+    fn first_u64(&self) -> &u64 {
+        unsafe{ self.as_array_ref().get_unchecked(0) }
+    }
+    
+    #[inline]
+    fn first_u64_mut(&mut self) -> &mut u64 {
+        unsafe{ self.as_array_mut().get_unchecked_mut(0) }
     }
 
     #[inline]

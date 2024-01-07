@@ -111,6 +111,10 @@
 //! 
 //! If you don't need "wide" configurations, you may disable default feature "simd".   
 
+#[cfg(test)]
+mod test;
+
+mod primitive;
 mod block;
 mod level;
 mod bit_block;
@@ -124,14 +128,13 @@ mod apply;
 pub mod iter;
 pub mod cache;
 
-#[cfg(test)]
-mod test;
+pub use primitive::Primitive;
+pub use bitset_interface::{BitSetBase, BitSetInterface};
+pub use apply::Apply;
+pub use reduce::Reduce;
 
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{BitAndAssign, BitXorAssign};
-use num_traits::{AsPrimitive, PrimInt, WrappingNeg, Zero};
-
 use config::Config;
 use block::Block;
 use level::Level;
@@ -141,18 +144,11 @@ use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksExt};
 
-pub use bitset_interface::{BitSetBase, BitSetInterface};
-pub use apply::Apply;
-pub use reduce::Reduce;
-
 /// Use any other operation then intersection(and) require
 /// to either do checks on block access (in LevelMasks), or
 /// have one empty block at each level as default, and default indices pointing at it.
 /// Second variant is in use now.
 const INTERSECTION_ONLY: bool = false;
-
-pub trait Primitive: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static {}
-impl<T: PrimInt + AsPrimitive<usize> + BitAndAssign + BitXorAssign + WrappingNeg + Default + 'static> Primitive for T{}
 
 macro_rules! assume {
     ($e: expr) => {
@@ -196,8 +192,16 @@ type Level1Block<Conf> = Block<
     <Conf as Config>::DataBlockIndex,
     <Conf as Config>::Level1BlockIndices
 >;
-
 type LevelDataBlock<Conf> = Block<
+    <Conf as Config>::DataBitBlock, usize, [usize;0]
+>;
+
+type Level1<Conf> = Level<
+    <Conf as Config>::Level1BitBlock,
+    <Conf as Config>::DataBlockIndex,
+    <Conf as Config>::Level1BlockIndices
+>;
+type LevelData<Conf> = Level<
     <Conf as Config>::DataBitBlock, usize, [usize;0]
 >;
 
@@ -214,8 +218,8 @@ type LevelDataBlock<Conf> = Block<
 /// Insert/remove/contains is fast O(1) too.
 pub struct BitSet<Conf: Config>{
     level0: Block<Conf::Level0BitBlock, Conf::Level1BlockIndex, Conf::Level0BlockIndices>,
-    level1: Level<Level1Block<Conf>,    Conf::Level1BlockIndex>,
-    data  : Level<LevelDataBlock<Conf>, Conf::DataBlockIndex>,
+    level1: Level1<Conf>,
+    data  : LevelData<Conf>,
 }
 
 impl<Conf: Config> Default for BitSet<Conf> {
@@ -255,18 +259,18 @@ where
 
     #[inline]
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
-        -> Option<(Conf::Level1BlockIndex, Conf::DataBlockIndex)>
+        -> Option<(usize, usize)>
     {
         // 1. Level0
         let level1_block_index = unsafe{
             self.level0.get(level0_index)?
-        };
+        }.as_usize();
 
         // 2. Level1
         let data_block_index = unsafe{
-            let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+            let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
             level1_block.get(level1_index)?
-        };
+        }.as_usize();
 
         Some((level1_block_index, data_block_index))
     }
@@ -282,14 +286,20 @@ where
 
         // 1. Level0
         let level1_block_index = unsafe{
-            self.level0.get_or_insert(level0_index, ||self.level1.insert_block())
-        }.as_();
+            self.level0.get_or_insert(level0_index, ||{
+                let block_index = self.level1.insert_block();
+                Conf::Level1BlockIndex::from_usize(block_index)
+            })
+        }.as_usize();
 
         // 2. Level1
         let data_block_index = unsafe{
             let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-            level1_block.get_or_insert(level1_index, ||self.data.insert_block())
-        }.as_();
+            level1_block.get_or_insert(level1_index, ||{
+                let block_index = self.data.insert_block();
+                Conf::DataBlockIndex::from_usize(block_index)
+            })
+        }.as_usize();
 
         // 3. Data level
         unsafe{
@@ -313,7 +323,7 @@ where
 
         unsafe{
             // 2. Get Data block and set bit
-            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index.as_());
+            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
             let existed = data_block.remove(data_index);
             
             // TODO: fast check of mutated data_block's primitive == 0?  
@@ -325,7 +335,7 @@ where
                     self.data.remove_empty_block_unchecked(data_block_index);
 
                     // remove pointer from level1
-                    let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index.as_());
+                    let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
                     level1_block.remove(level1_index);
 
                     if level1_block.is_empty(){
@@ -381,18 +391,18 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
         *level1_block.mask()
     }
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Conf::DataBitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
 
-        let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = self.data.blocks().get_unchecked(data_block_index.as_());
+        let data_block_index = level1_block.get_unchecked(level1_index).as_usize();
+        let data_block = self.data.blocks().get_unchecked(data_block_index);
         *data_block.mask()
     }
 }
@@ -418,7 +428,7 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
 
         // TODO: This can point to static empty block, if level1_block_index invalid.
 
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_());
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_usize());
         level1_blocks.write((self.data.blocks().as_ptr(), level1_block));
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
@@ -431,7 +441,7 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
         let level1_block = &*level1_blocks.1;
 
         let data_block_index = level1_block.get_unchecked(level1_index);
-        let data_block = &*array_ptr.add(data_block_index.as_());
+        let data_block = &*array_ptr.add(data_block_index.as_usize());
         *data_block.mask()
     }
 }
@@ -550,25 +560,25 @@ where
 ///
 /// "Reduce" term used in Rust's [Iterator::reduce] sense.
 ///
-/// If the `sets` is empty - returns `None`; otherwise - returns the resulting
+/// If the `bitsets` is empty - returns `None`; otherwise - returns the resulting
 /// lazy bitset.
 ///
-/// `sets` iterator must be cheap to clone (slice iterator is a good example).
+/// `bitsets` iterator must be cheap to clone (slice iterator is a good example).
 /// It will be cloned AT LEAST once for each returned [DataBlock] during iteration.
 ///
 /// # Safety
 ///
 /// Panics, if [Config::DefaultCache] capacity is smaller then sets len.
 #[inline]
-pub fn reduce<Conf, Op, S>(op: Op, sets: S)
-   -> Option<reduce::Reduce<Op, S, Conf::DefaultCache>>
+pub fn reduce<Conf, Op, I>(op: Op, bitsets: I)
+   -> Option<reduce::Reduce<Op, I, Conf::DefaultCache>>
 where
     Conf: Config,
     Op: BitSetOp,
-    S: Iterator + Clone,
-    S::Item: BitSetInterface<Conf = Conf>,
+    I: Iterator + Clone,
+    I::Item: BitSetInterface<Conf = Conf>,
 {
-    reduce_w_cache(op, sets, Default::default())
+    reduce_w_cache(op, bitsets, Default::default())
 }
 
 /// [reduce], using specific [cache] for iteration.
@@ -584,28 +594,28 @@ where
 /// 
 /// [reduce]: reduce()
 #[inline]
-pub fn reduce_w_cache<Op, S, Cache>(_: Op, sets: S, _: Cache)
-    -> Option<reduce::Reduce<Op, S, Cache>>
+pub fn reduce_w_cache<Op, I, Cache>(_: Op, bitsets: I, _: Cache)
+    -> Option<reduce::Reduce<Op, I, Cache>>
 where
     Op: BitSetOp,
-    S: Iterator + Clone,
-    S::Item: BitSetInterface,
+    I: Iterator + Clone,
+    I::Item: BitSetInterface,
     Cache: ReduceCache
 {
     // Compile-time if
     if Cache::MAX_LEN != usize::MAX{
-        let len = sets.clone().count();
+        let len = bitsets.clone().count();
         assert!(len<=Cache::MAX_LEN, "Cache is too small for this iterator.");
         if len == 0{
             return None;
         }
     } else {
-        if sets.clone().next().is_none(){
+        if bitsets.clone().next().is_none(){
             return None;
         }
     }
 
-    Some(reduce::Reduce{ sets, phantom: Default::default() })
+    Some(reduce::Reduce{ sets: bitsets, phantom: Default::default() })
 }
 
 // TODO: Do we need fold as well?
