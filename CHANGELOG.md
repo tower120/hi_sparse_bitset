@@ -5,7 +5,11 @@
 - On each level, instead of empty block indices Vec, intrusive single linked list now used.
   This completely eliminates this kind of memory overhead. Previously, if you would fill `_256bit` bitset,
   and then clear it - you would end up with additional 132Kb memory overhead from the list of free blocks.
-  Considering that preallocated bitblocks themselves took 2Mb - thats save more then 5% of memory.
+  Considering that preallocated bitblocks themselves took 2Mb, this saves more then 5% of memory.
+- Minor `BitSet::remove()` optimization. 
+
+### Changed
+- `BitBlock` interface changed: `first_u64()` and `first_u64_mut()` have been added.
 
 ### Removed
 - `num_traits` dependency removed.

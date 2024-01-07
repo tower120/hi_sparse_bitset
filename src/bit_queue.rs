@@ -10,11 +10,6 @@ use crate::bit_utils::{one_bits_iter, OneBitsIter, self};
 use crate::Primitive;
 
 /// Return 0 if n > BITS
-/* #[inline]
-fn saturating_shl(i: u64, n: u32) -> u64{
-    let (res, overflow) = i.overflowing_shl(n);
-    res * overflow as u64
-} */
 #[inline]
 fn saturating_shl<P: Primitive>(p: P, n: usize) -> P {
     let bits = size_of::<P>() * 8;

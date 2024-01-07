@@ -148,7 +148,7 @@ use bitset_interface::{LevelMasks, LevelMasksExt};
 /// to either do checks on block access (in LevelMasks), or
 /// have one empty block at each level as default, and default indices pointing at it.
 /// Second variant is in use now.
-const INTERSECTION_ONLY: bool = false;
+const PREALLOCATED_EMPTY_BLOCK: bool = true;
 
 macro_rules! assume {
     ($e: expr) => {
@@ -261,6 +261,25 @@ where
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
         -> Option<(usize, usize)>
     {
+        if PREALLOCATED_EMPTY_BLOCK {
+            let level1_block_index = unsafe{
+                self.level0.get_unchecked(level0_index)
+            }.as_usize();
+    
+            // 2. Level1
+            let data_block_index = unsafe{
+                let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
+                level1_block.get_unchecked(level1_index)
+            }.as_usize();
+            
+            return if data_block_index == 0 {
+                // Block 0 - is preallocated empty block
+                None
+            } else {
+                Some((level1_block_index, data_block_index))
+            };
+        }
+        
         // 1. Level0
         let level1_block_index = unsafe{
             self.level0.get(level0_index)?

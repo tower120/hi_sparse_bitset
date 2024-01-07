@@ -1,5 +1,5 @@
 use crate::block::Block;
-use crate::{BitBlock, INTERSECTION_ONLY, Primitive};
+use crate::{BitBlock, PREALLOCATED_EMPTY_BLOCK, Primitive};
 
 #[derive(Clone)]
 pub struct Level<Mask, BlockIndex, BlockIndices>{
@@ -19,7 +19,7 @@ where
     #[inline]
     fn default() -> Self {
         Self{
-            blocks: if !INTERSECTION_ONLY{
+            blocks: if PREALLOCATED_EMPTY_BLOCK {
                 //Always have empty block at index 0.
                 vec![Default::default()]
             } else {
