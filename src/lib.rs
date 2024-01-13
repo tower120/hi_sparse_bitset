@@ -65,7 +65,7 @@
 //! 
 //! # Cursor
 //! 
-//! [BitSetInterface] iterators can return [cursor()], pointing to current iterator position. 
+//! [BitSetInterface] iterators can return [cursor()], pointing to the current iterator position. 
 //! You can use [Cursor] to move ANY [BitSetInterface] iterator to it's position with [move_to].
 //! 
 //! You can also build cursor from index.
@@ -430,8 +430,6 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
     /// Points to elements in heap.
     type Level1Blocks = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
 
-    const EMPTY_LVL1_TOLERANCE: bool = true;
-
     type CacheData = ();
     fn make_cache(&self) -> Self::CacheData { () }
     fn drop_cache(&self, _: &mut ManuallyDrop<Self::CacheData>) {}
@@ -499,7 +497,7 @@ impl<Block: BitBlock> DataBlock<Block>{
     /// Calculate elements count in DataBlock.
     /// 
     /// On most platforms, this should be faster then manually traversing DataBlock
-    /// and counting elements. It use hardware supported popcnt operations,
+    /// and counting elements. It use hardware accelerated "popcnt",
     /// whenever possible. 
     #[inline]
     pub fn len(&self) -> usize {

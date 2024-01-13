@@ -27,7 +27,18 @@ use crate::bit_block::BitBlock;
 pub trait BitSetOp: Default + Copy + 'static{
     /// Will operation between two TrustedHierarchy bitsets produce 
     /// TrustedHierarchy as well?
+    /// 
+    /// Enables some optimizations. False - is always safe value.
     const TRUSTED_HIERARCHY: bool;
+    
+    /// Does [hierarchy_op] operands contain result?
+    /// - left contains all bits from [hierarchy_op] result,
+    /// - right contains all bits from [hierarchy_op] result,
+    /// 
+    /// This is true for [intersection], or narrower.
+    /// 
+    /// Enables some optimizations. False - is always safe value.
+    const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool;
     
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
@@ -43,6 +54,7 @@ pub trait BitSetOp: Default + Copy + 'static{
 pub struct And;
 impl BitSetOp for And {
     const TRUSTED_HIERARCHY: bool = true;
+    const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = true;
     
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
@@ -62,6 +74,7 @@ impl BitSetOp for And {
 pub struct Or;
 impl BitSetOp for Or {
     const TRUSTED_HIERARCHY: bool = true;
+    const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = false;
     
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
@@ -81,6 +94,7 @@ impl BitSetOp for Or {
 pub struct Xor;
 impl BitSetOp for Xor {
     const TRUSTED_HIERARCHY: bool = false;
+    const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = false;
     
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
@@ -100,6 +114,7 @@ impl BitSetOp for Xor {
 pub struct Sub;
 impl BitSetOp for Sub {
     const TRUSTED_HIERARCHY: bool = false;
+    const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = false;
     
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, _right: T) -> T {

@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::bitset_interface::{BitSetBase, iter_update_level1_blocks, LevelMasksExt};
-use crate::{data_block_start_index, level_indices};
+use crate::bitset_interface::{BitSetBase, LevelMasksExt};
+use crate::{assume, data_block_start_index, level_indices};
 
 use super::*;
 
@@ -57,20 +57,20 @@ where
 {
     #[inline]
     fn clone(&self) -> Self {
-        /*const*/ let have_dynamic_cache = mem::size_of::<T::CacheData>() > 0;
+        let cache_data = self.virtual_set.make_cache();   
         
-        // bitwise copy cache for Non-Dynamic
-        if !have_dynamic_cache{
+        // bitwise copy iterator if have no CacheData state.
+        /*const*/ let have_cache_data = mem::size_of::<T::CacheData>() > 0;
+        if !have_cache_data {
             return Self { 
                 virtual_set  : self.virtual_set.clone(), 
                 state        : self.state.clone(),
-                cache_data   : unsafe{ std::ptr::read(&self.cache_data) },
+                cache_data   : ManuallyDrop::new(cache_data),
                 level1_blocks: unsafe{ std::ptr::read(&self.level1_blocks) }
             };
         }
         
         // rebuild cache for Dynamic
-        let cache_data = self.virtual_set.make_cache();
         let mut this = Self { 
             virtual_set: self.virtual_set.clone(), 
             state: self.state.clone(), 
@@ -83,9 +83,15 @@ where
         // level0_index can be only invalid in initial state and for "end".
         if this.state.level0_index < <T::Conf as Config>::Level0BitBlock::size()
         {
-            let _ = unsafe {
-                iter_update_level1_blocks(&this.virtual_set, &mut this.cache_data, &mut this.level1_blocks, this.state.level0_index)
-            };                
+            // Update cache_data state for current iterator position. 
+            unsafe {
+                let (_, valid) = this.virtual_set.update_level1_blocks(
+                    &mut this.cache_data, 
+                    &mut this.level1_blocks, 
+                    this.state.level0_index
+                );    
+                assume!(valid);
+            }
         }
 
         this
@@ -177,7 +183,13 @@ where
             
             // generate level1 mask, and update cache.
             let level1_mask = unsafe {
-                iter_update_level1_blocks(&self.virtual_set, &mut self.cache_data, &mut self.level1_blocks, level0_index)
+                let (level1_mask, valid) = self.virtual_set.update_level1_blocks(
+                    &mut self.cache_data, 
+                    &mut self.level1_blocks, 
+                    level0_index
+                );
+                assume!(valid);
+                level1_mask
             };
             self.state.level1_iter = level1_mask.bits_iter();
             
@@ -247,9 +259,13 @@ where
                     //update level0
                     if let Some(index) = state.level0_iter.next() {
                         state.level0_index = index;
-
-                        let level1_mask = unsafe{
-                            iter_update_level1_blocks(virtual_set, cache_data, level1_blocks, index)
+                        
+                        let level1_mask = unsafe {
+                            let (level1_mask, valid) = virtual_set.update_level1_blocks(
+                                cache_data, level1_blocks, index
+                            );
+                            assume!(valid);
+                            level1_mask
                         };
 
                         state.level1_iter = level1_mask.bits_iter();
@@ -259,7 +275,7 @@ where
                 }
             };
 
-        let data_intersection = unsafe {
+        let data_mask = unsafe {
             T::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
         };
 
@@ -268,7 +284,7 @@ where
                 state.level0_index, level1_index,
             );
 
-        Some(DataBlock { start_index: block_start_index, bit_block: data_intersection })
+        Some(DataBlock { start_index: block_start_index, bit_block: data_mask })
     }
 
     #[inline]
@@ -511,8 +527,11 @@ where
     S: LevelMasksExt, 
     F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
 {
-    let level1_mask = unsafe {
-        iter_update_level1_blocks(&set, cache_data, level1_blocks, level0_index)
+    let level1_mask = unsafe{
+        let (level1_mask, valid) = 
+            set.update_level1_blocks(cache_data, level1_blocks, level0_index);
+        assume!(valid);
+        level1_mask
     };
     
     level1_mask.traverse_bits(|level1_index|{

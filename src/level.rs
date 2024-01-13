@@ -55,7 +55,7 @@ where
         let index = self.root_empty_block as usize;
         unsafe{
             let empty_block = self.blocks.get_unchecked_mut(index);
-            let next_empty_block = empty_block.raw_mask_mut().first_u64_mut(); 
+            let next_empty_block = empty_block.mask_mut().first_u64_mut(); 
             
             // update list root 
             self.root_empty_block = *next_empty_block;
@@ -72,7 +72,7 @@ where
     #[inline]
     unsafe fn push_empty_block(&mut self, block_index: usize){
         let empty_block = self.blocks.get_unchecked_mut(block_index);
-        let next_empty_block = empty_block.raw_mask_mut().first_u64_mut();
+        let next_empty_block = empty_block.mask_mut().first_u64_mut();
         *next_empty_block = self.root_empty_block;
         
         self.root_empty_block = block_index as u64;

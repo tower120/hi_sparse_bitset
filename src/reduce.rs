@@ -160,7 +160,7 @@ unsafe fn update_level1_blocks<Op, Conf, Sets>(
     cache_ptr: *mut <Sets::Item as LevelMasksExt>::CacheData,
     level1_blocks_ptr: *mut MaybeUninit<<Sets::Item as LevelMasksExt>::Level1Blocks>,
     level0_index: usize
-) -> (<Conf as Config>::Level1BitBlock, usize/*len*/, bool/*is_empty*/)
+) -> (<Conf as Config>::Level1BitBlock, usize/*len*/, bool/*is_not_empty*/)
 where
     Op: BitSetOp,
     Conf: Config,
@@ -172,7 +172,7 @@ where
     // empty masks/blocks queried.
     //
     // P.S. should be const, but act as const anyway.
-    let is_intersection = TypeId::of::<Op>() == TypeId::of::<And>();
+    /*const*/ let never_empty = Op::HIERARCHY_OPERANDS_CONTAIN_RESULT;
 
     // Overwrite only non-empty blocks.
     let mut cache_index = 0;
@@ -186,7 +186,7 @@ where
                 level0_index
             );
 
-            if is_intersection{
+            if never_empty {
                 assume!(is_not_empty);
                 index += 1;
                 cache_index = index;
@@ -200,40 +200,44 @@ where
         .reduce(Op::hierarchy_op)
         .unwrap_unchecked();
 
-    let is_empty =
-        if is_intersection{
+    let is_not_empty =
+        if never_empty {
             assume!(index != 0);
             true
         } else {
             index!=0
         };
 
-    (mask, index, is_empty)
+    (mask, index, is_not_empty)
 }
 
 
 #[inline]
-unsafe fn data_mask_from_blocks<Op, Set, Conf>(
+unsafe fn data_mask_from_blocks<Op, Set>(
     //_: Op,
     slice: &[Set::Level1Blocks],
     level1_index: usize
-) -> <Conf as Config>::DataBitBlock
+) -> <Set::Conf as Config>::DataBitBlock
 where
     Op: BitSetOp,
-    Conf: Config,
-    Set: LevelMasksExt<Conf=Conf>,
+    Set: LevelMasksExt,
 {
     unsafe{
-        slice.iter()
+        let res = slice.iter()
             .map(|set_level1_blocks|
                 <Set as LevelMasksExt>::data_mask_from_blocks(
                     set_level1_blocks, level1_index
                 )
             )
-            .reduce(Op::data_op)
+            .reduce(Op::data_op);
+        
+        if Op::HIERARCHY_OPERANDS_CONTAIN_RESULT {
             // level1_blocks can not be empty, since then -
             // level1 mask will be empty, and there will be nothing to iterate.
-            .unwrap_unchecked()
+            res.unwrap_unchecked()
+        } else {
+            res.unwrap_or_else(||<<Set::Conf as Config>::DataBitBlock as crate::BitBlock>::zero())
+        }
     }
 }
 
@@ -327,10 +331,10 @@ where
         // assume_init_mut array
         let cache_ptr = cache_data.as_mut_ptr() as *mut <Self::Set as LevelMasksExt>::CacheData;
 
-        let (mask, len, is_empty) =
+        let (mask, len, valid) =
             update_level1_blocks(Op::default(), sets, cache_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
         *level1_blocks_len = len;
-        (mask, is_empty)
+        (mask, valid)
     }
 
     #[inline]
@@ -341,7 +345,7 @@ where
             level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksExt>::Level1Blocks,
             level1_blocks.1
         );
-        data_mask_from_blocks::<Op, Self::Set, Self::Conf>(slice, level1_index)
+        data_mask_from_blocks::<Op, Self::Set>(slice, level1_index)
     }
 }
 
@@ -415,7 +419,7 @@ where
         // assume_init_mut array
         let cache_ptr = child_cache.as_mut_ptr() as *mut _;
 
-        let (mask, len, is_empty) =
+        let (mask, len, valid) =
             update_level1_blocks(Op::default(), sets, cache_ptr, storage.as_mut_ptr(), level0_index);
 
         level1_blocks.write((
@@ -424,7 +428,7 @@ where
             len
         ));
 
-        (mask, is_empty)
+        (mask, valid)
     }
 
     #[inline]
@@ -434,7 +438,7 @@ where
         let slice = std::slice::from_raw_parts(
             level1_blocks.0, level1_blocks.1
         );
-        data_mask_from_blocks::<Op, Self::Set, Self::Conf>(slice, level1_index)
+        data_mask_from_blocks::<Op, Self::Set>(slice, level1_index)
     }
 }
 
@@ -448,7 +452,6 @@ where
 {
     type CacheData = <Cache::Impl<Op, S> as ReduceCacheImpl>::CacheData;
     type Level1Blocks = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1Blocks;
-    const EMPTY_LVL1_TOLERANCE: bool = <Cache::Impl<Op, S> as ReduceCacheImpl>::EMPTY_LVL1_TOLERANCE;
 
     #[inline]
     fn make_cache(&self) -> Self::CacheData {

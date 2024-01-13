@@ -10,6 +10,7 @@
 
 ### Changed
 - `BitBlock` interface changed: `first_u64()` and `first_u64_mut()` have been added.
+- `BitSetOp` changed.
 
 ### Removed
 - `num_traits` dependency removed.

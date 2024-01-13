@@ -86,9 +86,7 @@ where
     S1: LevelMasksExt,
     S2: LevelMasksExt<Conf = S1::Conf>,
 {
-    type Level1Blocks = (MaybeUninit<S1::Level1Blocks>, MaybeUninit<S2::Level1Blocks>, MaybeUninit<bool>, MaybeUninit<bool>);
-
-    const EMPTY_LVL1_TOLERANCE: bool = true;
+    type Level1Blocks = (MaybeUninit<S1::Level1Blocks>, MaybeUninit<S2::Level1Blocks>);
 
     type CacheData = (S1::CacheData, S2::CacheData);
 
@@ -120,16 +118,6 @@ where
             &mut cache_data.1, &mut level1_blocks.1, level0_index
         );
 
-        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<And>();
-        if !is_intersection {
-        if !S1::EMPTY_LVL1_TOLERANCE {
-            level1_blocks.2.write(v1);
-        }
-        if !S2::EMPTY_LVL1_TOLERANCE {
-            level1_blocks.3.write(v2);
-        }
-        }
-
         let mask = Op::hierarchy_op(mask1, mask2);
         (mask, v1 | v2)
     }
@@ -138,21 +126,8 @@ where
     unsafe fn data_mask_from_blocks(
         level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
-        // intersection can never point to empty blocks.
-        /*const*/ let is_intersection = TypeId::of::<Op>() == TypeId::of::<And>();
-
-        let m0 = if S1::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.2.assume_init(){
-            S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index)
-        } else {
-            <Self::Conf as Config>::DataBitBlock::zero()
-        };
-
-        let m1 = if S2::EMPTY_LVL1_TOLERANCE || is_intersection || level1_blocks.3.assume_init(){
-            S2::data_mask_from_blocks(level1_blocks.1.assume_init_ref(), level1_index)
-        } else {
-            <Self::Conf as Config>::DataBitBlock::zero()
-        };
-
+        let m0 = S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index);
+        let m1 = S2::data_mask_from_blocks(level1_blocks.1.assume_init_ref(), level1_index); 
         Op::data_op(m0, m1)
     }
 }

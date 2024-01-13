@@ -40,14 +40,9 @@ where
     BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
 {
     #[inline]
-    pub unsafe fn raw_mask(&self) -> &Mask{
-        &self.mask
-    } 
-    
-    #[inline]
-    pub unsafe fn raw_mask_mut(&mut self) -> &mut Mask{
-        &mut self.mask
-    } 
+    pub unsafe fn from_raw(mask: Mask, block_indices: BlockIndices) -> Self {
+        Self{ mask, block_indices, phantom: PhantomData }
+    }
     
     /// # Safety
     ///
@@ -139,6 +134,11 @@ where
     #[inline]
     pub fn mask(&self) -> &Mask {
         &self.mask
+    }
+    
+    #[inline]
+    pub unsafe fn mask_mut(&mut self) -> &mut Mask{
+        &mut self.mask
     }
 
     #[inline]

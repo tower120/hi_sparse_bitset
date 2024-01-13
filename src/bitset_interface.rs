@@ -36,12 +36,12 @@ pub trait LevelMasks: BitSetBase{
 
 /// More sophisticated masks interface, optimized for iteration speed, through
 /// caching level1(pre-data level) block pointer. This also, allow to discard
-/// sets with empty level1 blocks in final stage of getting data blocks.
+/// bitsets with empty level1 blocks in final stage of getting data blocks.
 ///
 /// For use with [CachingIter].
 pub trait LevelMasksExt: LevelMasks{
     /// Consists from child caches + Self state.
-    /// Fot internal use (ala state).
+    /// For internal use (ala iterator state).
     type CacheData;
 
     /// Cached Level1Blocks for faster accessing DataBlocks,
@@ -52,12 +52,6 @@ pub trait LevelMasksExt: LevelMasks{
     /// Must be POD. (Drop will not be called)
     type Level1Blocks;
 
-    /// Could [data_mask_from_blocks3] be called if [update_level1_blocks3]
-    /// returned false?
-    ///
-    /// Mainly used by op.
-    const EMPTY_LVL1_TOLERANCE: bool;
-
     fn make_cache(&self) -> Self::CacheData;
 
     /// Having separate function for drop not strictly necessary, since
@@ -65,12 +59,17 @@ pub trait LevelMasksExt: LevelMasks{
     /// size within CacheData. Which makes FixedCache CacheData ZST, if its childs
     /// are ZSTs, and which makes cache construction and destruction noop. Which is
     /// important for short iteration sessions.
+    /// 
+    /// P.S. This can be done at compile-time by opting out "len" counter,
+    /// but stable Rust does not allow to do this yet.
     fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>);
 
     /// Update `level1_blocks` and
-    /// return (Level1Mask, is_not_empty/valid).
+    /// return (Level1Mask, is_not_empty).
+    /// 
+    /// # Safety
     ///
-    /// if level0_index valid - update `level1_blocks`.
+    /// indices are not checked.
     unsafe fn update_level1_blocks(
         &self,
         cache: &mut Self::CacheData,
@@ -80,9 +79,7 @@ pub trait LevelMasksExt: LevelMasks{
 
     /// # Safety
     ///
-    /// - indices are not checked
-    /// - if ![EMPTY_LVL1_TOLERANCE] should not be called, if
-    ///   [update_level1_blocks] returned false.
+    /// indices are not checked.
     unsafe fn data_mask_from_blocks(
         /*&self,*/ level1_blocks: &Self::Level1Blocks, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock;
@@ -114,8 +111,6 @@ impl<'a, T: LevelMasks> LevelMasks for &'a T {
 }
 impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
     type Level1Blocks = T::Level1Blocks;
-
-    const EMPTY_LVL1_TOLERANCE: bool = T::EMPTY_LVL1_TOLERANCE;
 
     type CacheData = T::CacheData;
 
@@ -149,26 +144,6 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
             level1_blocks, level1_index
         )
     }
-}
-
-/// Helper function
-/// 
-/// # Safety
-/// 
-/// Only safe to call if you iterate `set`. 
-/// (`set` at the top of lazy bitset operations hierarchy)
-#[inline] 
-pub(crate) unsafe fn iter_update_level1_blocks<S: LevelMasksExt>(
-    set: &S,
-    cache_data: &mut S::CacheData,
-    level1_blocks: &mut MaybeUninit<S::Level1Blocks>,
-    level0_index: usize    
-) -> <S::Conf as Config>::Level1BitBlock{
-    let (level1_mask, valid) = unsafe {
-        set.update_level1_blocks(cache_data, level1_blocks, level0_index)
-    };
-    assume!(valid);
-    level1_mask
 }
 
 // User-side interface
@@ -262,6 +237,7 @@ fn bitset_is_empty<S: LevelMasksExt>(bitset: S) -> bool {
     }).is_break()
 }
 
+// TODO: get back to blanket implementation
 macro_rules! impl_bitset_interface {
     (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
         impl<$($generics),*> BitSetInterface for $t
