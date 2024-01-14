@@ -35,25 +35,26 @@ pub trait LevelMasks: BitSetBase{
 }
 
 /// More sophisticated masks interface, optimized for iteration speed, through
-/// caching level1(pre-data level) block pointer. This also, allow to discard
+/// caching level1(pre-data level) block pointer. This also allows to discard
 /// bitsets with empty level1 blocks in final stage of getting data blocks.
 ///
 /// For use with [CachingIter].
-pub trait LevelMasksExt: LevelMasks{
-    /// Consists from child caches + Self state.
-    /// For internal use (ala iterator state).
-    type CacheData;
+pub trait LevelMasksIterExt: LevelMasks{
+    /// Consists from child states + Self state.
+    type IterState;
 
-    /// Cached Level1Blocks for faster accessing DataBlocks,
+    /// Cached Level1Blocks for faster DataBlocks access,
     /// without traversing whole hierarchy for getting each block during iteration.
     ///
     /// This may have less elements then sets size, because empty can be skipped.
     ///
     /// Must be POD. (Drop will not be called)
-    type Level1Blocks;
+    type Level1BlockData;
 
-    fn make_cache(&self) -> Self::CacheData;
+    // TODO: rename to make_iter_state() ?
+    fn make_state(&self) -> Self::IterState;
 
+    // TODO: unsafe?
     /// Having separate function for drop not strictly necessary, since
     /// CacheData can actually drop itself. But! This allows not to store cache
     /// size within CacheData. Which makes FixedCache CacheData ZST, if its childs
@@ -61,27 +62,26 @@ pub trait LevelMasksExt: LevelMasks{
     /// important for short iteration sessions.
     /// 
     /// P.S. This can be done at compile-time by opting out "len" counter,
-    /// but stable Rust does not allow to do this yet.
-    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>);
+    /// but stable Rust does not allow to do that yet.
+    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>);
 
-    /// Update `level1_blocks` and
-    /// return (Level1Mask, is_not_empty).
+    /// Update `level1_blocks` and return (Level1Mask, is_not_empty).
     /// 
     /// # Safety
     ///
     /// indices are not checked.
-    unsafe fn update_level1_blocks(
+    unsafe fn update_level1_block_data(
         &self,
-        cache: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
+        state: &mut Self::IterState,
+        level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool);
 
     /// # Safety
     ///
     /// indices are not checked.
-    unsafe fn data_mask_from_blocks(
-        /*&self,*/ level1_blocks: &Self::Level1Blocks, level1_index: usize
+    unsafe fn data_mask_from_block_data(
+        /*&self,*/ level1_block_data: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock;
 }
 
@@ -109,38 +109,38 @@ impl<'a, T: LevelMasks> LevelMasks for &'a T {
         <T as LevelMasks>::data_mask(self, level0_index, level1_index)
     }
 }
-impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
-    type Level1Blocks = T::Level1Blocks;
+impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
+    type Level1BlockData = T::Level1BlockData;
 
-    type CacheData = T::CacheData;
+    type IterState = T::IterState;
 
     #[inline]
-    fn make_cache(&self) -> Self::CacheData {
-        <T as LevelMasksExt>::make_cache(self)
+    fn make_state(&self) -> Self::IterState {
+        <T as LevelMasksIterExt>::make_state(self)
     }
 
     #[inline]
-    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>) {
-        <T as LevelMasksExt>::drop_cache(self, cache)
+    fn drop_state(&self, cache: &mut ManuallyDrop<Self::IterState>) {
+        <T as LevelMasksIterExt>::drop_state(self, cache)
     }
 
     #[inline]
-    unsafe fn update_level1_blocks(
+    unsafe fn update_level1_block_data(
         &self,
-        cache_data: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
+        cache_data: &mut Self::IterState,
+        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        <T as LevelMasksExt>::update_level1_blocks(
+        <T as LevelMasksIterExt>::update_level1_block_data(
             self, cache_data, level1_blocks, level0_index
         )
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks(
-        level1_blocks: &Self::Level1Blocks, level1_index: usize
+    unsafe fn data_mask_from_block_data(
+        level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
-        <T as LevelMasksExt>::data_mask_from_blocks(
+        <T as LevelMasksIterExt>::data_mask_from_block_data(
             level1_blocks, level1_index
         )
     }
@@ -166,7 +166,7 @@ impl<'a, T: LevelMasksExt> LevelMasksExt for &'a T {
 pub trait BitSetInterface
     : BitSetBase 
     + IntoIterator<IntoIter = DefaultIndexIterator<Self>> 
-    + LevelMasksExt 
+    + LevelMasksIterExt 
     + Sized
 {
     fn block_iter(&self) -> DefaultBlockIterator<&'_ Self>;
@@ -187,15 +187,15 @@ macro_rules! impl_all {
             impl<Op, S1, S2> for Apply<Op, S1, S2>
             where
                 Op: BitSetOp,
-                S1: LevelMasksExt<Conf = S2::Conf>,
-                S2: LevelMasksExt
+                S1: LevelMasksIterExt<Conf = S2::Conf>,
+                S2: LevelMasksIterExt
         );
         $macro_name!(
             impl<Op, S, Storage> for Reduce<Op, S, Storage>
             where
                 Op: BitSetOp,
                 S: Iterator + Clone,
-                S::Item: LevelMasksExt,
+                S::Item: LevelMasksIterExt,
                 Storage: ReduceCache
         );        
     }
@@ -208,21 +208,21 @@ macro_rules! impl_all_ref {
             impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2>
             where
                 Op: BitSetOp,
-                S1: LevelMasksExt<Conf = S2::Conf>,
-                S2: LevelMasksExt
+                S1: LevelMasksIterExt<Conf = S2::Conf>,
+                S2: LevelMasksIterExt
         );
         $macro_name!(
             impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
             where
                 Op: BitSetOp,
                 S: Iterator + Clone,
-                S::Item: LevelMasksExt,
+                S::Item: LevelMasksIterExt,
                 Storage: ReduceCache
         );
     }
 }
 
-fn bitset_is_empty<S: LevelMasksExt>(bitset: S) -> bool {
+fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     if S::TRUSTED_HIERARCHY{
         return bitset.level0_mask().is_zero();
     }
@@ -316,8 +316,8 @@ impl_all!(duplicate_bitset_interface);
 // Optimistic depth-first check.
 fn bitsets_eq<L, R>(left: L, right: R) -> bool
 where
-    L: LevelMasksExt,
-    R: LevelMasksExt<Conf = L::Conf>,
+    L: LevelMasksIterExt,
+    R: LevelMasksIterExt<Conf = L::Conf>,
 {
     let left_level0_mask  = left.level0_mask();
     let right_level0_mask = right.level0_mask();
@@ -336,8 +336,8 @@ where
             left_level0_mask | right_level0_mask
         };
     
-    let mut left_cache_data  = left.make_cache();
-    let mut right_cache_data = right.make_cache();
+    let mut left_cache_data  = left.make_state();
+    let mut right_cache_data = right.make_state();
     
     let mut left_level1_blocks  = MaybeUninit::uninit();
     let mut right_level1_blocks = MaybeUninit::uninit();
@@ -345,10 +345,10 @@ where
     use ControlFlow::*;
     level0_mask.traverse_bits(|level0_index|{
         let (left_level1_mask, left_valid) = unsafe {
-            left.update_level1_blocks(&mut left_cache_data, &mut left_level1_blocks, level0_index)
+            left.update_level1_block_data(&mut left_cache_data, &mut left_level1_blocks, level0_index)
         };
         let (right_level1_mask, right_valid) = unsafe {
-            right.update_level1_blocks(&mut right_cache_data, &mut right_level1_blocks, level0_index)
+            right.update_level1_block_data(&mut right_cache_data, &mut right_level1_blocks, level0_index)
         };
         
         if is_trusted_hierarchy {
@@ -371,10 +371,10 @@ where
             
             level1_mask.traverse_bits(|level1_index|{
                 let left_data = unsafe {
-                    L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+                    L::data_mask_from_block_data(left_level1_blocks.assume_init_ref(), level1_index)
                 };
                 let right_data = unsafe {
-                    R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+                    R::data_mask_from_block_data(right_level1_blocks.assume_init_ref(), level1_index)
                 };
                 
                 if left_data == right_data{
@@ -394,7 +394,7 @@ where
             
             left_level1_mask.traverse_bits(|level1_index|{
                 let left_data = unsafe{
-                    L::data_mask_from_blocks(left_level1_blocks.assume_init_ref(), level1_index)
+                    L::data_mask_from_block_data(left_level1_blocks.assume_init_ref(), level1_index)
                 };
                 if left_data.is_zero() {
                     Continue(())
@@ -413,7 +413,7 @@ where
             
             right_level1_mask.traverse_bits(|level1_index|{
                 let right_data = unsafe{
-                    R::data_mask_from_blocks(right_level1_blocks.assume_init_ref(), level1_index)
+                    R::data_mask_from_block_data(right_level1_blocks.assume_init_ref(), level1_index)
                 };
                 if right_data.is_zero() {
                     Continue(())

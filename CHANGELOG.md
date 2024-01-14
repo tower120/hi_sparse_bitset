@@ -2,15 +2,20 @@
 
 ## 0.5.0
 ### Optimization
-- On each level, instead of empty block indices Vec, intrusive single linked list now used.
+- On each level, instead of empty block indices Vec, an intrusive single-linked list is now used.
   This completely eliminates this kind of memory overhead. Previously, if you would fill `_256bit` bitset,
   and then clear it - you would end up with additional 132Kb memory overhead from the list of free blocks.
-  Considering that preallocated bitblocks themselves took 2Mb, this saves more then 5% of memory.
+  Considering that preallocated bitblocks themselves took 2Mb, this saves more than 5% of memory.
 - Minor `BitSet::remove()` optimization. 
 
 ### Changed
-- `BitBlock` interface changed: `first_u64()` and `first_u64_mut()` have been added.
-- `BitSetOp` changed.
+
+
+### Added
+- `BitBlock::first_u64()`.
+- `BitBlock::first_u64_mut()`.
+- `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like 
+  optimization in user-defined operations.
 
 ### Removed
 - `num_traits` dependency removed.

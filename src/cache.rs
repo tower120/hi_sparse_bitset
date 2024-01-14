@@ -9,7 +9,7 @@
 //! [reduce]: crate::reduce()
 
 use crate::ops::BitSetOp;
-use crate::bitset_interface::{BitSetBase, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
 use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCacheImpl};
 
 /// Cache is not used.
@@ -99,7 +99,7 @@ pub trait ReduceCache: Default + 'static{
     where
         Op: BitSetOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt;
+        S::Item: LevelMasksIterExt;
 }
 
 impl ReduceCache for NoCache{
@@ -108,7 +108,7 @@ impl ReduceCache for NoCache{
     where
         Op: BitSetOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt;
+        S::Item: LevelMasksIterExt;
 }
 
 impl<const N: usize> ReduceCache for FixedCache<N>{
@@ -117,7 +117,7 @@ impl<const N: usize> ReduceCache for FixedCache<N>{
     where
         Op: BitSetOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt;
+        S::Item: LevelMasksIterExt;
 }
 
 impl ReduceCache for DynamicCache{
@@ -126,5 +126,5 @@ impl ReduceCache for DynamicCache{
     where
         Op: BitSetOp,
         S: Iterator + Clone,
-        S::Item: LevelMasksExt;
+        S::Item: LevelMasksIterExt;
 }

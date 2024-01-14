@@ -1,13 +1,10 @@
-use std::any::TypeId;
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
-//use std::ops::{BitAnd, BitOr, BitXor, Sub};
 use crate::ops::*;
 use crate::BitSet;
-use crate::bit_block::BitBlock;
 use crate::reduce::Reduce;
-use crate::bitset_interface::{BitSetBase, /*duplicate_bitset_interface,*/ LevelMasks, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksIterExt};
 use crate::config::Config;
 
 /// Binary operation application, as lazy bitset.
@@ -80,42 +77,42 @@ where
     }
 }
 
-impl<Op, S1, S2> LevelMasksExt for Apply<Op, S1, S2>
+impl<Op, S1, S2> LevelMasksIterExt for Apply<Op, S1, S2>
 where
     Op: BitSetOp,
-    S1: LevelMasksExt,
-    S2: LevelMasksExt<Conf = S1::Conf>,
+    S1: LevelMasksIterExt,
+    S2: LevelMasksIterExt<Conf = S1::Conf>,
 {
-    type Level1Blocks = (MaybeUninit<S1::Level1Blocks>, MaybeUninit<S2::Level1Blocks>);
+    type Level1BlockData = (MaybeUninit<S1::Level1BlockData>, MaybeUninit<S2::Level1BlockData>);
 
-    type CacheData = (S1::CacheData, S2::CacheData);
+    type IterState = (S1::IterState, S2::IterState);
 
     #[inline]
-    fn make_cache(&self) -> Self::CacheData {
-        (self.s1.make_cache(), self.s2.make_cache())
+    fn make_state(&self) -> Self::IterState {
+        (self.s1.make_state(), self.s2.make_state())
     }
 
     #[inline]
-    fn drop_cache(&self, cache: &mut ManuallyDrop<Self::CacheData>) {
+    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
         unsafe{
-            self.s1.drop_cache(mem::transmute(&mut cache.0));
-            self.s2.drop_cache(mem::transmute(&mut cache.1));
+            self.s1.drop_state(mem::transmute(&mut state.0));
+            self.s2.drop_state(mem::transmute(&mut state.1));
         }
     }
 
     #[inline]
-    unsafe fn update_level1_blocks(
+    unsafe fn update_level1_block_data(
         &self,
-        cache_data: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
+        state: &mut Self::IterState,
+        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         let level1_blocks = level1_blocks.assume_init_mut();
-        let (mask1, v1) = self.s1.update_level1_blocks(
-            &mut cache_data.0, &mut level1_blocks.0, level0_index
+        let (mask1, v1) = self.s1.update_level1_block_data(
+            &mut state.0, &mut level1_blocks.0, level0_index
         );
-        let (mask2, v2) = self.s2.update_level1_blocks(
-            &mut cache_data.1, &mut level1_blocks.1, level0_index
+        let (mask2, v2) = self.s2.update_level1_block_data(
+            &mut state.1, &mut level1_blocks.1, level0_index
         );
 
         let mask = Op::hierarchy_op(mask1, mask2);
@@ -123,11 +120,15 @@ where
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks(
-        level1_blocks: &Self::Level1Blocks, level1_index: usize
+    unsafe fn data_mask_from_block_data(
+        level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
-        let m0 = S1::data_mask_from_blocks(level1_blocks.0.assume_init_ref(), level1_index);
-        let m1 = S2::data_mask_from_blocks(level1_blocks.1.assume_init_ref(), level1_index); 
+        let m0 = S1::data_mask_from_block_data(
+            level1_blocks.0.assume_init_ref(), level1_index
+        );
+        let m1 = S2::data_mask_from_block_data(
+            level1_blocks.1.assume_init_ref(), level1_index
+        ); 
         Op::data_op(m0, m1)
     }
 }
@@ -258,8 +259,8 @@ mod test{
         fn test<Op, S1, S2>(h: Apply<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BitSetOp,
-            S1: LevelMasksExt<Conf = S2::Conf>,
-            S2: LevelMasksExt,
+            S1: LevelMasksIterExt<Conf = S2::Conf>,
+            S2: LevelMasksIterExt,
         {
             let hv: Vec<usize> = h.block_iter()
                 .flat_map(|block| block.iter())

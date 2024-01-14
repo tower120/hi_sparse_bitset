@@ -24,6 +24,8 @@ pub trait BitBlock
     fn zero() -> Self;
     fn is_zero(&self) -> bool;
 
+    // We could actually use more universal as_array and as_array_mut instead.
+    // But this seems to be unnecessary now.
     fn first_u64(&self) -> &u64;
     fn first_u64_mut(&mut self) -> &mut u64;
 
@@ -37,7 +39,7 @@ pub trait BitBlock
 
     // TODO: This can be removed, since there is BitQueue::traverse
     //       which do the same and perform the same in optimized build.
-    /// Returns Break if traverse was breaked.
+    /// Returns [Break] if traverse was interrupted (`f` returns [Break]).
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;

@@ -142,7 +142,7 @@ use ops::BitSetOp;
 pub use bit_block::BitBlock;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
-use bitset_interface::{LevelMasks, LevelMasksExt};
+use bitset_interface::{LevelMasks, LevelMasksIterExt};
 
 /// Use any other operation then intersection(and) require
 /// to either do checks on block access (in LevelMasks), or
@@ -187,6 +187,11 @@ fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*
     (level0, level1, data)
 }
 
+type Level0Block<Conf> = Block<
+    <Conf as Config>::Level0BitBlock, 
+    <Conf as Config>::Level1BlockIndex, 
+    <Conf as Config>::Level0BlockIndices
+>;
 type Level1Block<Conf> = Block<
     <Conf as Config>::Level1BitBlock,
     <Conf as Config>::DataBlockIndex,
@@ -217,7 +222,7 @@ type LevelData<Conf> = Level<
 /// _(Other inter-bitset operations are in fact fast too - but intersection has lowest algorithmic complexity.)_
 /// Insert/remove/contains is fast O(1) too.
 pub struct BitSet<Conf: Config>{
-    level0: Block<Conf::Level0BitBlock, Conf::Level1BlockIndex, Conf::Level0BlockIndices>,
+    level0: Level0Block<Conf>,
     level1: Level1<Conf>,
     data  : LevelData<Conf>,
 }
@@ -397,6 +402,42 @@ impl<Conf: Config, const N: usize> From<[usize; N]> for BitSet<Conf> {
     }
 }
 
+
+/*fn from_bitset_interface<Conf, B>() -> BitSet<Conf>
+where
+    Conf: Config, 
+    B: BitSetInterface<Conf = Conf>
+{
+    todo!()    
+} */
+
+/*impl<Conf: Config, B: BitSetInterface<Conf = Conf>> From<B> for BitSet<Conf> {
+    fn from(bitset: B) -> Self {
+        todo!()
+        
+        /*if B::TRUSTED_HIERARCHY {
+            // copy as is
+            let level0_mask = bitset.level0_mask();
+            let mut level0_indices: Conf::Level0BlockIndices = unsafe{
+                MaybeUninit::zeroed().assume_init()
+            };
+            
+            level0_mask.traverse_bits(|index|{
+                level0_indices.get_unchec
+            });
+            
+            
+            let mut level0 = Level0Block::default();
+            *level0.mask_mut() = 
+            
+            let this = Self{
+                
+            }
+        }
+        Self::from_iter(value.into_iter())*/
+    }
+}*/
+
 impl<Conf: Config> BitSetBase for BitSet<Conf>{
     type Conf = Conf;
     const TRUSTED_HIERARCHY: bool = true;
@@ -426,24 +467,25 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
     }
 }
 
-impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
+impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
     /// Points to elements in heap.
-    type Level1Blocks = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
+    type Level1BlockData = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
 
-    type CacheData = ();
-    fn make_cache(&self) -> Self::CacheData { () }
-    fn drop_cache(&self, _: &mut ManuallyDrop<Self::CacheData>) {}
+    type IterState = ();
+    fn make_state(&self) -> Self::IterState { () }
+    fn drop_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
 
     #[inline]
-    unsafe fn update_level1_blocks(
+    unsafe fn update_level1_block_data(
         &self,
-        _: &mut Self::CacheData,
-        level1_blocks: &mut MaybeUninit<Self::Level1Blocks>,
+        _: &mut Self::IterState,
+        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);
 
         // TODO: This can point to static empty block, if level1_block_index invalid.
+        //       But looks like this way it is a tiny bit faster.
 
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_usize());
         level1_blocks.write((self.data.blocks().as_ptr(), level1_block));
@@ -451,8 +493,8 @@ impl<Conf: Config> LevelMasksExt for BitSet<Conf>{
     }
 
     #[inline]
-    unsafe fn data_mask_from_blocks(
-        /*&self,*/ level1_blocks: &Self::Level1Blocks, level1_index: usize
+    unsafe fn data_mask_from_block_data(
+        /*&self,*/ level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> Conf::DataBitBlock {
         let array_ptr = level1_blocks.0;
         let level1_block = &*level1_blocks.1;

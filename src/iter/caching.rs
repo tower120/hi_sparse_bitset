@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
-use crate::bitset_interface::{BitSetBase, LevelMasksExt};
+use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
 use crate::{assume, data_block_start_index, level_indices};
 
 use super::*;
@@ -42,25 +42,25 @@ use super::*;
 /// [for_each]: std::iter::Iterator::for_each
 pub struct CachingBlockIter<T>
 where
-    T: LevelMasksExt,
+    T: LevelMasksIterExt,
 {
     virtual_set: T,
     state: State<T::Conf>,
-    cache_data: ManuallyDrop<T::CacheData>,
+    cache_data: ManuallyDrop<T::IterState>,
     /// Never drop - since we're guaranteed to have them POD.
-    level1_blocks: MaybeUninit<T::Level1Blocks>,
+    level1_blocks: MaybeUninit<T::Level1BlockData>,
 }
 
 impl<T> Clone for CachingBlockIter<T>
 where
-    T: LevelMasksExt + Clone
+    T: LevelMasksIterExt + Clone
 {
     #[inline]
     fn clone(&self) -> Self {
-        let cache_data = self.virtual_set.make_cache();   
+        let cache_data = self.virtual_set.make_state();   
         
         // bitwise copy iterator if have no CacheData state.
-        /*const*/ let have_cache_data = mem::size_of::<T::CacheData>() > 0;
+        /*const*/ let have_cache_data = mem::size_of::<T::IterState>() > 0;
         if !have_cache_data {
             return Self { 
                 virtual_set  : self.virtual_set.clone(), 
@@ -85,7 +85,7 @@ where
         {
             // Update cache_data state for current iterator position. 
             unsafe {
-                let (_, valid) = this.virtual_set.update_level1_blocks(
+                let (_, valid) = this.virtual_set.update_level1_block_data(
                     &mut this.cache_data, 
                     &mut this.level1_blocks, 
                     this.state.level0_index
@@ -101,7 +101,7 @@ where
 
 impl<T> CachingBlockIter<T>
 where
-    T: LevelMasksExt,
+    T: LevelMasksIterExt,
 {
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self {
@@ -112,7 +112,7 @@ where
             // Which means that only level0_iter initialized, and in original state.
             level0_index: usize::MAX,    
         };
-        let cache_data = virtual_set.make_cache();
+        let cache_data = virtual_set.make_state();
         Self{
             virtual_set,
             state,
@@ -183,7 +183,7 @@ where
             
             // generate level1 mask, and update cache.
             let level1_mask = unsafe {
-                let (level1_mask, valid) = self.virtual_set.update_level1_blocks(
+                let (level1_mask, valid) = self.virtual_set.update_level1_block_data(
                     &mut self.cache_data, 
                     &mut self.level1_blocks, 
                     level0_index
@@ -243,7 +243,7 @@ where
 
 impl<T> Iterator for CachingBlockIter<T>
 where
-    T: LevelMasksExt,
+    T: LevelMasksIterExt,
 {
     type Item = DataBlock<<T::Conf as Config>::DataBitBlock>;
 
@@ -261,7 +261,7 @@ where
                         state.level0_index = index;
                         
                         let level1_mask = unsafe {
-                            let (level1_mask, valid) = virtual_set.update_level1_blocks(
+                            let (level1_mask, valid) = virtual_set.update_level1_block_data(
                                 cache_data, level1_blocks, index
                             );
                             assume!(valid);
@@ -276,7 +276,7 @@ where
             };
 
         let data_mask = unsafe {
-            T::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
+            T::data_mask_from_block_data(level1_blocks.assume_init_ref(), level1_index)
         };
 
         let block_start_index =
@@ -301,11 +301,11 @@ where
 
 impl<T> Drop for CachingBlockIter<T>
 where
-    T: LevelMasksExt
+    T: LevelMasksIterExt
 {
     #[inline]
     fn drop(&mut self) {
-        self.virtual_set.drop_cache(&mut self.cache_data);
+        self.virtual_set.drop_state(&mut self.cache_data);
     }
 }
 
@@ -325,7 +325,7 @@ where
 /// [for_each]: std::iter::Iterator::for_each
 pub struct CachingIndexIter<T>
 where
-    T: LevelMasksExt,
+    T: LevelMasksIterExt,
 {
     block_iter: CachingBlockIter<T>,
     data_block_iter: DataBlockIter<<T::Conf as Config>::DataBitBlock>,
@@ -333,7 +333,7 @@ where
 
 impl<T> Clone for CachingIndexIter<T>
 where
-    T: LevelMasksExt + Clone
+    T: LevelMasksIterExt + Clone
 {
     #[inline]
     fn clone(&self) -> Self {
@@ -346,7 +346,7 @@ where
 
 impl<T> CachingIndexIter<T>
 where
-    T: LevelMasksExt,
+    T: LevelMasksIterExt,
 {
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self{
@@ -459,7 +459,7 @@ where
 
 impl<T> Iterator for CachingIndexIter<T>
 where
-    T: LevelMasksExt,
+    T: LevelMasksIterExt,
 {
     type Item = usize;
 
@@ -496,15 +496,15 @@ where
 fn level1_mask_traverse_fn<S, F>(
     level0_index: usize,
     level1_index: usize,
-    level1_blocks: &MaybeUninit<S::Level1Blocks>,
+    level1_block_data: &MaybeUninit<S::Level1BlockData>,
     mut f: F
 ) -> ControlFlow<()>
 where
-    S: LevelMasksExt, 
+    S: LevelMasksIterExt, 
     F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
 {
     let data_mask = unsafe {
-        S::data_mask_from_blocks(level1_blocks.assume_init_ref(), level1_index)
+        S::data_mask_from_block_data(level1_block_data.assume_init_ref(), level1_index)
     };
     
     let block_start_index =
@@ -519,17 +519,17 @@ where
 fn level0_mask_traverse_fn<S, F>(
     set: &S,
     level0_index: usize,
-    cache_data: &mut S::CacheData,
-    level1_blocks: &mut MaybeUninit<S::Level1Blocks>,
+    cache_data: &mut S::IterState,
+    level1_blocks: &mut MaybeUninit<S::Level1BlockData>,
     mut f: F
 ) -> ControlFlow<()>
 where
-    S: LevelMasksExt, 
+    S: LevelMasksIterExt, 
     F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
 {
     let level1_mask = unsafe{
         let (level1_mask, valid) = 
-            set.update_level1_blocks(cache_data, level1_blocks, level0_index);
+            set.update_level1_block_data(cache_data, level1_blocks, level0_index);
         assume!(valid);
         level1_mask
     };
