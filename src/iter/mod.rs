@@ -183,21 +183,3 @@ impl<Conf: Config> From<&DataBlock<Conf::DataBitBlock>> for IndexCursor<Conf>{
         Self::from(block.start_index)
     }
 }
-
-// TODO: move inside caching iterator
-pub(crate) struct State<Conf: Config> {
-    pub(crate) level0_iter: <Conf::Level0BitBlock as BitBlock>::BitsIter,
-    pub(crate) level1_iter: <Conf::Level1BitBlock as BitBlock>::BitsIter,
-    pub(crate) level0_index: usize,
-}
-
-impl<Conf: Config> Clone for State<Conf>{
-    #[inline]
-    fn clone(&self) -> Self {
-        Self { 
-            level0_iter: self.level0_iter.clone(), 
-            level1_iter: self.level1_iter.clone(), 
-            level0_index: self.level0_index.clone() 
-        }
-    }
-}

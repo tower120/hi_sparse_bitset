@@ -45,10 +45,14 @@ where
     T: LevelMasksIterExt,
 {
     virtual_set: T,
-    state: State<T::Conf>,
-    cache_data: ManuallyDrop<T::IterState>,
+
+    level0_iter: <<T::Conf as Config>::Level0BitBlock as BitBlock>::BitsIter,
+    level1_iter: <<T::Conf as Config>::Level1BitBlock as BitBlock>::BitsIter,
+    level0_index: usize,
+
+    state: ManuallyDrop<T::IterState>,
     /// Never drop - since we're guaranteed to have them POD.
-    level1_blocks: MaybeUninit<T::Level1BlockData>,
+    level1_block_data: MaybeUninit<T::Level1BlockData>,
 }
 
 impl<T> Clone for CachingBlockIter<T>
@@ -57,41 +61,39 @@ where
 {
     #[inline]
     fn clone(&self) -> Self {
-        let cache_data = self.virtual_set.make_state();   
+        let state = self.virtual_set.make_state();
         
-        // bitwise copy iterator if have no CacheData state.
-        /*const*/ let have_cache_data = mem::size_of::<T::IterState>() > 0;
-        if !have_cache_data {
-            return Self { 
-                virtual_set  : self.virtual_set.clone(), 
-                state        : self.state.clone(),
-                cache_data   : ManuallyDrop::new(cache_data),
-                level1_blocks: unsafe{ std::ptr::read(&self.level1_blocks) }
-            };
-        }
-        
-        // rebuild cache for Dynamic
         let mut this = Self { 
-            virtual_set: self.virtual_set.clone(), 
-            state: self.state.clone(), 
-            cache_data: ManuallyDrop::new(cache_data),
-            level1_blocks: MaybeUninit::uninit()
+            virtual_set : self.virtual_set.clone(), 
+            level0_iter : self.level0_iter.clone(),
+            level1_iter : self.level1_iter.clone(),
+            level0_index: self.level0_index,            
+            state: ManuallyDrop::new(state),
+            level1_block_data: MaybeUninit::uninit()
         };
         
-        // Check if level0_index is valid.
-        //
-        // level0_index can be only invalid in initial state and for "end".
-        if this.state.level0_index < <T::Conf as Config>::Level0BitBlock::size()
-        {
-            // Update cache_data state for current iterator position. 
-            unsafe {
-                let (_, valid) = this.virtual_set.update_level1_block_data(
-                    &mut this.cache_data, 
-                    &mut this.level1_blocks, 
-                    this.state.level0_index
-                );    
-                assume!(valid);
-            }
+        /*const*/ let have_state = mem::size_of::<T::IterState>() > 0;
+        if !have_state {
+            // bitwise-copy level1_block_data if have no IterState state.
+            
+            this.level1_block_data = unsafe{ std::ptr::read(&self.level1_block_data) };
+        } else {
+            // update level1_block_data otherwise.
+            // (because level1_block_data may depends on state)
+            
+            // Check if level0_index is valid.
+            // level0_index can be only invalid in initial state and for "end".
+            if this.level0_index < <T::Conf as Config>::Level0BitBlock::size()
+            {
+                unsafe {
+                    let (_, valid) = this.virtual_set.update_level1_block_data(
+                        &mut this.state,
+                        &mut this.level1_block_data,
+                        this.level0_index
+                    );    
+                    assume!(valid);
+                }
+            }            
         }
 
         this
@@ -105,19 +107,19 @@ where
 {
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self {
-        let state = State{
-            level0_iter: virtual_set.level0_mask().bits_iter(),
+        let level0_iter = virtual_set.level0_mask().bits_iter(); 
+        let state = virtual_set.make_state();
+        Self{
+            virtual_set,
+            
+            level0_iter,
             level1_iter: BitQueue::empty(),
             // usize::MAX - is marker, that we in "intial state".
             // Which means that only level0_iter initialized, and in original state.
             level0_index: usize::MAX,    
-        };
-        let cache_data = virtual_set.make_state();
-        Self{
-            virtual_set,
-            state,
-            cache_data: ManuallyDrop::new(cache_data),
-            level1_blocks: MaybeUninit::uninit()
+
+            state: ManuallyDrop::new(state),
+            level1_block_data: MaybeUninit::uninit()
         }
     }
     
@@ -131,13 +133,13 @@ where
     #[inline]
     pub fn cursor(&self) -> BlockCursor<T::Conf> {
         // "initial state"?
-        if self.state.level0_index == usize::MAX /*almost never*/ {
+        if self.level0_index == usize::MAX /*almost never*/ {
             return BlockCursor::default();
         }
         
         BlockCursor {
-            level0_index     : self.state.level0_index as u16,
-            level1_next_index: self.state.level1_iter.current() as u16,
+            level0_index     : self.level0_index as u16,
+            level1_next_index: self.level1_iter.current() as u16,
             phantom: PhantomData
         }
     }
@@ -167,41 +169,39 @@ where
     #[must_use]
     #[inline]
     pub fn move_to(mut self, cursor: BlockCursor<T::Conf>) -> Self{
-        // Here we update State.
-        
         // Reset level0 mask if we not in "initial state"
-        if self.state.level0_index != usize::MAX{
-            self.state.level0_iter = self.virtual_set.level0_mask().bits_iter();    
+        if self.level0_index != usize::MAX{
+            self.level0_iter = self.virtual_set.level0_mask().bits_iter();    
         }
         
         // Mask out level0 mask
         let cursor_level0_index = cursor.level0_index as usize;
-        self.state.level0_iter.zero_first_n(cursor_level0_index);
+        self.level0_iter.zero_first_n(cursor_level0_index);
 
-        if let Some(level0_index) = self.state.level0_iter.next(){
-            self.state.level0_index = level0_index;
+        if let Some(level0_index) = self.level0_iter.next(){
+            self.level0_index = level0_index;
             
             // generate level1 mask, and update cache.
             let level1_mask = unsafe {
                 let (level1_mask, valid) = self.virtual_set.update_level1_block_data(
-                    &mut self.cache_data, 
-                    &mut self.level1_blocks, 
+                    &mut self.state,
+                    &mut self.level1_block_data,
                     level0_index
                 );
                 assume!(valid);
                 level1_mask
             };
-            self.state.level1_iter = level1_mask.bits_iter();
+            self.level1_iter = level1_mask.bits_iter();
             
             // TODO: can we mask SIMD block directly? 
             // mask out level1 mask, if this is block pointed by cursor
             if level0_index == cursor_level0_index{
-                self.state.level1_iter.zero_first_n(cursor.level1_next_index as usize);
+                self.level1_iter.zero_first_n(cursor.level1_next_index as usize);
             }
         } else {
             // absolutely empty
-            self.state.level1_iter  = BitQueue::empty();
-            self.state.level0_index = <T::Conf as Config>::DataBitBlock::size(); 
+            self.level1_iter  = BitQueue::empty();
+            self.level0_index = <T::Conf as Config>::DataBitBlock::size(); 
         }
 
         self
@@ -215,17 +215,20 @@ where
     where
         F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
     {
-        // state does not participate in drop
-        let state = unsafe{ std::ptr::read(&self.state) };
+        // Self have Drop - hence we can't move out values from it.
+        // We need level0_iter and level1_iter - we'll ptr::read them instead.
+        // It is ok - since they does not participate in Self::Drop.
+        // See https://github.com/Jules-Bertholet/rfcs/blob/manuallydrop-deref-move/text/3466-manuallydrop-deref-move.md#rationale-and-alternatives
         
         // compiler SHOULD be able to detect and opt-out this branch away for
         // traverse() after new() call.
-        if state.level0_index != usize::MAX{
-            let level0_index = state.level0_index;
+        if self.level0_index != usize::MAX{
+            let level0_index = self.level0_index;
             
-            let ctrl = state.level1_iter.traverse(
+            let level1_iter = unsafe{ std::ptr::read(&self.level1_iter) };
+            let ctrl = level1_iter.traverse(
                 |level1_index| level1_mask_traverse_fn::<T, _>(
-                    level0_index, level1_index, &self.level1_blocks, |b| f(b)
+                    level0_index, level1_index, &self.level1_block_data, |b| f(b)
                 )
             );
             if ctrl.is_break(){
@@ -233,9 +236,14 @@ where
             }
         }
 
-        state.level0_iter.traverse(
+        let level0_iter = unsafe{ std::ptr::read(&self.level0_iter) };
+        level0_iter.traverse(
             |level0_index| level0_mask_traverse_fn(
-                &self.virtual_set, level0_index, &mut self.cache_data, &mut self.level1_blocks, |b| f(b)
+                &self.virtual_set,
+                level0_index,
+                &mut self.state,
+                &mut self.level1_block_data,
+                |b| f(b)
             )    
         )
     }    
@@ -249,39 +257,41 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let Self { virtual_set, state, cache_data, level1_blocks } = self;
-
-        let level1_index =
-            loop {
-                if let Some(index) = state.level1_iter.next() {
-                    break index;
-                } else {
-                    //update level0
-                    if let Some(index) = state.level0_iter.next() {
-                        state.level0_index = index;
-                        
-                        let level1_mask = unsafe {
-                            let (level1_mask, valid) = virtual_set.update_level1_block_data(
-                                cache_data, level1_blocks, index
+        let level1_index = loop {
+            if let Some(index) = self.level1_iter.next() {
+                break index;
+            } else {
+                //update level0
+                if let Some(index) = self.level0_iter.next() {
+                    self.level0_index = index;
+                    
+                    let level1_mask = unsafe {
+                        let (level1_mask, not_empty) = 
+                            self.virtual_set.update_level1_block_data(
+                                &mut self.state,
+                                &mut self.level1_block_data,
+                                index
                             );
-                            assume!(valid);
-                            level1_mask
-                        };
+                        assume!(not_empty);
+                        level1_mask
+                    };
 
-                        state.level1_iter = level1_mask.bits_iter();
-                    } else {
-                        return None;
-                    }
+                    self.level1_iter = level1_mask.bits_iter();
+                } else {
+                    return None;
                 }
-            };
+            }
+        };
 
         let data_mask = unsafe {
-            T::data_mask_from_block_data(level1_blocks.assume_init_ref(), level1_index)
+            T::data_mask_from_block_data(
+                self.level1_block_data.assume_init_ref(), level1_index
+            )
         };
 
         let block_start_index =
             data_block_start_index::<<T as BitSetBase>::Conf>(
-                state.level0_index, level1_index,
+                self.level0_index, level1_index,
             );
 
         Some(DataBlock { start_index: block_start_index, bit_block: data_mask })
@@ -305,7 +315,7 @@ where
 {
     #[inline]
     fn drop(&mut self) {
-        self.virtual_set.drop_state(&mut self.cache_data);
+        self.virtual_set.drop_state(&mut self.state);
     }
 }
 
@@ -398,7 +408,7 @@ where
     /// Same as [CachingBlockIter::cursor], but for index.
     #[inline]
     pub fn cursor(&self) -> IndexCursor<T::Conf> {
-        if self.block_iter.state.level0_index == usize::MAX{
+        if self.block_iter.level0_index == usize::MAX{
             return IndexCursor::default();
         }
         
@@ -424,22 +434,22 @@ where
     where
         F: FnMut(usize) -> ControlFlow<()>    
     {
-        // state does not participate in drop
-        let state = unsafe{ std::ptr::read(&self.block_iter.state) };
+        // See CachingBlockIter::traverse comments.
 
-        if state.level0_index != usize::MAX{
-            let level0_index = state.level0_index;
+        if self.block_iter.level0_index != usize::MAX{
+            let level0_index = self.block_iter.level0_index;
 
-            // 1. traverse datablock
+            // 1. traverse data block
             let ctrl = self.data_block_iter.traverse(|i| f(i));
             if ctrl.is_break(){
                 return ControlFlow::Break(());
             }
 
             // 2. traverse rest of the level1 block
-            let ctrl = state.level1_iter.traverse(
+            let level1_iter = unsafe{ std::ptr::read(&self.block_iter.level1_iter) };
+            let ctrl = level1_iter.traverse(
                 |level1_index| level1_mask_traverse_fn::<T, _>(
-                    level0_index, level1_index, &self.block_iter.level1_blocks, 
+                    level0_index, level1_index, &self.block_iter.level1_block_data,
                     |b| b.traverse(|i| f(i))
                 )
             );
@@ -448,9 +458,13 @@ where
             }
         }
 
-        state.level0_iter.traverse(
+        let level0_iter = unsafe{ std::ptr::read(&self.block_iter.level0_iter) };
+        level0_iter.traverse(
             |level0_index| level0_mask_traverse_fn(
-                &self.block_iter.virtual_set, level0_index, &mut self.block_iter.cache_data, &mut self.block_iter.level1_blocks, 
+                &self.block_iter.virtual_set,
+                level0_index,
+                &mut self.block_iter.state,
+                &mut self.block_iter.level1_block_data,
                 |b| b.traverse(|i| f(i))
             )    
         )        
@@ -519,7 +533,7 @@ where
 fn level0_mask_traverse_fn<S, F>(
     set: &S,
     level0_index: usize,
-    cache_data: &mut S::IterState,
+    state: &mut S::IterState,
     level1_blocks: &mut MaybeUninit<S::Level1BlockData>,
     mut f: F
 ) -> ControlFlow<()>
@@ -529,7 +543,7 @@ where
 {
     let level1_mask = unsafe{
         let (level1_mask, valid) = 
-            set.update_level1_block_data(cache_data, level1_blocks, level0_index);
+            set.update_level1_block_data(state, level1_blocks, level0_index);
         assume!(valid);
         level1_mask
     };
