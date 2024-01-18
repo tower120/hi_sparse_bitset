@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 use std::{mem, slice};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::{assume, LevelMasks};
+use crate::{assume, BitSetInterface, LevelMasks};
+use crate::implement::impl_bitset;
 use crate::ops::BitSetOp;
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
@@ -245,7 +246,7 @@ where
 {
     let mut element_ptr = state_ptr;
     for set in sets.clone(){
-        (*element_ptr).write(set.make_state());
+        (*element_ptr).write(set.make_iter_state());
         element_ptr = element_ptr.add(1);
     }
 }
@@ -261,7 +262,7 @@ where
 {
     let mut element_ptr = state_ptr;
     for set in sets.clone(){
-        set.drop_state(&mut *element_ptr);
+        set.drop_iter_state(&mut *element_ptr);
         element_ptr = element_ptr.add(1);
     }
 }
@@ -453,12 +454,12 @@ where
     type Level1BlockData = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1BlockData;
 
     #[inline]
-    fn make_state(&self) -> Self::IterState {
+    fn make_iter_state(&self) -> Self::IterState {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::make_state(&self.sets)
     }
 
     #[inline]
-    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
+    unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::drop_state(&self.sets, state)
     }
 
@@ -481,6 +482,15 @@ where
             data_mask_from_block_data(level1_blocks, level1_index)
     }
 }
+
+impl_bitset!(
+    impl<Op, S, Cache> for Reduce<Op, S, Cache>
+    where
+        Op: BitSetOp,
+        S: Iterator + Clone,
+        S::Item: BitSetInterface,
+        Cache: ReduceCache
+);
 
 // Some methods not used by library.
 #[allow(dead_code)]

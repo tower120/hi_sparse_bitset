@@ -61,7 +61,7 @@ where
 {
     #[inline]
     fn clone(&self) -> Self {
-        let state = self.virtual_set.make_state();
+        let state = self.virtual_set.make_iter_state();
         
         let mut this = Self { 
             virtual_set : self.virtual_set.clone(), 
@@ -106,9 +106,9 @@ where
     T: LevelMasksIterExt,
 {
     #[inline]
-    pub(crate) fn new(virtual_set: T) -> Self {
+    pub fn new(virtual_set: T) -> Self {
         let level0_iter = virtual_set.level0_mask().bits_iter(); 
-        let state = virtual_set.make_state();
+        let state = virtual_set.make_iter_state();
         Self{
             virtual_set,
             
@@ -315,7 +315,9 @@ where
 {
     #[inline]
     fn drop(&mut self) {
-        self.virtual_set.drop_state(&mut self.state);
+        unsafe{
+            self.virtual_set.drop_iter_state(&mut self.state);
+        }
     }
 }
 
@@ -359,7 +361,7 @@ where
     T: LevelMasksIterExt,
 {
     #[inline]
-    pub(crate) fn new(virtual_set: T) -> Self{
+    pub fn new(virtual_set: T) -> Self{
         Self{
             block_iter: CachingBlockIter::new(virtual_set),
             data_block_iter: DataBlockIter{

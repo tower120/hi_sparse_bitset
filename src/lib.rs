@@ -103,13 +103,19 @@
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
 //! 
+//! # Custom bitsets
+//! 
+//! You can make your own bitsets - like 
+//! generative sets (empty, full), specially packed sets (range-fill), 
+//! adapters, etc. See [implement] module.
+//! 
 //! # SIMD
 //! 
 //! 128 and 256 bit configurations use SIMD. Make sure you compile with simd support
 //! enabled (`sse2` for _128bit, `avx` for _256bit) to achieve best performance.
 //! _sse2 enabled by default in Rust for most desktop environments_ 
 //! 
-//! If you don't need "wide" configurations, you may disable default feature "simd".   
+//! If you don't need "wide" configurations, you may disable default feature `simd`.   
 
 #[cfg(test)]
 mod test;
@@ -127,6 +133,11 @@ mod bitset_interface;
 mod apply;
 pub mod iter;
 pub mod cache;
+
+#[cfg(feature = "impl")]
+pub mod implement;
+#[cfg(not(feature = "impl"))]
+mod implement;
 
 pub use primitive::Primitive;
 pub use bitset_interface::{BitSetBase, BitSetInterface};
@@ -472,8 +483,8 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
     type Level1BlockData = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
 
     type IterState = ();
-    fn make_state(&self) -> Self::IterState { () }
-    fn drop_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
+    fn make_iter_state(&self) -> Self::IterState { () }
+    unsafe fn drop_iter_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
 
     #[inline]
     unsafe fn update_level1_block_data(
@@ -504,6 +515,9 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         *data_block.mask()
     }
 }
+
+implement::impl_bitset!(impl<Conf> for BitSet<Conf> where Conf: Config);
+
 
 #[inline]
 fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{

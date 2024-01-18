@@ -40,6 +40,8 @@ pub trait BitBlock
     // TODO: This can be removed, since there is BitQueue::traverse
     //       which do the same and perform the same in optimized build.
     /// Returns [Break] if traverse was interrupted (`f` returns [Break]).
+    /// 
+    /// [Break]: ControlFlow::Break
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
         F: FnMut(usize) -> ControlFlow<()>;

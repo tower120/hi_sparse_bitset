@@ -9,13 +9,15 @@
 - Minor `BitSet::remove()` optimization. 
 
 ### Changed
-
+- `BitSetInterface` now have default implementation.
+- `BitSetInterface` no longer have `IntoIterator` base.
 
 ### Added
 - `BitBlock::first_u64()`.
 - `BitBlock::first_u64_mut()`.
 - `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like 
   optimization in user-defined operations.
+- Machinery, which allows to implement custom bitsets. Enabled with `impl` flag.
 
 ### Removed
 - `num_traits` dependency removed.

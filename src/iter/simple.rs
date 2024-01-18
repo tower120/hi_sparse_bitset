@@ -7,10 +7,12 @@ use super::*;
 /// levels indirections each time.
 ///
 /// Does not cache intermediate level1 position - hence have smaller size.
-/// All Cache parameters will be ignored. Consider using [CachingIterator]
+/// All Cache parameters will be ignored. Consider using [CachingBlockIter]
 /// with [cache::NoCache] instead.
 ///
-/// May have similar to [CachingIterator] performance on very sparse sets.
+/// May have similar to [CachingBlockIter] performance on very sparse sets.
+/// 
+/// [cache::NoCache]: crate::cache::NoCache
 pub struct SimpleBlockIter<T>
 where
     T: LevelMasks,

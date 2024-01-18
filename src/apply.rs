@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::ops::*;
-use crate::BitSet;
-use crate::reduce::Reduce;
+use crate::BitSetInterface;
+use crate::implement::impl_bitset;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksIterExt};
 use crate::config::Config;
 
@@ -88,15 +88,15 @@ where
     type IterState = (S1::IterState, S2::IterState);
 
     #[inline]
-    fn make_state(&self) -> Self::IterState {
-        (self.s1.make_state(), self.s2.make_state())
+    fn make_iter_state(&self) -> Self::IterState {
+        (self.s1.make_iter_state(), self.s2.make_iter_state())
     }
 
     #[inline]
-    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
+    unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
         unsafe{
-            self.s1.drop_state(mem::transmute(&mut state.0));
-            self.s2.drop_state(mem::transmute(&mut state.1));
+            self.s1.drop_iter_state(mem::transmute(&mut state.0));
+            self.s2.drop_iter_state(mem::transmute(&mut state.1));
         }
     }
 
@@ -134,7 +134,7 @@ where
 }
 
 
-// We need this all because RUST still does not support template/generic specialization.
+/*// We need this all because RUST still does not support template/generic specialization.
 macro_rules! impl_op {
     (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
 
@@ -200,7 +200,11 @@ impl_op!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
 impl_op!(impl<Op, S1, S2> for Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
 impl_op!(impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
 impl_op!(impl<Op, S, Storage> for Reduce<Op, S, Storage> where);
-impl_op!(impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage> where);
+impl_op!(impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage> where);*/
+
+impl_bitset!(impl<Op, S1, S2> for Apply<Op, S1, S2> 
+    where Op: BitSetOp, S1: BitSetInterface, S2: BitSetInterface<Conf = S1::Conf>
+);
 
 #[cfg(test)]
 mod test{
@@ -259,8 +263,8 @@ mod test{
         fn test<Op, S1, S2>(h: Apply<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BitSetOp,
-            S1: LevelMasksIterExt<Conf = S2::Conf>,
-            S2: LevelMasksIterExt,
+            S1: BitSetInterface<Conf = S2::Conf>,
+            S2: BitSetInterface,
         {
             let hv: Vec<usize> = h.block_iter()
                 .flat_map(|block| block.iter())
