@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ptr::addr_of_mut;
 use crate::ops::*;
 use crate::BitSetInterface;
 use crate::implement::impl_bitset;
@@ -83,7 +84,7 @@ where
     S1: LevelMasksIterExt,
     S2: LevelMasksIterExt<Conf = S1::Conf>,
 {
-    type Level1BlockData = (MaybeUninit<S1::Level1BlockData>, MaybeUninit<S2::Level1BlockData>);
+    type Level1BlockData = (S1::Level1BlockData, S2::Level1BlockData);
 
     type IterState = (S1::IterState, S2::IterState);
 
@@ -104,15 +105,25 @@ where
     unsafe fn update_level1_block_data(
         &self,
         state: &mut Self::IterState,
-        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
+        level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        let level1_blocks = level1_blocks.assume_init_mut();
+        // &mut MaybeUninit<(T0, T1)> = (&mut MaybeUninit<T0>, &mut MaybeUninit<T1>) 
+        let (level1_block_data0, level1_block_data1) = {
+            let ptr = level1_block_data.as_mut_ptr();
+            let ptr0 = addr_of_mut!((*ptr).0);
+            let ptr1 = addr_of_mut!((*ptr).1);
+            (
+                &mut*mem::transmute::<_, *mut MaybeUninit<S1::Level1BlockData>>(ptr0), 
+                &mut*mem::transmute::<_, *mut MaybeUninit<S2::Level1BlockData>>(ptr1)
+            )
+        };
+        
         let (mask1, v1) = self.s1.update_level1_block_data(
-            &mut state.0, &mut level1_blocks.0, level0_index
+            &mut state.0, level1_block_data0, level0_index
         );
         let (mask2, v2) = self.s2.update_level1_block_data(
-            &mut state.1, &mut level1_blocks.1, level0_index
+            &mut state.1, level1_block_data1, level0_index
         );
 
         let mask = Op::hierarchy_op(mask1, mask2);
@@ -124,10 +135,10 @@ where
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let m0 = S1::data_mask_from_block_data(
-            level1_blocks.0.assume_init_ref(), level1_index
+            &level1_blocks.0, level1_index
         );
         let m1 = S2::data_mask_from_block_data(
-            level1_blocks.1.assume_init_ref(), level1_index
+            &level1_blocks.1, level1_index
         ); 
         Op::data_op(m0, m1)
     }

@@ -1,12 +1,14 @@
 use std::marker::PhantomData;
-use std::{mem, slice};
+use std::{mem, ptr};
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ptr::{addr_of_mut, null};
 use crate::{assume, BitSetInterface, LevelMasks};
 use crate::implement::impl_bitset;
 use crate::ops::BitSetOp;
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
 use crate::config::Config;
+use arrayvec::ArrayVec;
 
 /// Bitsets iterator reduction, as lazy bitset.
 ///
@@ -93,7 +95,7 @@ pub trait ReduceCacheImpl
     fn make_state(sets: &Self::Sets) -> Self::IterState;
     fn drop_state(sets: &Self::Sets, state: &mut ManuallyDrop<Self::IterState>);
 
-    type Level1BlockData;
+    type Level1BlockData: Default;
     unsafe fn update_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
@@ -113,10 +115,10 @@ where
     S::Item: LevelMasksIterExt,
 {
     type Conf = <S::Item as BitSetBase>::Conf;
-    type Set = S::Item;
+    type Set  = S::Item;
     type Sets = S;
     type IterState = ();
-    type Level1BlockData = (S, usize);
+    type Level1BlockData = (Option<S>, usize);  // TODO: store just pointer to self instead?
 
     #[inline]
     fn make_state(_: &Self::Sets) -> Self::IterState { () }
@@ -131,7 +133,7 @@ where
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        level1_blocks.write((sets.clone(), level0_index));
+        level1_blocks.write((Some(sets.clone()), level0_index));
 
         let reduce: &Reduce<Op, S, ()> = mem::transmute(sets);
         (reduce.level1_mask(level0_index), true)
@@ -143,7 +145,7 @@ where
     ) -> <Self::Conf as Config>::DataBitBlock {
         let (sets, level0_index) = level1_blocks;
 
-        let reduce: &Reduce<Op, S, ()> = mem::transmute(sets);
+        let reduce: &Reduce<Op, S, ()> = mem::transmute(sets.as_ref().unwrap_unchecked());
         reduce.data_mask(*level0_index, level1_index)
     }
 }
@@ -267,6 +269,31 @@ where
     }
 }
 
+// ala ArrayVec
+pub struct RawArray<T, const N: usize>{
+    mem: [MaybeUninit<T>; N],
+    len: usize
+}
+impl<T, const N: usize> Default for RawArray<T, N>{
+    #[inline]
+    fn default() -> Self {
+        unsafe{
+            Self{mem: MaybeUninit::uninit().assume_init(), len: 0}    
+        }
+    }
+}
+impl <T, const N: usize> Drop for RawArray<T, N>{
+    #[inline]
+    fn drop(&mut self) {
+        if mem::needs_drop::<T>(){
+            unsafe{
+                let slice = std::slice::from_raw_parts_mut(self.mem.as_mut_ptr(), self.len);
+                ptr::drop_in_place(slice);
+            }
+        }
+    }
+}
+
 pub struct FixedCacheImpl<Op, S, const N: usize>(PhantomData<(Op, S)>)
 where
     Op: BitSetOp,
@@ -288,10 +315,7 @@ where
     type IterState = [MaybeUninit<<Self::Set as LevelMasksIterExt>::IterState>; N];
 
     /// Never drop, since array contain primitives, or array of primitives.
-    type Level1BlockData = (
-        [MaybeUninit<<Self::Set as LevelMasksIterExt>::Level1BlockData>; N],
-        usize
-    );
+    type Level1BlockData = RawArray<<Self::Set as LevelMasksIterExt>::Level1BlockData, N>;
 
     #[inline]
     fn make_state(sets: &Self::Sets) -> Self::IterState {
@@ -317,13 +341,18 @@ where
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        let (level1_blocks_storage, level1_blocks_len) = level1_blocks.assume_init_mut();
-        // assume_init_mut array
+        let level1_blocks_storage = level1_blocks.assume_init_mut();
+        // assume_init_mut() array
         let state_ptr = state.as_mut_ptr() as *mut <Self::Set as LevelMasksIterExt>::IterState;
 
-        let (mask, len, valid) =
-            update_level1_block_data(Op::default(), sets, state_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
-        *level1_blocks_len = len;
+        let (mask, len, valid) = update_level1_block_data(
+            Op::default(),
+            sets,
+            state_ptr,
+            level1_blocks_storage.mem.as_mut_ptr(),
+            level0_index
+        );
+        level1_blocks_storage.len = len;
         (mask, valid)
     }
 
@@ -332,10 +361,24 @@ where
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
-            level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
-            level1_blocks.1
+            level1_blocks.mem.as_ptr() as *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
+            level1_blocks.len
         );
         data_mask_from_block_data::<Op, Self::Set>(slice, level1_index)
+    }
+}
+
+
+/// raw slice
+pub struct DynamicCacheLevel1BlockData<Set: LevelMasksIterExt>(
+    // This points to Self::IterState heap
+    *const <Set as LevelMasksIterExt>::Level1BlockData,
+    usize
+);
+impl<Set: LevelMasksIterExt> Default for DynamicCacheLevel1BlockData<Set>{
+    #[inline]
+    fn default() -> Self {
+        Self(null(), 0)
     }
 }
 
@@ -354,18 +397,19 @@ where
     type IterState = (
         // self storage (POD elements), never drop.
         // Do not use Box here, since Rust treat Box as &mut
-        UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksIterExt>::Level1BlockData>>,
+        //UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksIterExt>::Level1BlockData>>,
+        Vec<<Self::Set as LevelMasksIterExt>::Level1BlockData>,
 
         // child state
         Box<[ManuallyDrop<<Self::Set as LevelMasksIterExt>::IterState>]>,
     );
-
-    /// raw slice
-    type Level1BlockData = (
+    
+    type Level1BlockData = DynamicCacheLevel1BlockData<Self::Set>;
+    /*(
         // This points to Self::IterState heap
         *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
         usize
-    );
+    );*/
 
     #[inline]
     fn make_state(sets: &Self::Sets) -> Self::IterState {
@@ -386,11 +430,15 @@ where
             // cast UniqueArrayPtr<MaybeUninit<_>> -> UniqueArrayPtr<ManuallyDrop<_>>
             let storage_ptr = storage.as_mut_ptr() as *mut _;
             Box::from_raw(
-                slice::from_raw_parts_mut(storage_ptr, len)
+                std::slice::from_raw_parts_mut(storage_ptr, len)
             )
         };
 
-        (UniqueArrayPtr::new_uninit(len), child_state)
+        (
+            //UniqueArrayPtr::new_uninit(len),
+            Vec::with_capacity(len),
+            child_state
+        )
     }
 
     #[inline]
@@ -412,7 +460,9 @@ where
 
         // assume_init_mut array
         let sets_state_ptr = child_state.as_mut_ptr() as *mut _;
-        let level1_block_data_array_ptr = storage.as_mut_ptr(); 
+        //let level1_block_data_array_ptr = storage.as_mut_ptr();
+        storage.clear();
+        let level1_block_data_array_ptr = storage.spare_capacity_mut().as_mut_ptr();
 
         let (mask, len, valid) = update_level1_block_data(
             Op::default(),
@@ -421,8 +471,10 @@ where
             level1_block_data_array_ptr,
             level0_index
         );
+        
+        storage.set_len(len);
 
-        level1_block_data.write((
+        level1_block_data.write(DynamicCacheLevel1BlockData(
             // assume_init_ref array
             storage.as_ptr() as *const _,
             len

@@ -106,8 +106,9 @@ macro_rules! impl_simple_bitset {
             $($where_bounds)*
         {
             type IterState = ();
+            // TODO: Wrong! With IntoIterator, bitset can be moved.
             // We can guarantee that self pointer remains valid,
-            // since iterator holds reference to self.
+            // since iterator holds reference to bitset.
             type Level1BlockData = (*const Self, usize);
         
             fn make_iter_state(&self) -> Self::IterState { () }

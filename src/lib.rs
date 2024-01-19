@@ -146,6 +146,7 @@ pub use reduce::Reduce;
 
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ptr::{null, null_mut};
 use config::Config;
 use block::Block;
 use level::Level;
@@ -478,9 +479,17 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
     }
 }
 
+/// Points to elements in heap. Guaranteed to be stable.
+pub struct Level1BlockData<Conf: Config>(*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
+impl<Conf: Config> Default for Level1BlockData<Conf>{
+    #[inline]
+    fn default() -> Self {
+        Self(null(), null())
+    }
+} 
+
 impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
-    /// Points to elements in heap.
-    type Level1BlockData = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
+    type Level1BlockData = Level1BlockData<Conf>;
 
     type IterState = ();
     fn make_iter_state(&self) -> Self::IterState { () }
@@ -499,7 +508,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         //       But looks like this way it is a tiny bit faster.
 
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_usize());
-        level1_blocks.write((self.data.blocks().as_ptr(), level1_block));
+        level1_blocks.write(Level1BlockData(self.data.blocks().as_ptr(), level1_block));
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
 

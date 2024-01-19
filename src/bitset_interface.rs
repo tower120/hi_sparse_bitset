@@ -75,11 +75,11 @@ pub trait LevelMasksIterExt: LevelMasks{
 
     /// Level1 block related data, used to speed up data_mask access.
     ///
-    /// Must be POD. (Drop will not be called, may be overwritten) 
+    /// Prefer POD, or any kind of drop-less. 
     /// 
     /// In library, used to cache Level1Block(s) for faster DataBlock access,
     /// without traversing whole hierarchy for getting each block during iteration.
-    type Level1BlockData;
+    type Level1BlockData: Default;
 
     fn make_iter_state(&self) -> Self::IterState;
     
@@ -98,7 +98,8 @@ pub trait LevelMasksIterExt: LevelMasks{
     /// - Must be called exactly once for each `state`.
     unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>);
 
-    /// Update `level1_blocks` and return (Level1Mask, is_not_empty).
+    // TODO: init_level1_block_data
+    /// Init `level1_block_data` and return (Level1Mask, is_not_empty).
     /// 
     /// `level1_block_data` will come in undefined state - rewrite it completely.
     ///
@@ -111,6 +112,11 @@ pub trait LevelMasksIterExt: LevelMasks{
     /// # Safety
     ///
     /// indices are not checked.
+    /// 
+    // Performance-wise it is important to use this in-place construct style, 
+    // instead of just returning Level1BlockData. Even if we return Level1BlockData,
+    // and then immoderately write it to MaybeUninit - compiler somehow still can't
+    // optimize it as direct memory write without intermediate bitwise copy.
     unsafe fn update_level1_block_data(
         &self,
         state: &mut Self::IterState,
@@ -407,15 +413,17 @@ where
     let mut left_cache_data  = left.make_iter_state();
     let mut right_cache_data = right.make_iter_state();
     
-    let mut left_level1_blocks  = MaybeUninit::uninit();
-    let mut right_level1_blocks = MaybeUninit::uninit();
+    let mut left_level1_blocks  = MaybeUninit::new(Default::default());
+    let mut right_level1_blocks = MaybeUninit::new(Default::default());
     
     use ControlFlow::*;
-    level0_mask.traverse_bits(|level0_index|{
+    let is_eq = level0_mask.traverse_bits(|level0_index|{
         let (left_level1_mask, left_valid) = unsafe {
+            left_level1_blocks.assume_init_drop();
             left.update_level1_block_data(&mut left_cache_data, &mut left_level1_blocks, level0_index)
         };
         let (right_level1_mask, right_valid) = unsafe {
+            right_level1_blocks.assume_init_drop();
             right.update_level1_block_data(&mut right_cache_data, &mut right_level1_blocks, level0_index)
         };
         
@@ -493,7 +501,14 @@ where
             // both are empty - its ok - just move on.
             Continue(())
         }
-    }).is_continue()
+    }).is_continue();
+    
+    unsafe {
+        left_level1_blocks.assume_init_drop();
+        right_level1_blocks.assume_init_drop();
+    }
+    
+    is_eq
 }
 
 /*macro_rules! impl_eq {
