@@ -98,7 +98,6 @@ pub trait LevelMasksIterExt: LevelMasks{
     /// - Must be called exactly once for each `state`.
     unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>);
 
-    // TODO: init_level1_block_data
     /// Init `level1_block_data` and return (Level1Mask, is_not_empty).
     /// 
     /// `level1_block_data` will come in undefined state - rewrite it completely.
@@ -117,7 +116,7 @@ pub trait LevelMasksIterExt: LevelMasks{
     // instead of just returning Level1BlockData. Even if we return Level1BlockData,
     // and then immoderately write it to MaybeUninit - compiler somehow still can't
     // optimize it as direct memory write without intermediate bitwise copy.
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -174,13 +173,13 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        <T as LevelMasksIterExt>::update_level1_block_data(
+        <T as LevelMasksIterExt>::init_level1_block_data(
             self, state, level1_blocks, level0_index
         )
     }
@@ -420,11 +419,11 @@ where
     let is_eq = level0_mask.traverse_bits(|level0_index|{
         let (left_level1_mask, left_valid) = unsafe {
             left_level1_blocks.assume_init_drop();
-            left.update_level1_block_data(&mut left_cache_data, &mut left_level1_blocks, level0_index)
+            left.init_level1_block_data(&mut left_cache_data, &mut left_level1_blocks, level0_index)
         };
         let (right_level1_mask, right_valid) = unsafe {
             right_level1_blocks.assume_init_drop();
-            right.update_level1_block_data(&mut right_cache_data, &mut right_level1_blocks, level0_index)
+            right.init_level1_block_data(&mut right_cache_data, &mut right_level1_blocks, level0_index)
         };
         
         if is_trusted_hierarchy {

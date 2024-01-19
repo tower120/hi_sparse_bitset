@@ -102,7 +102,7 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -119,10 +119,10 @@ where
             )
         };
         
-        let (mask1, v1) = self.s1.update_level1_block_data(
+        let (mask1, v1) = self.s1.init_level1_block_data(
             &mut state.0, level1_block_data0, level0_index
         );
-        let (mask2, v2) = self.s2.update_level1_block_data(
+        let (mask2, v2) = self.s2.init_level1_block_data(
             &mut state.1, level1_block_data1, level0_index
         );
 

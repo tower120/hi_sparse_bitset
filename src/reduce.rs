@@ -96,7 +96,7 @@ pub trait ReduceCacheImpl
     fn drop_state(sets: &Self::Sets, state: &mut ManuallyDrop<Self::IterState>);
 
     type Level1BlockData: Default;
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -127,7 +127,7 @@ where
     fn drop_state(_: &Self::Sets, _: &mut ManuallyDrop<Self::IterState>) {}
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         _: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
@@ -177,7 +177,7 @@ where
     let mask =
         sets.clone()
         .map(|set|{
-            let (level1_mask, is_not_empty) = set.update_level1_block_data(
+            let (level1_mask, is_not_empty) = set.init_level1_block_data(
                 &mut *state_ptr.add(state_index),
                 &mut *level1_block_data_array_ptr.add(index),
                 level0_index
@@ -335,7 +335,7 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
@@ -450,7 +450,7 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -516,14 +516,14 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::
-            update_level1_block_data(&self.sets, state, level1_block_data, level0_index)
+            init_level1_block_data(&self.sets, state, level1_block_data, level0_index)
     }
 
     #[inline]

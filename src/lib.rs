@@ -496,7 +496,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
     unsafe fn drop_iter_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         _: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,

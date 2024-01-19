@@ -87,7 +87,7 @@ where
             {
                 unsafe {
                     // Do not drop level1_block_data, since it was never initialized before.
-                    let (_, valid) = this.virtual_set.update_level1_block_data(
+                    let (_, valid) = this.virtual_set.init_level1_block_data(
                         &mut this.state,
                         &mut this.level1_block_data,
                         this.level0_index
@@ -185,7 +185,7 @@ where
             // generate level1 mask, and update cache.
             let level1_mask = unsafe {
                 self.level1_block_data.assume_init_drop();
-                let (level1_mask, valid) = self.virtual_set.update_level1_block_data(
+                let (level1_mask, valid) = self.virtual_set.init_level1_block_data(
                     &mut self.state,
                     &mut self.level1_block_data,
                     level0_index
@@ -270,7 +270,7 @@ where
                     let level1_mask = unsafe {
                         self.level1_block_data.assume_init_drop();
                         let (level1_mask, not_empty) = 
-                            self.virtual_set.update_level1_block_data(
+                            self.virtual_set.init_level1_block_data(
                                 &mut self.state,
                                 &mut self.level1_block_data,
                                 index
@@ -550,7 +550,7 @@ where
     let level1_mask = unsafe{
         level1_blocks.assume_init_drop();
         let (level1_mask, valid) = 
-            set.update_level1_block_data(state, level1_blocks, level0_index);
+            set.init_level1_block_data(state, level1_blocks, level0_index);
         assume!(valid);
         level1_mask
     };
