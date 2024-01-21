@@ -49,7 +49,7 @@ impl<Conf: Config> LevelMasksIterExt for Empty<Conf> {
         _level1_block_data: &mut MaybeUninit<Self::Level1BlockData>, 
         _level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        (BitBlock::zero(), true)
+        (BitBlock::zero(), false)
     }
     
     unsafe fn data_mask_from_block_data(

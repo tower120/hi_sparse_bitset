@@ -144,77 +144,12 @@ where
     }
 }
 
-
-/*// We need this all because RUST still does not support template/generic specialization.
-macro_rules! impl_op {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-
-        impl<$($generics),*, Rhs> std::ops::BitAnd<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<And, $t, Rhs>;
-
-            /// Returns intersection of self and rhs bitsets.
-            #[inline]
-            fn bitand(self, rhs: Rhs) -> Self::Output{
-                Apply::new(And, self, rhs)    
-            }
-        }
-
-        impl<$($generics),*, Rhs> std::ops::BitOr<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<Or, $t, Rhs>;
-
-            /// Returns union of self and rhs bitsets.
-            #[inline]
-            fn bitor(self, rhs: Rhs) -> Self::Output{
-                Apply::new(Or, self, rhs)    
-            }
-        }
-
-        impl<$($generics),*, Rhs> std::ops::BitXor<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<Xor, $t, Rhs>;
-
-            /// Returns symmetric difference of self and rhs bitsets.
-            #[inline]
-            fn bitxor(self, rhs: Rhs) -> Self::Output{
-                Apply::new(Xor, self, rhs)    
-            }
-        }        
-
-        impl<$($generics),*, Rhs> std::ops::Sub<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<Sub, $t, Rhs>;
-
-            /// Returns difference of self and rhs bitsets. 
-            ///
-            /// _Or relative complement of rhs in self._
-            #[inline]
-            fn sub(self, rhs: Rhs) -> Self::Output{
-                Apply::new(Sub, self, rhs)    
-            }
-        }    
-
-    };
-}
-
-impl_op!(impl<Conf> for BitSet<Conf> where Conf: Config);
-impl_op!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
-impl_op!(impl<Op, S1, S2> for Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
-impl_op!(impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
-impl_op!(impl<Op, S, Storage> for Reduce<Op, S, Storage> where);
-impl_op!(impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage> where);*/
-
-impl_bitset!(impl<Op, S1, S2> for Apply<Op, S1, S2> 
-    where Op: BitSetOp, S1: BitSetInterface, S2: BitSetInterface<Conf = S1::Conf>
+impl_bitset!(
+    impl<Op, S1, S2> for Apply<Op, S1, S2> 
+    where 
+        Op: BitSetOp, 
+        S1: BitSetInterface, 
+        S2: BitSetInterface<Conf = S1::Conf>
 );
 
 #[cfg(test)]

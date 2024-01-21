@@ -60,7 +60,7 @@
 //!         _: &mut MaybeUninit<Self::Level1BlockData>, 
 //!         _: usize
 //!     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-//!         (BitBlock::zero(), true)
+//!         (BitBlock::zero(), false)
 //!     }
 //!     
 //!     unsafe fn data_mask_from_block_data(

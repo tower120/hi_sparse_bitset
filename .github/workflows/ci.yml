@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: RUSTFLAGS="--deny warnings" cargo build   
+      - run: RUSTFLAGS="--deny warnings" cargo build
 
   tests:
     name: careful tests

@@ -362,7 +362,7 @@ where
     T: LevelMasksIterExt,
 {
     #[inline]
-    pub fn new(virtual_set: T) -> Self{
+    pub(crate) fn new(virtual_set: T) -> Self {
         Self{
             block_iter: CachingBlockIter::new(virtual_set),
             data_block_iter: DataBlockIter{
