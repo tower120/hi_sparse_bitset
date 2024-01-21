@@ -43,7 +43,7 @@ impl<Conf: Config> LevelMasksIterExt for Empty<Conf> {
     fn make_iter_state(&self) -> Self::IterState { () }
     unsafe fn drop_iter_state(&self, _state: &mut ManuallyDrop<Self::IterState>) {}
 
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self, 
         _state: &mut Self::IterState, 
         _level1_block_data: &mut MaybeUninit<Self::Level1BlockData>, 
