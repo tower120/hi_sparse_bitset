@@ -2,13 +2,13 @@
 //! to achieve maximum performance. See [examples/custom_bitset_simple] for 
 //! simpler version.
 //! 
-//! Requires `custom` feature to build.
+//! Requires `impl` feature to build.
 
 use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use hi_sparse_bitset::config::Config;
-use hi_sparse_bitset::{BitBlock, BitSetBase, BitSetInterface, impl_bitset};
-use hi_sparse_bitset::implement::*;
+use hi_sparse_bitset::{BitBlock, BitSetBase, impl_bitset};
+use hi_sparse_bitset::implement::{LevelMasks, LevelMasksIterExt};
 
 #[derive(Default)]
 struct Empty<Conf: Config>(PhantomData<Conf>);

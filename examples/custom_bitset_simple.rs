@@ -1,12 +1,12 @@
 //! This example shows how to make custom bitset in simple form.
 //! 
-//! Requires `custom` feature to build.
+//! Requires `impl` feature to build.
 
 use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use hi_sparse_bitset::config::Config;
 use hi_sparse_bitset::{BitBlock, BitSetBase, impl_bitset_simple};
-use hi_sparse_bitset::implement::*;
+use hi_sparse_bitset::implement::LevelMasks;
 
 #[derive(Default)]
 struct Empty<Conf: Config>(PhantomData<Conf>);

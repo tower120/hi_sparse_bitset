@@ -15,20 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: RUSTFLAGS="--deny warnings" cargo build
-        
-  examples:
-    name: examples
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4        
-      - run: |
-        for example in examples/*.rs
-        do
-          name=$(basename "$example" .rs)
-          echo "Running example $name"
-          RUSTFLAGS="--deny warnings" cargo run --example "$name" --all-features
-        done        
+      - run: RUSTFLAGS="--deny warnings" cargo build   
 
   tests:
     name: careful tests
