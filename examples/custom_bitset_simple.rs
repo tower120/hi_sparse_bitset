@@ -5,7 +5,7 @@
 use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use hi_sparse_bitset::config::Config;
-use hi_sparse_bitset::{BitBlock, BitSetBase, impl_bitset, impl_simple_bitset};
+use hi_sparse_bitset::{BitBlock, BitSetBase, impl_bitset_simple};
 use hi_sparse_bitset::implement::*;
 
 #[derive(Default)]
@@ -34,8 +34,8 @@ impl<Conf: Config> LevelMasks for Empty<Conf> {
     }
 }
 
-impl_simple_bitset!(
-    impl<Conf> for Empty<Conf> where Conf: Config
+impl_bitset_simple!(
+    impl<Conf> for ref Empty<Conf> where Conf: Config
 );
 
 fn main(){

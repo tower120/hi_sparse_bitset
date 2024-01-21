@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.5.0
+### Fix
+- `NoCache` reduce version was unsound for iterators which had to be dropped. 
+
 ### Optimization
 - On each level, instead of empty block indices Vec, an intrusive single-linked list is now used.
   This completely eliminates this kind of memory overhead. Previously, if you would fill `_256bit` bitset,
@@ -11,6 +14,8 @@
 ### Changed
 - `BitSetInterface` now have default implementation.
 - `BitSetInterface` no longer have `IntoIterator` base.
+- `BitSet` no longer implements `BitSetInterface`. 
+  But `&BitSet` still does. This prevents accidental sending bitset by value.  
 
 ### Added
 - `BitBlock::first_u64()`.

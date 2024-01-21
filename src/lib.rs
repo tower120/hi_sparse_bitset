@@ -107,7 +107,7 @@
 //! 
 //! You can make your own bitsets - like 
 //! generative sets (empty, full), specially packed sets (range-fill), 
-//! adapters, etc. See [implement] module.
+//! adapters, etc. See [implement] module. You need `impl` feature for that.
 //! 
 //! # SIMD
 //! 
@@ -146,7 +146,7 @@ pub use reduce::Reduce;
 
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::{null, null_mut};
+use std::ptr::NonNull;
 use config::Config;
 use block::Block;
 use level::Level;
@@ -479,17 +479,14 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
     }
 }
 
-/// Points to elements in heap. Guaranteed to be stable.
-pub struct Level1BlockData<Conf: Config>(*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
-impl<Conf: Config> Default for Level1BlockData<Conf>{
-    #[inline]
-    fn default() -> Self {
-        Self(null(), null())
-    }
-} 
-
 impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
-    type Level1BlockData = Level1BlockData<Conf>;
+    /// Points to elements in heap. Guaranteed to be stable.
+    /// This is just plain pointers with null in default:
+    /// `(*const LevelDataBlock<Conf>, *const Level1Block<Conf>)`
+    type Level1BlockData = (
+        Option<NonNull<LevelDataBlock<Conf>>>,  /* data array pointer */
+        Option<NonNull<Level1Block<Conf>>>      /* block pointer */
+    );
 
     type IterState = ();
     fn make_iter_state(&self) -> Self::IterState { () }
@@ -499,7 +496,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
     unsafe fn init_level1_block_data(
         &self,
         _: &mut Self::IterState,
-        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
+        level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);
@@ -508,16 +505,21 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         //       But looks like this way it is a tiny bit faster.
 
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_usize());
-        level1_blocks.write(Level1BlockData(self.data.blocks().as_ptr(), level1_block));
+        level1_block_data.write(
+            (
+                Some(NonNull::new_unchecked(self.data.blocks().as_ptr() as *mut _)),
+                Some(NonNull::from(level1_block))
+            )
+        );
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
 
     #[inline]
     unsafe fn data_mask_from_block_data(
-        /*&self,*/ level1_blocks: &Self::Level1BlockData, level1_index: usize
+        level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> Conf::DataBitBlock {
-        let array_ptr = level1_blocks.0;
-        let level1_block = &*level1_blocks.1;
+        let array_ptr = level1_blocks.0.unwrap_unchecked().as_ptr().cast_const();
+        let level1_block = level1_blocks.1.unwrap_unchecked().as_ref();
 
         let data_block_index = level1_block.get_unchecked(level1_index);
         let data_block = &*array_ptr.add(data_block_index.as_usize());
@@ -525,7 +527,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
     }
 }
 
-implement::impl_bitset!(impl<Conf> for BitSet<Conf> where Conf: Config);
+implement::impl_bitset!(impl<Conf> for ref BitSet<Conf> where Conf: Config);
 
 
 #[inline]

@@ -994,5 +994,5 @@ fn non_trusted_hierarchy_eq_test(){
     let set3 = HiSparseBitset::from([
         10, 10000
     ]);
-    assert_eq!(set1 - set2, set3);
+    assert_eq!(&set1 - &set2, set3);
 }

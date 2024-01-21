@@ -43,16 +43,17 @@ pub trait LevelMasks: BitSetBase{
 /// I don't know if it will be actually used, so no work is done on top of that.
 /// If you do use it, and want it better - open an issue.
 /// 
-/// # How it used
+/// # How it is used
 /// 
 /// See [CachingBlockIter::next()] code to see how it used.   
 /// 
 /// ```[ignore]
 /// let mut state = bitset.make_iter_state();
-/// let mut level1_block_data = MaybeUninit::uninit();  // POD
+/// let mut level1_block_data = MaybeUninit::new(Default::default());
 /// 
 /// fn next() {
 ///     ...
+///     level1_block_data.assume_init_drop();
 ///     let (level1_mask, is_not_empty) = bitset.update_level1_block_data(state, level1_block_data, level0_index);
 ///     ...
 ///     let bitblock = data_mask_from_block_data(level1_block_data, level1_index);
@@ -60,9 +61,12 @@ pub trait LevelMasks: BitSetBase{
 ///     return bitblock;
 /// }
 /// 
+/// level1_block_data.assume_init_drop();
 /// bitset.drop_iter_state(state);
 /// ```
 /// 
+/// [Reduce]: crate::Reduce
+/// [Apply]: crate::Apply
 /// [CachingBlockIter::next()]: crate::iter::CachingBlockIter::next()
 pub trait LevelMasksIterExt: LevelMasks{
     /// Consists from child states (if any) + Self state.
@@ -103,15 +107,16 @@ pub trait LevelMasksIterExt: LevelMasks{
     /// `level1_block_data` will come in undefined state - rewrite it completely.
     ///
     /// `is_not_empty` is not used by iterator itself, but can be used by other 
-    /// generative bitsets (namely [Reduce]) - we expect compiler to optimize away that non-used code.
+    /// generative bitsets (namely [Reduce]) - we expect compiler to optimize away non-used code.
     /// It exists - because sometimes you may have faster ways of checking emptiness,
     /// then checking simd register (bitblock) for zero in general case.
-    /// For example, in BitSet - this is checking of block indirection index for zero.
+    /// For example, in BitSet - it is done by checking of block indirection index for zero.
     /// 
     /// # Safety
     ///
     /// indices are not checked.
     /// 
+    /// [Reduce]: crate::Reduce
     // Performance-wise it is important to use this in-place construct style, 
     // instead of just returning Level1BlockData. Even if we return Level1BlockData,
     // and then immoderately write it to MaybeUninit - compiler somehow still can't
@@ -126,10 +131,8 @@ pub trait LevelMasksIterExt: LevelMasks{
     /// # Safety
     ///
     /// indices are not checked.
-    /// 
-    /// P.S. It can actually accept &self as well - but that was never needed.
     unsafe fn data_mask_from_block_data(
-        /*&self,*/ level1_block_data: &Self::Level1BlockData, level1_index: usize
+        level1_block_data: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock;
 }
 
@@ -209,11 +212,23 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 /// [^traverse_def]: Under "traverse" we understand function application for 
 /// each element of bitset.
 /// 
+/// # Implementation
+/// 
+/// Consider using [impl_bitset!] instead of implementing it manually.
+///
+/// Implementing BitSetInterface for T will make it passable by value to [apply], [reduce].
+/// That may be not what you want, if your type contains heavy data, or your
+/// [LevelMasksIterExt] implementation depends on *Self being stable during iteration.
+/// If that is the case - implement only for &T.
+/// 
 /// [CachingBlockIter]: crate::iter::CachingBlockIter
 /// [CachingIndexIter]: crate::iter::CachingIndexIter
-pub trait BitSetInterface
+/// [LevelMasksIterExt]: crate::implement::LevelMasksIterExt
+/// [impl_bitset!]: crate::impl_bitset!
+/// [apply]: crate::apply()
+/// [reduce]: crate::reduce()
+pub unsafe trait BitSetInterface
     : BitSetBase 
-    //+ IntoIterator<IntoIter = DefaultIndexIterator<Self>> 
     + LevelMasksIterExt 
     + Sized
 {

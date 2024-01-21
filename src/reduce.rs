@@ -1,14 +1,13 @@
 use std::marker::PhantomData;
 use std::{mem, ptr};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::{addr_of_mut, null};
+use std::ptr::NonNull;
 use crate::{assume, BitSetInterface, LevelMasks};
 use crate::implement::impl_bitset;
 use crate::ops::BitSetOp;
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
 use crate::config::Config;
-use arrayvec::ArrayVec;
 
 /// Bitsets iterator reduction, as lazy bitset.
 ///
@@ -118,7 +117,7 @@ where
     type Set  = S::Item;
     type Sets = S;
     type IterState = ();
-    type Level1BlockData = (Option<S>, usize);  // TODO: store just pointer to self instead?
+    type Level1BlockData = (Option<S>, usize);
 
     #[inline]
     fn make_state(_: &Self::Sets) -> Self::IterState { () }
@@ -368,20 +367,6 @@ where
     }
 }
 
-
-/// raw slice
-pub struct DynamicCacheLevel1BlockData<Set: LevelMasksIterExt>(
-    // This points to Self::IterState heap
-    *const <Set as LevelMasksIterExt>::Level1BlockData,
-    usize
-);
-impl<Set: LevelMasksIterExt> Default for DynamicCacheLevel1BlockData<Set>{
-    #[inline]
-    fn default() -> Self {
-        Self(null(), 0)
-    }
-}
-
 pub struct DynamicCacheImpl<Op, S>(PhantomData<(Op, S)>);
 impl<Op, S> ReduceCacheImpl for DynamicCacheImpl<Op, S>
 where
@@ -404,12 +389,12 @@ where
         Box<[ManuallyDrop<<Self::Set as LevelMasksIterExt>::IterState>]>,
     );
     
-    type Level1BlockData = DynamicCacheLevel1BlockData<Self::Set>;
-    /*(
+    /// raw slice
+    type Level1BlockData = (
         // This points to Self::IterState heap
-        *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
+        Option<NonNull<<Self::Set as LevelMasksIterExt>::Level1BlockData>>,
         usize
-    );*/
+    );
 
     #[inline]
     fn make_state(sets: &Self::Sets) -> Self::IterState {
@@ -474,9 +459,9 @@ where
         
         storage.set_len(len);
 
-        level1_block_data.write(DynamicCacheLevel1BlockData(
+        level1_block_data.write((
             // assume_init_ref array
-            storage.as_ptr() as *const _,
+            Some(NonNull::new_unchecked(storage.as_mut_ptr())),
             len
         ));
 
@@ -488,7 +473,8 @@ where
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
-            level1_blocks.0, level1_blocks.1
+            level1_blocks.0.unwrap_unchecked().as_ptr(),
+            level1_blocks.1
         );
         data_mask_from_block_data::<Op, Self::Set>(slice, level1_index)
     }

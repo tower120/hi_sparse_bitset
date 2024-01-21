@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
-use crate::{assume, data_block_start_index, level_indices};
+use crate::{data_block_start_index, level_indices};
 
 use super::*;
 
@@ -87,12 +87,11 @@ where
             {
                 unsafe {
                     // Do not drop level1_block_data, since it was never initialized before.
-                    let (_, valid) = this.virtual_set.init_level1_block_data(
+                    this.virtual_set.init_level1_block_data(
                         &mut this.state,
                         &mut this.level1_block_data,
                         this.level0_index
                     );    
-                    assume!(valid);
                 }
             }            
         }
@@ -185,12 +184,11 @@ where
             // generate level1 mask, and update cache.
             let level1_mask = unsafe {
                 self.level1_block_data.assume_init_drop();
-                let (level1_mask, valid) = self.virtual_set.init_level1_block_data(
+                let (level1_mask, _) = self.virtual_set.init_level1_block_data(
                     &mut self.state,
                     &mut self.level1_block_data,
                     level0_index
                 );
-                assume!(valid);
                 level1_mask
             };
             self.level1_iter = level1_mask.bits_iter();
@@ -269,13 +267,12 @@ where
                     
                     let level1_mask = unsafe {
                         self.level1_block_data.assume_init_drop();
-                        let (level1_mask, not_empty) = 
+                        let (level1_mask, _) = 
                             self.virtual_set.init_level1_block_data(
                                 &mut self.state,
                                 &mut self.level1_block_data,
                                 index
                             );
-                        assume!(not_empty);
                         level1_mask
                     };
 
@@ -549,9 +546,8 @@ where
 {
     let level1_mask = unsafe{
         level1_blocks.assume_init_drop();
-        let (level1_mask, valid) = 
+        let (level1_mask, _) = 
             set.init_level1_block_data(state, level1_blocks, level0_index);
-        assume!(valid);
         level1_mask
     };
     

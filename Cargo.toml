@@ -22,7 +22,6 @@ simd = ["dep:wide"]
 
 [dependencies]
 wide = { version = "0.7.13", optional = true }
-arrayvec = "0.7.4"
 
 [dev-dependencies]
 rand = "0.8"
