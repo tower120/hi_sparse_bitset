@@ -150,7 +150,7 @@ where
 }
 
 #[inline(always)]
-unsafe fn update_level1_block_data<Op, Conf, Sets>(
+unsafe fn init_level1_block_data<Op, Conf, Sets>(
     _: Op,
     sets: &Sets,
     state_ptr: *mut <Sets::Item as LevelMasksIterExt>::IterState,
@@ -268,7 +268,7 @@ where
     }
 }
 
-// ala ArrayVec
+/// ala ArrayVec
 pub struct RawArray<T, const N: usize>{
     mem: [MaybeUninit<T>; N],
     len: usize
@@ -344,7 +344,7 @@ where
         // assume_init_mut() array
         let state_ptr = state.as_mut_ptr() as *mut <Self::Set as LevelMasksIterExt>::IterState;
 
-        let (mask, len, valid) = update_level1_block_data(
+        let (mask, len, valid) = init_level1_block_data(
             Op::default(),
             sets,
             state_ptr,
@@ -380,9 +380,6 @@ where
 
     /// Have two separate storages, to keep local storage tight, and fast to iterate
     type IterState = (
-        // self storage (POD elements), never drop.
-        // Do not use Box here, since Rust treat Box as &mut
-        //UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksIterExt>::Level1BlockData>>,
         Vec<<Self::Set as LevelMasksIterExt>::Level1BlockData>,
 
         // child state
@@ -419,11 +416,7 @@ where
             )
         };
 
-        (
-            //UniqueArrayPtr::new_uninit(len),
-            Vec::with_capacity(len),
-            child_state
-        )
+        (Vec::with_capacity(len), child_state)
     }
 
     #[inline]
@@ -443,13 +436,12 @@ where
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         let (storage, child_state) = state;
 
-        // assume_init_mut array
+        // &mut[ManuallyDrop<T>] -> &mut[T]
         let sets_state_ptr = child_state.as_mut_ptr() as *mut _;
-        //let level1_block_data_array_ptr = storage.as_mut_ptr();
         storage.clear();
         let level1_block_data_array_ptr = storage.spare_capacity_mut().as_mut_ptr();
 
-        let (mask, len, valid) = update_level1_block_data(
+        let (mask, len, valid) = init_level1_block_data(
             Op::default(),
             sets,
             sets_state_ptr,
