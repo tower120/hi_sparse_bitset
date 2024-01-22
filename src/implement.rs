@@ -80,7 +80,6 @@
 //! * examples/custom_bitset.rs
 
 use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
-use crate::{BitBlock, level_indices};
 pub use crate::bitset_interface::LevelMasks;
 pub use crate::bitset_interface::LevelMasksIterExt;
 
@@ -190,7 +189,6 @@ macro_rules! impl_bitset {
         
         impl<$($generics),*> IntoIterator for $t
         where
-            $t: $crate::BitSetInterface,
             $($where_bounds)*
         {
             type Item = usize;

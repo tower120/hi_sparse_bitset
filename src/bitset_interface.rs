@@ -234,6 +234,7 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 pub unsafe trait BitSetInterface
     : BitSetBase 
     + LevelMasksIterExt 
+    + IntoIterator<IntoIter = DefaultIndexIterator<Self>>
     + Sized
 {
     #[inline]
