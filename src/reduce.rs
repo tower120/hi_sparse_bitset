@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
-use std::{mem, slice};
+use std::{mem, ptr};
 use std::mem::{ManuallyDrop, MaybeUninit};
-use crate::{assume, LevelMasks};
+use std::ptr::NonNull;
+use crate::{assume, BitSetInterface, LevelMasks};
+use crate::implement::impl_bitset;
 use crate::ops::BitSetOp;
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
@@ -92,8 +94,8 @@ pub trait ReduceCacheImpl
     fn make_state(sets: &Self::Sets) -> Self::IterState;
     fn drop_state(sets: &Self::Sets, state: &mut ManuallyDrop<Self::IterState>);
 
-    type Level1BlockData;
-    unsafe fn update_level1_block_data(
+    type Level1BlockData: Default;
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -112,10 +114,10 @@ where
     S::Item: LevelMasksIterExt,
 {
     type Conf = <S::Item as BitSetBase>::Conf;
-    type Set = S::Item;
+    type Set  = S::Item;
     type Sets = S;
     type IterState = ();
-    type Level1BlockData = (S, usize);
+    type Level1BlockData = (Option<S>, usize);
 
     #[inline]
     fn make_state(_: &Self::Sets) -> Self::IterState { () }
@@ -124,13 +126,13 @@ where
     fn drop_state(_: &Self::Sets, _: &mut ManuallyDrop<Self::IterState>) {}
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         _: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        level1_blocks.write((sets.clone(), level0_index));
+        level1_blocks.write((Some(sets.clone()), level0_index));
 
         let reduce: &Reduce<Op, S, ()> = mem::transmute(sets);
         (reduce.level1_mask(level0_index), true)
@@ -142,13 +144,13 @@ where
     ) -> <Self::Conf as Config>::DataBitBlock {
         let (sets, level0_index) = level1_blocks;
 
-        let reduce: &Reduce<Op, S, ()> = mem::transmute(sets);
+        let reduce: &Reduce<Op, S, ()> = mem::transmute(sets.as_ref().unwrap_unchecked());
         reduce.data_mask(*level0_index, level1_index)
     }
 }
 
 #[inline(always)]
-unsafe fn update_level1_block_data<Op, Conf, Sets>(
+unsafe fn init_level1_block_data<Op, Conf, Sets>(
     _: Op,
     sets: &Sets,
     state_ptr: *mut <Sets::Item as LevelMasksIterExt>::IterState,
@@ -174,7 +176,7 @@ where
     let mask =
         sets.clone()
         .map(|set|{
-            let (level1_mask, is_not_empty) = set.update_level1_block_data(
+            let (level1_mask, is_not_empty) = set.init_level1_block_data(
                 &mut *state_ptr.add(state_index),
                 &mut *level1_block_data_array_ptr.add(index),
                 level0_index
@@ -245,7 +247,7 @@ where
 {
     let mut element_ptr = state_ptr;
     for set in sets.clone(){
-        (*element_ptr).write(set.make_state());
+        (*element_ptr).write(set.make_iter_state());
         element_ptr = element_ptr.add(1);
     }
 }
@@ -261,8 +263,33 @@ where
 {
     let mut element_ptr = state_ptr;
     for set in sets.clone(){
-        set.drop_state(&mut *element_ptr);
+        set.drop_iter_state(&mut *element_ptr);
         element_ptr = element_ptr.add(1);
+    }
+}
+
+/// ala ArrayVec
+pub struct RawArray<T, const N: usize>{
+    mem: [MaybeUninit<T>; N],
+    len: usize
+}
+impl<T, const N: usize> Default for RawArray<T, N>{
+    #[inline]
+    fn default() -> Self {
+        unsafe{
+            Self{mem: MaybeUninit::uninit().assume_init(), len: 0}    
+        }
+    }
+}
+impl <T, const N: usize> Drop for RawArray<T, N>{
+    #[inline]
+    fn drop(&mut self) {
+        if mem::needs_drop::<T>(){
+            unsafe{
+                let slice = std::slice::from_raw_parts_mut(self.mem.as_mut_ptr(), self.len);
+                ptr::drop_in_place(slice);
+            }
+        }
     }
 }
 
@@ -287,10 +314,7 @@ where
     type IterState = [MaybeUninit<<Self::Set as LevelMasksIterExt>::IterState>; N];
 
     /// Never drop, since array contain primitives, or array of primitives.
-    type Level1BlockData = (
-        [MaybeUninit<<Self::Set as LevelMasksIterExt>::Level1BlockData>; N],
-        usize
-    );
+    type Level1BlockData = RawArray<<Self::Set as LevelMasksIterExt>::Level1BlockData, N>;
 
     #[inline]
     fn make_state(sets: &Self::Sets) -> Self::IterState {
@@ -310,19 +334,24 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        let (level1_blocks_storage, level1_blocks_len) = level1_blocks.assume_init_mut();
-        // assume_init_mut array
+        let level1_blocks_storage = level1_blocks.assume_init_mut();
+        // assume_init_mut() array
         let state_ptr = state.as_mut_ptr() as *mut <Self::Set as LevelMasksIterExt>::IterState;
 
-        let (mask, len, valid) =
-            update_level1_block_data(Op::default(), sets, state_ptr, level1_blocks_storage.as_mut_ptr(), level0_index);
-        *level1_blocks_len = len;
+        let (mask, len, valid) = init_level1_block_data(
+            Op::default(),
+            sets,
+            state_ptr,
+            level1_blocks_storage.mem.as_mut_ptr(),
+            level0_index
+        );
+        level1_blocks_storage.len = len;
         (mask, valid)
     }
 
@@ -331,8 +360,8 @@ where
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
-            level1_blocks.0.as_ptr() as *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
-            level1_blocks.1
+            level1_blocks.mem.as_ptr() as *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
+            level1_blocks.len
         );
         data_mask_from_block_data::<Op, Self::Set>(slice, level1_index)
     }
@@ -351,18 +380,16 @@ where
 
     /// Have two separate storages, to keep local storage tight, and fast to iterate
     type IterState = (
-        // self storage (POD elements), never drop.
-        // Do not use Box here, since Rust treat Box as &mut
-        UniqueArrayPtr<MaybeUninit<<Self::Set as LevelMasksIterExt>::Level1BlockData>>,
+        Vec<<Self::Set as LevelMasksIterExt>::Level1BlockData>,
 
         // child state
         Box<[ManuallyDrop<<Self::Set as LevelMasksIterExt>::IterState>]>,
     );
-
+    
     /// raw slice
     type Level1BlockData = (
         // This points to Self::IterState heap
-        *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
+        Option<NonNull<<Self::Set as LevelMasksIterExt>::Level1BlockData>>,
         usize
     );
 
@@ -385,11 +412,11 @@ where
             // cast UniqueArrayPtr<MaybeUninit<_>> -> UniqueArrayPtr<ManuallyDrop<_>>
             let storage_ptr = storage.as_mut_ptr() as *mut _;
             Box::from_raw(
-                slice::from_raw_parts_mut(storage_ptr, len)
+                std::slice::from_raw_parts_mut(storage_ptr, len)
             )
         };
 
-        (UniqueArrayPtr::new_uninit(len), child_state)
+        (Vec::with_capacity(len), child_state)
     }
 
     #[inline]
@@ -401,7 +428,7 @@ where
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         sets: &Self::Sets,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -409,21 +436,24 @@ where
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         let (storage, child_state) = state;
 
-        // assume_init_mut array
+        // &mut[ManuallyDrop<T>] -> &mut[T]
         let sets_state_ptr = child_state.as_mut_ptr() as *mut _;
-        let level1_block_data_array_ptr = storage.as_mut_ptr(); 
+        storage.clear();
+        let level1_block_data_array_ptr = storage.spare_capacity_mut().as_mut_ptr();
 
-        let (mask, len, valid) = update_level1_block_data(
+        let (mask, len, valid) = init_level1_block_data(
             Op::default(),
             sets,
             sets_state_ptr,
             level1_block_data_array_ptr,
             level0_index
         );
+        
+        storage.set_len(len);
 
         level1_block_data.write((
             // assume_init_ref array
-            storage.as_ptr() as *const _,
+            Some(NonNull::new_unchecked(storage.as_mut_ptr())),
             len
         ));
 
@@ -435,7 +465,8 @@ where
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let slice = std::slice::from_raw_parts(
-            level1_blocks.0, level1_blocks.1
+            level1_blocks.0.unwrap_unchecked().as_ptr(),
+            level1_blocks.1
         );
         data_mask_from_block_data::<Op, Self::Set>(slice, level1_index)
     }
@@ -453,24 +484,24 @@ where
     type Level1BlockData = <Cache::Impl<Op, S> as ReduceCacheImpl>::Level1BlockData;
 
     #[inline]
-    fn make_state(&self) -> Self::IterState {
+    fn make_iter_state(&self) -> Self::IterState {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::make_state(&self.sets)
     }
 
     #[inline]
-    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
+    unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::drop_state(&self.sets, state)
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
         <Cache::Impl<Op, S> as ReduceCacheImpl>::
-            update_level1_block_data(&self.sets, state, level1_block_data, level0_index)
+            init_level1_block_data(&self.sets, state, level1_block_data, level0_index)
     }
 
     #[inline]
@@ -481,6 +512,15 @@ where
             data_mask_from_block_data(level1_blocks, level1_index)
     }
 }
+
+impl_bitset!(
+    impl<Op, S, Cache> for Reduce<Op, S, Cache>
+    where
+        Op: BitSetOp,
+        S: Iterator + Clone,
+        S::Item: BitSetInterface,
+        Cache: ReduceCache
+);
 
 // Some methods not used by library.
 #[allow(dead_code)]

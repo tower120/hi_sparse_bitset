@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.5.0
+### Fix
+- `NoCache` reduce version was unsound for iterators which had to be dropped. 
+
 ### Optimization
 - On each level, instead of empty block indices Vec, an intrusive single-linked list is now used.
   This completely eliminates this kind of memory overhead. Previously, if you would fill `_256bit` bitset,
@@ -9,13 +12,16 @@
 - Minor `BitSet::remove()` optimization. 
 
 ### Changed
-
+- `BitSetInterface` now have default implementation.
+- `BitSet` no longer implements `BitSetInterface`. 
+  But `&BitSet` still does. This prevents accidental sending container by value.  
 
 ### Added
 - `BitBlock::first_u64()`.
 - `BitBlock::first_u64_mut()`.
 - `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like 
   optimization in user-defined operations.
+- Machinery, which allows to implement custom bitsets. Enabled with `impl` flag.
 
 ### Removed
 - `num_traits` dependency removed.

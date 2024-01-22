@@ -103,13 +103,19 @@
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
 //! 
+//! # Custom bitsets
+//! 
+//! You can make your own bitsets - like 
+//! generative sets (empty, full), specially packed sets (range-fill), 
+//! adapters, etc. See [implement] module. You need `impl` feature for that.
+//! 
 //! # SIMD
 //! 
 //! 128 and 256 bit configurations use SIMD. Make sure you compile with simd support
 //! enabled (`sse2` for _128bit, `avx` for _256bit) to achieve best performance.
 //! _sse2 enabled by default in Rust for most desktop environments_ 
 //! 
-//! If you don't need "wide" configurations, you may disable default feature "simd".   
+//! If you don't need "wide" configurations, you may disable default feature `simd`.   
 
 #[cfg(test)]
 mod test;
@@ -128,6 +134,11 @@ mod apply;
 pub mod iter;
 pub mod cache;
 
+#[cfg(feature = "impl")]
+pub mod implement;
+#[cfg(not(feature = "impl"))]
+mod implement;
+
 pub use primitive::Primitive;
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
@@ -135,6 +146,7 @@ pub use reduce::Reduce;
 
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ptr::NonNull;
 use config::Config;
 use block::Block;
 use level::Level;
@@ -468,18 +480,23 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
 }
 
 impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
-    /// Points to elements in heap.
-    type Level1BlockData = (*const LevelDataBlock<Conf> /* array pointer */, *const Level1Block<Conf>);
+    /// Points to elements in heap. Guaranteed to be stable.
+    /// This is just plain pointers with null in default:
+    /// `(*const LevelDataBlock<Conf>, *const Level1Block<Conf>)`
+    type Level1BlockData = (
+        Option<NonNull<LevelDataBlock<Conf>>>,  /* data array pointer */
+        Option<NonNull<Level1Block<Conf>>>      /* block pointer */
+    );
 
     type IterState = ();
-    fn make_state(&self) -> Self::IterState { () }
-    fn drop_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
+    fn make_iter_state(&self) -> Self::IterState { () }
+    unsafe fn drop_iter_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         _: &mut Self::IterState,
-        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
+        level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
         let level1_block_index = self.level0.get_unchecked(level0_index);
@@ -488,22 +505,30 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         //       But looks like this way it is a tiny bit faster.
 
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_usize());
-        level1_blocks.write((self.data.blocks().as_ptr(), level1_block));
+        level1_block_data.write(
+            (
+                Some(NonNull::new_unchecked(self.data.blocks().as_ptr() as *mut _)),
+                Some(NonNull::from(level1_block))
+            )
+        );
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
 
     #[inline]
     unsafe fn data_mask_from_block_data(
-        /*&self,*/ level1_blocks: &Self::Level1BlockData, level1_index: usize
+        level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> Conf::DataBitBlock {
-        let array_ptr = level1_blocks.0;
-        let level1_block = &*level1_blocks.1;
+        let array_ptr = level1_blocks.0.unwrap_unchecked().as_ptr().cast_const();
+        let level1_block = level1_blocks.1.unwrap_unchecked().as_ref();
 
         let data_block_index = level1_block.get_unchecked(level1_index);
         let data_block = &*array_ptr.add(data_block_index.as_usize());
         *data_block.mask()
     }
 }
+
+implement::impl_bitset!(impl<Conf> for ref BitSet<Conf> where Conf: Config);
+
 
 #[inline]
 fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{

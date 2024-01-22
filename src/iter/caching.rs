@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
-use crate::{assume, data_block_start_index, level_indices};
+use crate::{data_block_start_index, level_indices};
 
 use super::*;
 
@@ -61,7 +61,7 @@ where
 {
     #[inline]
     fn clone(&self) -> Self {
-        let state = self.virtual_set.make_state();
+        let state = self.virtual_set.make_iter_state();
         
         let mut this = Self { 
             virtual_set : self.virtual_set.clone(), 
@@ -86,12 +86,12 @@ where
             if this.level0_index < <T::Conf as Config>::Level0BitBlock::size()
             {
                 unsafe {
-                    let (_, valid) = this.virtual_set.update_level1_block_data(
+                    // Do not drop level1_block_data, since it was never initialized before.
+                    this.virtual_set.init_level1_block_data(
                         &mut this.state,
                         &mut this.level1_block_data,
                         this.level0_index
                     );    
-                    assume!(valid);
                 }
             }            
         }
@@ -100,7 +100,6 @@ where
     }
 }
 
-
 impl<T> CachingBlockIter<T>
 where
     T: LevelMasksIterExt,
@@ -108,7 +107,7 @@ where
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self {
         let level0_iter = virtual_set.level0_mask().bits_iter(); 
-        let state = virtual_set.make_state();
+        let state = virtual_set.make_iter_state();
         Self{
             virtual_set,
             
@@ -119,7 +118,7 @@ where
             level0_index: usize::MAX,    
 
             state: ManuallyDrop::new(state),
-            level1_block_data: MaybeUninit::uninit()
+            level1_block_data: MaybeUninit::new(Default::default())
         }
     }
     
@@ -145,6 +144,8 @@ where
     }
     
     /// Into index iterator.
+    /// 
+    /// Index iterator will start iteration from next block.
     #[inline]
     pub fn into_indices(mut self) -> CachingIndexIter<T> {
         let data_block_iter =
@@ -183,12 +184,12 @@ where
             
             // generate level1 mask, and update cache.
             let level1_mask = unsafe {
-                let (level1_mask, valid) = self.virtual_set.update_level1_block_data(
+                self.level1_block_data.assume_init_drop();
+                let (level1_mask, _) = self.virtual_set.init_level1_block_data(
                     &mut self.state,
                     &mut self.level1_block_data,
                     level0_index
                 );
-                assume!(valid);
                 level1_mask
             };
             self.level1_iter = level1_mask.bits_iter();
@@ -266,13 +267,13 @@ where
                     self.level0_index = index;
                     
                     let level1_mask = unsafe {
-                        let (level1_mask, not_empty) = 
-                            self.virtual_set.update_level1_block_data(
+                        self.level1_block_data.assume_init_drop();
+                        let (level1_mask, _) = 
+                            self.virtual_set.init_level1_block_data(
                                 &mut self.state,
                                 &mut self.level1_block_data,
                                 index
                             );
-                        assume!(not_empty);
                         level1_mask
                     };
 
@@ -315,7 +316,10 @@ where
 {
     #[inline]
     fn drop(&mut self) {
-        self.virtual_set.drop_state(&mut self.state);
+        unsafe{
+            self.level1_block_data.assume_init_drop();
+            self.virtual_set.drop_iter_state(&mut self.state);
+        }
     }
 }
 
@@ -359,7 +363,7 @@ where
     T: LevelMasksIterExt,
 {
     #[inline]
-    pub(crate) fn new(virtual_set: T) -> Self{
+    pub(crate) fn new(virtual_set: T) -> Self {
         Self{
             block_iter: CachingBlockIter::new(virtual_set),
             data_block_iter: DataBlockIter{
@@ -542,9 +546,9 @@ where
     F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
 {
     let level1_mask = unsafe{
-        let (level1_mask, valid) = 
-            set.update_level1_block_data(state, level1_blocks, level0_index);
-        assume!(valid);
+        level1_blocks.assume_init_drop();
+        let (level1_mask, _) = 
+            set.init_level1_block_data(state, level1_blocks, level0_index);
         level1_mask
     };
     

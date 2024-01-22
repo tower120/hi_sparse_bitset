@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
+use std::ptr::addr_of_mut;
 use crate::ops::*;
-use crate::BitSet;
-use crate::reduce::Reduce;
+use crate::BitSetInterface;
+use crate::implement::impl_bitset;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksIterExt};
 use crate::config::Config;
 
@@ -83,36 +84,46 @@ where
     S1: LevelMasksIterExt,
     S2: LevelMasksIterExt<Conf = S1::Conf>,
 {
-    type Level1BlockData = (MaybeUninit<S1::Level1BlockData>, MaybeUninit<S2::Level1BlockData>);
+    type Level1BlockData = (S1::Level1BlockData, S2::Level1BlockData);
 
     type IterState = (S1::IterState, S2::IterState);
 
     #[inline]
-    fn make_state(&self) -> Self::IterState {
-        (self.s1.make_state(), self.s2.make_state())
+    fn make_iter_state(&self) -> Self::IterState {
+        (self.s1.make_iter_state(), self.s2.make_iter_state())
     }
 
     #[inline]
-    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
+    unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>) {
         unsafe{
-            self.s1.drop_state(mem::transmute(&mut state.0));
-            self.s2.drop_state(mem::transmute(&mut state.1));
+            self.s1.drop_iter_state(mem::transmute(&mut state.0));
+            self.s2.drop_iter_state(mem::transmute(&mut state.1));
         }
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
-        level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
+        level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        let level1_blocks = level1_blocks.assume_init_mut();
-        let (mask1, v1) = self.s1.update_level1_block_data(
-            &mut state.0, &mut level1_blocks.0, level0_index
+        // &mut MaybeUninit<(T0, T1)> = (&mut MaybeUninit<T0>, &mut MaybeUninit<T1>) 
+        let (level1_block_data0, level1_block_data1) = {
+            let ptr = level1_block_data.as_mut_ptr();
+            let ptr0 = addr_of_mut!((*ptr).0);
+            let ptr1 = addr_of_mut!((*ptr).1);
+            (
+                &mut*mem::transmute::<_, *mut MaybeUninit<S1::Level1BlockData>>(ptr0), 
+                &mut*mem::transmute::<_, *mut MaybeUninit<S2::Level1BlockData>>(ptr1)
+            )
+        };
+        
+        let (mask1, v1) = self.s1.init_level1_block_data(
+            &mut state.0, level1_block_data0, level0_index
         );
-        let (mask2, v2) = self.s2.update_level1_block_data(
-            &mut state.1, &mut level1_blocks.1, level0_index
+        let (mask2, v2) = self.s2.init_level1_block_data(
+            &mut state.1, level1_block_data1, level0_index
         );
 
         let mask = Op::hierarchy_op(mask1, mask2);
@@ -124,83 +135,22 @@ where
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
         let m0 = S1::data_mask_from_block_data(
-            level1_blocks.0.assume_init_ref(), level1_index
+            &level1_blocks.0, level1_index
         );
         let m1 = S2::data_mask_from_block_data(
-            level1_blocks.1.assume_init_ref(), level1_index
+            &level1_blocks.1, level1_index
         ); 
         Op::data_op(m0, m1)
     }
 }
 
-
-// We need this all because RUST still does not support template/generic specialization.
-macro_rules! impl_op {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-
-        impl<$($generics),*, Rhs> std::ops::BitAnd<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<And, $t, Rhs>;
-
-            /// Returns intersection of self and rhs bitsets.
-            #[inline]
-            fn bitand(self, rhs: Rhs) -> Self::Output{
-                Apply::new(And, self, rhs)    
-            }
-        }
-
-        impl<$($generics),*, Rhs> std::ops::BitOr<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<Or, $t, Rhs>;
-
-            /// Returns union of self and rhs bitsets.
-            #[inline]
-            fn bitor(self, rhs: Rhs) -> Self::Output{
-                Apply::new(Or, self, rhs)    
-            }
-        }
-
-        impl<$($generics),*, Rhs> std::ops::BitXor<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<Xor, $t, Rhs>;
-
-            /// Returns symmetric difference of self and rhs bitsets.
-            #[inline]
-            fn bitxor(self, rhs: Rhs) -> Self::Output{
-                Apply::new(Xor, self, rhs)    
-            }
-        }        
-
-        impl<$($generics),*, Rhs> std::ops::Sub<Rhs> for $t
-        where
-            $($where_bounds)*
-        {
-            type Output = Apply<Sub, $t, Rhs>;
-
-            /// Returns difference of self and rhs bitsets. 
-            ///
-            /// _Or relative complement of rhs in self._
-            #[inline]
-            fn sub(self, rhs: Rhs) -> Self::Output{
-                Apply::new(Sub, self, rhs)    
-            }
-        }    
-
-    };
-}
-
-impl_op!(impl<Conf> for BitSet<Conf> where Conf: Config);
-impl_op!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
-impl_op!(impl<Op, S1, S2> for Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
-impl_op!(impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2> where /* S1: BitSetInterface, S2: BitSetInterface */);
-impl_op!(impl<Op, S, Storage> for Reduce<Op, S, Storage> where);
-impl_op!(impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage> where);
+impl_bitset!(
+    impl<Op, S1, S2> for Apply<Op, S1, S2> 
+    where 
+        Op: BitSetOp, 
+        S1: BitSetInterface, 
+        S2: BitSetInterface<Conf = S1::Conf>
+);
 
 #[cfg(test)]
 mod test{
@@ -259,8 +209,8 @@ mod test{
         fn test<Op, S1, S2>(h: Apply<Op, S1, S2>, s: HashSet<usize>)
         where
             Op: BitSetOp,
-            S1: LevelMasksIterExt<Conf = S2::Conf>,
-            S2: LevelMasksIterExt,
+            S1: BitSetInterface<Conf = S2::Conf>,
+            S2: BitSetInterface,
         {
             let hv: Vec<usize> = h.block_iter()
                 .flat_map(|block| block.iter())

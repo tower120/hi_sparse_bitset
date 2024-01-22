@@ -38,6 +38,9 @@ pub trait BitSetOp: Default + Copy + 'static{
     /// This is true for [intersection], or narrower.
     /// 
     /// Enables some optimizations. False - is always safe value.
+    /// 
+    /// [hierarchy_op]: Self::hierarchy_op
+    /// [intersection]: And
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool;
     
     /// Operation applied to indirection/hierarchy level bitblock

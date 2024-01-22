@@ -479,8 +479,8 @@ where
                 fn run<Op, S1, S2>(op: Apply<Op, S1, S2>) -> Vec<usize>
                 where
                     Op: BitSetOp,
-                    S1: LevelMasksIterExt,
-                    S2: LevelMasksIterExt<Conf = S1::Conf>,
+                    S1: BitSetInterface,
+                    S2: BitSetInterface<Conf = S1::Conf>,
                 {
                     let mut indices2 = Vec::new();
                     for block in op.block_iter(){
@@ -994,5 +994,5 @@ fn non_trusted_hierarchy_eq_test(){
     let set3 = HiSparseBitset::from([
         10, 10000
     ]);
-    assert_eq!(set1 - set2, set3);
+    assert_eq!(&set1 - &set2, set3);
 }

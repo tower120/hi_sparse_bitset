@@ -1,13 +1,8 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
-use std::fmt;
-use crate::{assume, BitSet, level_indices};
-use crate::ops::BitSetOp;
+use crate::{assume, level_indices};
 use crate::bit_block::BitBlock;
-use crate::cache::ReduceCache;
 use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
-use crate::apply::Apply;
-use crate::reduce::Reduce;
 
 // We have this separate trait with Config, to avoid making LevelMasks public.
 pub trait BitSetBase {
@@ -18,6 +13,8 @@ pub trait BitSetBase {
 }
 
 /// Basic interface for accessing block masks. Can work with [SimpleIter].
+/// 
+/// [SimpleIter]: crate::iter::SimpleBlockIter
 pub trait LevelMasks: BitSetBase{
     fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock;
 
@@ -34,43 +31,97 @@ pub trait LevelMasks: BitSetBase{
         -> <Self::Conf as Config>::DataBitBlock;
 }
 
-/// More sophisticated masks interface, optimized for iteration speed, through
-/// caching level1(pre-data level) block pointer. This also allows to discard
+/// More sophisticated masks interface, optimized for iteration speed of 
+/// generative/lazy bitset.
+/// 
+/// For example, in [Reduce] this achieved through
+/// caching level1(pre-data level) block pointers of all sets. Which also allows to discard
 /// bitsets with empty level1 blocks in final stage of getting data blocks.
+/// Properly implementing this gave [Reduce] and [Apply] 25-100% performance boost.  
 ///
-/// For use with [CachingIter].
+/// NOTE: This interface is somewhat icky and initially was intended for internal use.
+/// I don't know if it will be actually used, so no work is done on top of that.
+/// If you do use it, and want it better - open an issue.
+/// 
+/// # How it is used
+/// 
+/// See [CachingBlockIter::next()] code to see how it used.   
+/// 
+/// ```[ignore]
+/// let mut state = bitset.make_iter_state();
+/// let mut level1_block_data = MaybeUninit::new(Default::default());
+/// 
+/// fn next() {
+///     ...
+///     level1_block_data.assume_init_drop();
+///     let (level1_mask, is_not_empty) = bitset.update_level1_block_data(state, level1_block_data, level0_index);
+///     ...
+///     let bitblock = data_mask_from_block_data(level1_block_data, level1_index);
+///     
+///     return bitblock;
+/// }
+/// 
+/// level1_block_data.assume_init_drop();
+/// bitset.drop_iter_state(state);
+/// ```
+/// 
+/// [Reduce]: crate::Reduce
+/// [Apply]: crate::Apply
+/// [CachingBlockIter::next()]: crate::iter::CachingBlockIter::next()
 pub trait LevelMasksIterExt: LevelMasks{
-    /// Consists from child states + Self state.
+    /// Consists from child states (if any) + Self state.
+    /// 
+    /// You may need this, since [Level1BlockData] must be POD.
+    /// Use `()` for stateless.
+    /// 
+    /// [Level1BlockData]: Self::Level1BlockData
     type IterState;
 
-    /// Cached Level1Blocks for faster DataBlocks access,
+    /// Level1 block related data, used to speed up data_mask access.
+    ///
+    /// Prefer POD, or any kind of drop-less. 
+    /// 
+    /// In library, used to cache Level1Block(s) for faster DataBlock access,
     /// without traversing whole hierarchy for getting each block during iteration.
-    ///
-    /// This may have less elements then sets size, because empty can be skipped.
-    ///
-    /// Must be POD. (Drop will not be called)
-    type Level1BlockData;
+    type Level1BlockData: Default;
 
-    // TODO: rename to make_iter_state() ?
-    fn make_state(&self) -> Self::IterState;
-
-    // TODO: unsafe?
+    fn make_iter_state(&self) -> Self::IterState;
+    
     /// Having separate function for drop not strictly necessary, since
-    /// CacheData can actually drop itself. But! This allows not to store cache
-    /// size within CacheData. Which makes FixedCache CacheData ZST, if its childs
+    /// IterState can actually drop itself. But! This allows not to store cache
+    /// size within IterState. Which makes FixedCache CacheData ZST, if its childs
     /// are ZSTs, and which makes cache construction and destruction noop. Which is
     /// important for short iteration sessions.
     /// 
     /// P.S. This can be done at compile-time by opting out "len" counter,
     /// but stable Rust does not allow to do that yet.
-    fn drop_state(&self, state: &mut ManuallyDrop<Self::IterState>);
+    /// 
+    /// # Safety
+    /// 
+    /// - `state` must not be used after this.
+    /// - Must be called exactly once for each `state`.
+    unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>);
 
-    /// Update `level1_blocks` and return (Level1Mask, is_not_empty).
+    /// Init `level1_block_data` and return (Level1Mask, is_not_empty).
+    /// 
+    /// `level1_block_data` will come in undefined state - rewrite it completely.
+    ///
+    /// `is_not_empty` is not used by iterator itself, but can be used by other 
+    /// generative bitsets (namely [Reduce]) - we expect compiler to optimize away non-used code.
+    /// It exists - because sometimes you may have faster ways of checking emptiness,
+    /// then checking simd register (bitblock) for zero in general case.
+    /// For example, in BitSet - it is done by checking of block indirection index for zero.
     /// 
     /// # Safety
     ///
     /// indices are not checked.
-    unsafe fn update_level1_block_data(
+    /// 
+    /// [Reduce]: crate::Reduce
+    // Performance-wise it is important to use this in-place construct style, 
+    // instead of just returning Level1BlockData. Even if we return Level1BlockData,
+    // and then immoderately write it to MaybeUninit - compiler somehow still can't
+    // optimize it as direct memory write without intermediate bitwise copy.
+    unsafe fn init_level1_block_data(
         &self,
         state: &mut Self::IterState,
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
@@ -81,7 +132,7 @@ pub trait LevelMasksIterExt: LevelMasks{
     ///
     /// indices are not checked.
     unsafe fn data_mask_from_block_data(
-        /*&self,*/ level1_block_data: &Self::Level1BlockData, level1_index: usize
+        level1_block_data: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock;
 }
 
@@ -115,24 +166,24 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
     type IterState = T::IterState;
 
     #[inline]
-    fn make_state(&self) -> Self::IterState {
-        <T as LevelMasksIterExt>::make_state(self)
+    fn make_iter_state(&self) -> Self::IterState {
+        <T as LevelMasksIterExt>::make_iter_state(self)
     }
 
     #[inline]
-    fn drop_state(&self, cache: &mut ManuallyDrop<Self::IterState>) {
-        <T as LevelMasksIterExt>::drop_state(self, cache)
+    unsafe fn drop_iter_state(&self, cache: &mut ManuallyDrop<Self::IterState>) {
+        <T as LevelMasksIterExt>::drop_iter_state(self, cache)
     }
 
     #[inline]
-    unsafe fn update_level1_block_data(
+    unsafe fn init_level1_block_data(
         &self,
-        cache_data: &mut Self::IterState,
+        state: &mut Self::IterState,
         level1_blocks: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        <T as LevelMasksIterExt>::update_level1_block_data(
-            self, cache_data, level1_blocks, level0_index
+        <T as LevelMasksIterExt>::init_level1_block_data(
+            self, state, level1_blocks, level0_index
         )
     }
 
@@ -149,6 +200,10 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 // User-side interface
 /// Bitset interface.
 /// 
+/// Implemented for bitset references and optionally for values. 
+/// So as argument - accept BitSetInterface by value.
+/// _(Act as kinda forwarding reference in C++)_
+/// 
 /// # Traversing
 /// 
 /// [CachingBlockIter] and [CachingIndexIter] have specialized `for_each()` implementation and `traverse()`.
@@ -161,68 +216,67 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 /// [^traverse_def]: Under "traverse" we understand function application for 
 /// each element of bitset.
 /// 
+/// # Implementation
+/// 
+/// Consider using [impl_bitset!] instead of implementing it manually.
+///
+/// Implementing BitSetInterface for T will make it passable by value to [apply], [reduce].
+/// That may be not what you want, if your type contains heavy data, or your
+/// [LevelMasksIterExt] implementation depends on *Self being stable during iteration.
+/// If that is the case - implement only for &T.
+/// 
 /// [CachingBlockIter]: crate::iter::CachingBlockIter
 /// [CachingIndexIter]: crate::iter::CachingIndexIter
-pub trait BitSetInterface
+/// [LevelMasksIterExt]: crate::implement::LevelMasksIterExt
+/// [impl_bitset!]: crate::impl_bitset!
+/// [apply]: crate::apply()
+/// [reduce]: crate::reduce()
+pub unsafe trait BitSetInterface
     : BitSetBase 
-    + IntoIterator<IntoIter = DefaultIndexIterator<Self>> 
     + LevelMasksIterExt 
+    + IntoIterator<IntoIter = DefaultIndexIterator<Self>>
     + Sized
 {
-    fn block_iter(&self) -> DefaultBlockIterator<&'_ Self>;
-    fn iter(&self) -> DefaultIndexIterator<&'_ Self>;
-    fn into_block_iter(self) -> DefaultBlockIterator<Self>;
-    fn contains(&self, index: usize) -> bool;
+    #[inline]
+    fn block_iter(&self) -> DefaultBlockIterator<&'_ Self> {
+        DefaultBlockIterator::new(self)
+    }
+
+    #[inline]
+    fn iter(&self) -> DefaultIndexIterator<&'_ Self> {
+        DefaultIndexIterator::new(self)
+    }
+    
+    #[inline]
+    fn into_block_iter(self) -> DefaultBlockIterator<Self> {
+        DefaultBlockIterator::new(self)
+    }
+    
+    #[inline]
+    fn contains(&self, index: usize) -> bool {
+        bitset_contains(self, index)
+    } 
     
     /// O(1) if [TRUSTED_HIERARCHY], O(N) otherwise.
     /// 
     /// [TRUSTED_HIERARCHY]: BitSetBase::TRUSTED_HIERARCHY
-    fn is_empty(&self) -> bool;
-}
-
-macro_rules! impl_all {
-    ($macro_name: ident) => {
-        $macro_name!(impl<Conf> for BitSet<Conf> where Conf: Config);
-        $macro_name!(
-            impl<Op, S1, S2> for Apply<Op, S1, S2>
-            where
-                Op: BitSetOp,
-                S1: LevelMasksIterExt<Conf = S2::Conf>,
-                S2: LevelMasksIterExt
-        );
-        $macro_name!(
-            impl<Op, S, Storage> for Reduce<Op, S, Storage>
-            where
-                Op: BitSetOp,
-                S: Iterator + Clone,
-                S::Item: LevelMasksIterExt,
-                Storage: ReduceCache
-        );        
+    #[inline]
+    fn is_empty(&self) -> bool {
+        bitset_is_empty(self)
     }
 }
 
-macro_rules! impl_all_ref {
-    ($macro_name: ident) => {
-        $macro_name!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
-        $macro_name!(
-            impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2>
-            where
-                Op: BitSetOp,
-                S1: LevelMasksIterExt<Conf = S2::Conf>,
-                S2: LevelMasksIterExt
-        );
-        $macro_name!(
-            impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
-            where
-                Op: BitSetOp,
-                S: Iterator + Clone,
-                S::Item: LevelMasksIterExt,
-                Storage: ReduceCache
-        );
+#[inline]
+pub(crate) fn bitset_contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
+    let (level0_index, level1_index, data_index) = 
+        level_indices::<S::Conf>(index);
+    unsafe{
+        let data_block = bitset.data_mask(level0_index, level1_index);
+        data_block.get_bit(data_index)
     }
-}
+} 
 
-fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
+pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     if S::TRUSTED_HIERARCHY{
         return bitset.level0_mask().is_zero();
     }
@@ -237,84 +291,10 @@ fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     }).is_break()
 }
 
-// TODO: get back to blanket implementation
-macro_rules! impl_bitset_interface {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> BitSetInterface for $t
-        where
-            $($where_bounds)*
-        {
-            #[inline]
-            fn block_iter(&self) -> crate::config::DefaultBlockIterator<&'_ Self> {
-                crate::config::DefaultBlockIterator::new(self)
-            }
-        
-            #[inline]
-            fn iter(&self) -> crate::config::DefaultIndexIterator<&'_ Self> {
-                crate::config::DefaultIndexIterator::new(self)
-            }
-        
-            #[inline]
-            fn into_block_iter(self) -> crate::config::DefaultBlockIterator<Self> {
-                crate::config::DefaultBlockIterator::new(self)
-            }
-        
-            #[inline]
-            fn contains(&self, index: usize) -> bool {
-                let (level0_index, level1_index, data_index) = 
-                    level_indices::<<Self as BitSetBase>::Conf>(index);
-                unsafe{
-                    let data_block = self.data_mask(level0_index, level1_index);
-                    data_block.get_bit(data_index)
-                }
-            }    
-            
-            #[inline]
-            fn is_empty(&self) -> bool {
-                bitset_is_empty(self)
-            }
-        }     
-    }    
-}
-impl_all!(impl_bitset_interface);
-impl_all_ref!(impl_bitset_interface);
-
-/// Duplicate/forward part of BitSetInterface to prevent the need of it's import.  
-macro_rules! duplicate_bitset_interface {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> $t
-        where
-            $($where_bounds)*
-        {
-            #[inline]
-            pub fn block_iter<'a>(&'a self) -> crate::config::DefaultBlockIterator<&'a Self> 
-            {
-                crate::config::DefaultBlockIterator::new(self)
-            }   
-            
-            #[inline]
-            pub fn iter<'a>(&'a self) -> crate::config::DefaultIndexIterator<&'a Self> 
-            {
-                crate::config::DefaultIndexIterator::new(self)
-            }
-            
-            #[inline]
-            pub fn contains(&self, index: usize) -> bool {
-                BitSetInterface::contains(self, index)
-            }
-            
-            /// See [BitSetInterface::is_empty()]
-            #[inline]
-            pub fn is_empty(&self) -> bool {
-                BitSetInterface::is_empty(self)
-            }
-        }
-    }
-}
-impl_all!(duplicate_bitset_interface);
-
-// Optimistic depth-first check.
-fn bitsets_eq<L, R>(left: L, right: R) -> bool
+/// Optimistic depth-first check.
+/// 
+/// This traverse-based implementation is faster then using two iterators.
+pub(crate) fn bitsets_eq<L, R>(left: L, right: R) -> bool
 where
     L: LevelMasksIterExt,
     R: LevelMasksIterExt<Conf = L::Conf>,
@@ -336,19 +316,21 @@ where
             left_level0_mask | right_level0_mask
         };
     
-    let mut left_cache_data  = left.make_state();
-    let mut right_cache_data = right.make_state();
+    let mut left_cache_data  = left.make_iter_state();
+    let mut right_cache_data = right.make_iter_state();
     
-    let mut left_level1_blocks  = MaybeUninit::uninit();
-    let mut right_level1_blocks = MaybeUninit::uninit();
+    let mut left_level1_blocks  = MaybeUninit::new(Default::default());
+    let mut right_level1_blocks = MaybeUninit::new(Default::default());
     
     use ControlFlow::*;
-    level0_mask.traverse_bits(|level0_index|{
+    let is_eq = level0_mask.traverse_bits(|level0_index|{
         let (left_level1_mask, left_valid) = unsafe {
-            left.update_level1_block_data(&mut left_cache_data, &mut left_level1_blocks, level0_index)
+            left_level1_blocks.assume_init_drop();
+            left.init_level1_block_data(&mut left_cache_data, &mut left_level1_blocks, level0_index)
         };
         let (right_level1_mask, right_valid) = unsafe {
-            right.update_level1_block_data(&mut right_cache_data, &mut right_level1_blocks, level0_index)
+            right_level1_blocks.assume_init_drop();
+            right.init_level1_block_data(&mut right_cache_data, &mut right_level1_blocks, level0_index)
         };
         
         if is_trusted_hierarchy {
@@ -425,62 +407,12 @@ where
             // both are empty - its ok - just move on.
             Continue(())
         }
-    }).is_continue()
-}
-
-macro_rules! impl_eq {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*,Rhs> PartialEq<Rhs> for $t
-        where
-            $($where_bounds)*,
-            Rhs: BitSetInterface<Conf = <Self as BitSetBase>::Conf>
-        {
-            /// Works faster with [TRUSTED_HIERARCHY].
-            /// 
-            /// [TRUSTED_HIERARCHY]: BitSetBase::TRUSTED_HIERARCHY
-            #[inline]
-            fn eq(&self, other: &Rhs) -> bool {
-                bitsets_eq(self, other)
-            }
-        }        
-        
-        impl<$($generics),*> Eq for $t
-        where
-            $($where_bounds)*
-        {} 
+    }).is_continue();
+    
+    unsafe {
+        left_level1_blocks.assume_init_drop();
+        right_level1_blocks.assume_init_drop();
     }
+    
+    is_eq
 }
-impl_all!(impl_eq);
-
-macro_rules! impl_into_iter {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> IntoIterator for $t
-        where
-            $($where_bounds)*
-        {
-            type Item = usize;
-            type IntoIter = DefaultIndexIterator<Self>;
-
-            #[inline]
-            fn into_iter(self) -> Self::IntoIter {
-                DefaultIndexIterator::new(self)
-            }
-        }
-    };
-}
-impl_all!(impl_into_iter);
-impl_all_ref!(impl_into_iter);
-
-macro_rules! impl_debug {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> fmt::Debug for $t
-        where
-            $($where_bounds)*
-        {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_list().entries(self.iter()).finish()
-            }
-        }
-    };
-}
-impl_all!(impl_debug);
