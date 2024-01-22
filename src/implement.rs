@@ -79,7 +79,7 @@
 //! * examples/custom_bitset_simple.rs
 //! * examples/custom_bitset.rs
 
-use crate::bitset_interface::{bitset_is_empty, bitsets_eq};
+use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
 use crate::{BitBlock, level_indices};
 pub use crate::bitset_interface::LevelMasks;
 pub use crate::bitset_interface::LevelMasksIterExt;
@@ -101,12 +101,7 @@ pub fn is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
 
 #[inline]
 pub fn contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
-    let (level0_index, level1_index, data_index) = 
-        level_indices::<S::Conf>(index);
-    unsafe{
-        let data_block = bitset.data_mask(level0_index, level1_index);
-        data_block.get_bit(data_index)
-    }
+    bitset_contains(bitset, index)
 } 
 
 /// Same as [impl_bitset], but for [LevelMasks].  

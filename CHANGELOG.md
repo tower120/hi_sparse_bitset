@@ -15,7 +15,7 @@
 - `BitSetInterface` now have default implementation.
 - `BitSetInterface` no longer have `IntoIterator` base.
 - `BitSet` no longer implements `BitSetInterface`. 
-  But `&BitSet` still does. This prevents accidental sending bitset by value.  
+  But `&BitSet` still does. This prevents accidental sending container by value.  
 
 ### Added
 - `BitBlock::first_u64()`.

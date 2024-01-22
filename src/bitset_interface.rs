@@ -200,6 +200,10 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 // User-side interface
 /// Bitset interface.
 /// 
+/// Implemented for bitset references and optionally for values. 
+/// So as argument - accept BitSetInterface by value.
+/// _(Act as kinda forwarding reference in C++)_
+/// 
 /// # Traversing
 /// 
 /// [CachingBlockIter] and [CachingIndexIter] have specialized `for_each()` implementation and `traverse()`.
@@ -249,12 +253,7 @@ pub unsafe trait BitSetInterface
     
     #[inline]
     fn contains(&self, index: usize) -> bool {
-        let (level0_index, level1_index, data_index) = 
-            level_indices::<<Self as BitSetBase>::Conf>(index);
-        unsafe{
-            let data_block = self.data_mask(level0_index, level1_index);
-            data_block.get_bit(data_index)
-        }
+        bitset_contains(self, index)
     } 
     
     /// O(1) if [TRUSTED_HIERARCHY], O(N) otherwise.
@@ -266,47 +265,15 @@ pub unsafe trait BitSetInterface
     }
 }
 
-/*macro_rules! impl_all {
-    ($macro_name: ident) => {
-        $macro_name!(impl<Conf> for BitSet<Conf> where Conf: Config);
-        $macro_name!(
-            impl<Op, S1, S2> for Apply<Op, S1, S2>
-            where
-                Op: BitSetOp,
-                S1: LevelMasksIterExt<Conf = S2::Conf>,
-                S2: LevelMasksIterExt
-        );
-        $macro_name!(
-            impl<Op, S, Storage> for Reduce<Op, S, Storage>
-            where
-                Op: BitSetOp,
-                S: Iterator + Clone,
-                S::Item: LevelMasksIterExt,
-                Storage: ReduceCache
-        );        
+#[inline]
+pub(crate) fn bitset_contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
+    let (level0_index, level1_index, data_index) = 
+        level_indices::<S::Conf>(index);
+    unsafe{
+        let data_block = bitset.data_mask(level0_index, level1_index);
+        data_block.get_bit(data_index)
     }
-}
-
-macro_rules! impl_all_ref {
-    ($macro_name: ident) => {
-        $macro_name!(impl<'a, Conf> for &'a BitSet<Conf> where Conf: Config);
-        $macro_name!(
-            impl<'a, Op, S1, S2> for &'a Apply<Op, S1, S2>
-            where
-                Op: BitSetOp,
-                S1: LevelMasksIterExt<Conf = S2::Conf>,
-                S2: LevelMasksIterExt
-        );
-        $macro_name!(
-            impl<'a, Op, S, Storage> for &'a Reduce<Op, S, Storage>
-            where
-                Op: BitSetOp,
-                S: Iterator + Clone,
-                S::Item: LevelMasksIterExt,
-                Storage: ReduceCache
-        );
-    }
-}*/
+} 
 
 pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     if S::TRUSTED_HIERARCHY{
@@ -322,82 +289,6 @@ pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
         }
     }).is_break()
 }
-
-/*// TODO: get back to blanket implementation
-macro_rules! impl_bitset_interface {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> BitSetInterface for $t
-        where
-            $($where_bounds)*
-        {
-            #[inline]
-            fn block_iter(&self) -> crate::config::DefaultBlockIterator<&'_ Self> {
-                crate::config::DefaultBlockIterator::new(self)
-            }
-        
-            #[inline]
-            fn iter(&self) -> crate::config::DefaultIndexIterator<&'_ Self> {
-                crate::config::DefaultIndexIterator::new(self)
-            }
-        
-            #[inline]
-            fn into_block_iter(self) -> crate::config::DefaultBlockIterator<Self> {
-                crate::config::DefaultBlockIterator::new(self)
-            }
-        
-            #[inline]
-            fn contains(&self, index: usize) -> bool {
-                let (level0_index, level1_index, data_index) = 
-                    level_indices::<<Self as BitSetBase>::Conf>(index);
-                unsafe{
-                    let data_block = self.data_mask(level0_index, level1_index);
-                    data_block.get_bit(data_index)
-                }
-            }    
-            
-            #[inline]
-            fn is_empty(&self) -> bool {
-                bitset_is_empty(self)
-            }
-        }     
-    }    
-}
-impl_all!(impl_bitset_interface);
-impl_all_ref!(impl_bitset_interface);
-
-/// Duplicate/forward part of BitSetInterface to prevent the need of it's import.  
-macro_rules! duplicate_bitset_interface {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> $t
-        where
-            $($where_bounds)*
-        {
-            #[inline]
-            pub fn block_iter<'a>(&'a self) -> crate::config::DefaultBlockIterator<&'a Self> 
-            {
-                crate::config::DefaultBlockIterator::new(self)
-            }   
-            
-            #[inline]
-            pub fn iter<'a>(&'a self) -> crate::config::DefaultIndexIterator<&'a Self> 
-            {
-                crate::config::DefaultIndexIterator::new(self)
-            }
-            
-            #[inline]
-            pub fn contains(&self, index: usize) -> bool {
-                BitSetInterface::contains(self, index)
-            }
-            
-            /// See [BitSetInterface::is_empty()]
-            #[inline]
-            pub fn is_empty(&self) -> bool {
-                BitSetInterface::is_empty(self)
-            }
-        }
-    }
-}
-impl_all!(duplicate_bitset_interface);*/
 
 /// Optimistic depth-first check.
 /// 
@@ -524,60 +415,3 @@ where
     
     is_eq
 }
-
-/*macro_rules! impl_eq {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*,Rhs> PartialEq<Rhs> for $t
-        where
-            $($where_bounds)*,
-            Rhs: BitSetInterface<Conf = <Self as BitSetBase>::Conf>
-        {
-            /// Works faster with [TRUSTED_HIERARCHY].
-            /// 
-            /// [TRUSTED_HIERARCHY]: BitSetBase::TRUSTED_HIERARCHY
-            #[inline]
-            fn eq(&self, other: &Rhs) -> bool {
-                bitsets_eq(self, other)
-            }
-        }        
-        
-        impl<$($generics),*> Eq for $t
-        where
-            $($where_bounds)*
-        {} 
-    }
-}
-impl_all!(impl_eq);
-
-macro_rules! impl_into_iter {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> IntoIterator for $t
-        where
-            $($where_bounds)*
-        {
-            type Item = usize;
-            type IntoIter = DefaultIndexIterator<Self>;
-
-            #[inline]
-            fn into_iter(self) -> Self::IntoIter {
-                DefaultIndexIterator::new(self)
-            }
-        }
-    };
-}
-impl_all!(impl_into_iter);
-impl_all_ref!(impl_into_iter);
-
-macro_rules! impl_debug {
-    (impl <$($generics:tt),*> for $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> fmt::Debug for $t
-        where
-            $($where_bounds)*
-        {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_list().entries(self.iter()).finish()
-            }
-        }
-    };
-}
-impl_all!(impl_debug);*/
