@@ -9,6 +9,7 @@
 //!
 //! [BitSet]: crate::BitSet
 
+use std::marker::PhantomData;
 use crate::bit_block::BitBlock;
 use crate::{cache, PREALLOCATED_EMPTY_BLOCK, Primitive};
 use crate::cache::ReduceCache;
@@ -96,73 +97,59 @@ pub trait Config: 'static {
     }
 }
 
-/// Specify the default cache type.
-pub mod with_cache{
-    use std::marker::PhantomData;
-    use crate::cache::ReduceCache;
-    use crate::config::Config;
+/// MAX = 262_144
+#[derive(Default)]
+pub struct _64bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
+impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
+    type Level0BitBlock = u64;
+    type Level0BlockIndices = [u8; 64];
 
-    /// MAX = 262_144
-    #[derive(Default)]
-    pub struct _64bit<DefaultCache: ReduceCache>(PhantomData<DefaultCache>);
-    impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
-        type Level0BitBlock = u64;
-        type Level0BlockIndices = [u8; 64];
+    type Level1BitBlock = u64;
+    type Level1BlockIndex = u8;
+    type Level1BlockIndices = [u16; 64];
 
-        type Level1BitBlock = u64;
-        type Level1BlockIndex = u8;
-        type Level1BlockIndices = [u16; 64];
+    type DataBitBlock = u64;
+    type DataBlockIndex = u16;
 
-        type DataBitBlock = u64;
-        type DataBlockIndex = u16;
-
-        type DefaultCache = DefaultCache;
-    }
-
-    /// MAX = 2_097_152
-    #[cfg(feature = "simd")]
-    #[derive(Default)]
-    pub struct _128bit<DefaultCache: ReduceCache>(PhantomData<DefaultCache>);
-    #[cfg(feature = "simd")]
-    impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
-        type Level0BitBlock = wide::u64x2;
-        type Level0BlockIndices = [u8; 128];
-
-        type Level1BitBlock = wide::u64x2;
-        type Level1BlockIndex = u8;
-        type Level1BlockIndices = [u16; 128];
-
-        type DataBitBlock = wide::u64x2;
-        type DataBlockIndex = u16;
-
-        type DefaultCache = DefaultCache;
-    }
-    
-    /// MAX = 16_777_216 
-    #[cfg(feature = "simd")]
-    #[derive(Default)]
-    pub struct _256bit<DefaultCache: ReduceCache>(PhantomData<DefaultCache>);
-    #[cfg(feature = "simd")]
-    impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
-        type Level0BitBlock = wide::u64x4;
-        type Level0BlockIndices = [u8; 256];
-
-        type Level1BitBlock = wide::u64x4;
-        type Level1BlockIndex = u8;
-        type Level1BlockIndices = [u16; 256];
-
-        type DataBitBlock = wide::u64x4;
-        type DataBlockIndex = u16;
-
-        type DefaultCache = DefaultCache;
-    }    
+    type DefaultCache = DefaultCache;
 }
 
-/// MAX = 262_144
-pub type _64bit = with_cache::_64bit<DefaultCache>;
-
 /// MAX = 2_097_152
-pub type _128bit = with_cache::_128bit<DefaultCache>;
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+#[derive(Default)]
+pub struct _128bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
+#[cfg(feature = "simd")]
+impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
+    type Level0BitBlock = wide::u64x2;
+    type Level0BlockIndices = [u8; 128];
+
+    type Level1BitBlock = wide::u64x2;
+    type Level1BlockIndex = u8;
+    type Level1BlockIndices = [u16; 128];
+
+    type DataBitBlock = wide::u64x2;
+    type DataBlockIndex = u16;
+
+    type DefaultCache = DefaultCache;
+}
 
 /// MAX = 16_777_216 
-pub type _256bit = with_cache::_256bit<DefaultCache>;
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+#[derive(Default)]
+pub struct _256bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
+#[cfg(feature = "simd")]
+impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
+    type Level0BitBlock = wide::u64x4;
+    type Level0BlockIndices = [u8; 256];
+
+    type Level1BitBlock = wide::u64x4;
+    type Level1BlockIndex = u8;
+    type Level1BlockIndices = [u16; 256];
+
+    type DataBitBlock = wide::u64x4;
+    type DataBlockIndex = u16;
+
+    type DefaultCache = DefaultCache;
+}

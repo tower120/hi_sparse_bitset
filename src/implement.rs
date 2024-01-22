@@ -81,7 +81,7 @@
 
 use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
 use crate::config::{DefaultBlockIterator, DefaultIndexIterator};
-pub use crate::bitset_interface::BitSetInterface;
+use crate::bitset_interface::BitSetInterface;
 pub use crate::bitset_interface::LevelMasks;
 pub use crate::bitset_interface::LevelMasksIterExt;
 
@@ -143,7 +143,7 @@ pub fn contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
 /// 
 /// # Safety
 /// 
-/// **DO NOT** implement [BitSetInterface] for `$t`, since `impl_simple_bitset`s
+/// **DO NOT** implement [BitSetInterface] for `$t`, since `impl_bitset_simple`'s
 /// [LevelMasksIterExt] implementation stores pointer to Self in [Level1BlockData].
 /// If "drain iterator" will move during iteration - that will invalidate 
 /// [Level1BlockData]. 
