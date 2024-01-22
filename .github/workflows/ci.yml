@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: RUSTFLAGS="--deny warnings" cargo build
+      - run: RUSTFLAGS="--deny warnings" cargo build --no-default-features
+      - run: RUSTFLAGS="--deny warnings" cargo build --all-features
 
   tests:
     name: careful tests
@@ -87,3 +89,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: RUSTFLAGS="--deny warnings" cargo doc --lib --all-features
+        
+  docrs:
+    name: docrs build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: 
+          RUSTFLAGS="--deny warnings" 
+          RUSTDOCFLAGS="--cfg docsrs" 
+          cargo +nightly doc --lib --all-features

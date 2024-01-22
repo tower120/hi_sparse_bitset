@@ -14,7 +14,8 @@
 ### Changed
 - `BitSetInterface` now have default implementation.
 - `BitSet` no longer implements `BitSetInterface`. 
-  But `&BitSet` still does. This prevents accidental sending container by value.  
+  But `&BitSet` still does. This prevents accidental sending container by value.
+- `config::with_cache::*` moved to `config::*` with additional default generic argument. 
 
 ### Added
 - `BitBlock::first_u64()`.

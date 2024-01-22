@@ -34,6 +34,7 @@ roaring = "0.10.2"
 
 [package.metadata.docs.rs]
 features = ["impl"]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [[example]]
 name = "custom_bitset"

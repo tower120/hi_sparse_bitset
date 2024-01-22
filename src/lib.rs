@@ -1,4 +1,5 @@
 #![cfg_attr(miri, feature(alloc_layout_extra) )]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! Hierarchical sparse bitset. 
 //! 
 //! Memory consumption does not depends on max index inserted.
@@ -135,6 +136,7 @@ pub mod iter;
 pub mod cache;
 
 #[cfg(feature = "impl")]
+#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
 pub mod implement;
 #[cfg(not(feature = "impl"))]
 mod implement;
