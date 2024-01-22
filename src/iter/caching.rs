@@ -100,13 +100,12 @@ where
     }
 }
 
-
 impl<T> CachingBlockIter<T>
 where
     T: LevelMasksIterExt,
 {
     #[inline]
-    pub fn new(virtual_set: T) -> Self {
+    pub(crate) fn new(virtual_set: T) -> Self {
         let level0_iter = virtual_set.level0_mask().bits_iter(); 
         let state = virtual_set.make_iter_state();
         Self{
@@ -145,6 +144,8 @@ where
     }
     
     /// Into index iterator.
+    /// 
+    /// Index iterator will start iteration from next block.
     #[inline]
     pub fn into_indices(mut self) -> CachingIndexIter<T> {
         let data_block_iter =

@@ -80,10 +80,44 @@
 //! * examples/custom_bitset.rs
 
 use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
+use crate::config::{DefaultBlockIterator, DefaultIndexIterator};
+pub use crate::bitset_interface::BitSetInterface;
 pub use crate::bitset_interface::LevelMasks;
 pub use crate::bitset_interface::LevelMasksIterExt;
 
-// TODO: hide?
+#[inline]
+pub fn into_index_iter<T>(set: T) -> DefaultIndexIterator<T>
+where
+    T: BitSetInterface
+{
+    DefaultIndexIterator::new(set)
+}
+
+#[inline]
+pub fn index_iter<'a, T>(set: &'a T) -> DefaultIndexIterator<&'a T>
+where
+    &'a T: BitSetInterface
+{
+    DefaultIndexIterator::new(set)
+} 
+
+#[allow(dead_code)]
+#[inline]
+pub fn into_block_iter<T>(set: T) -> DefaultBlockIterator<T>
+where
+    T: BitSetInterface
+{
+    DefaultBlockIterator::new(set)
+}
+
+#[inline]
+pub fn block_iter<'a, T>(set: &'a T) -> DefaultBlockIterator<&'a T>
+where
+    &'a T: BitSetInterface
+{
+    DefaultBlockIterator::new(set)
+} 
+
 #[inline]
 pub fn is_eq<L, R>(left: L, right: R) -> bool
 where
@@ -196,7 +230,7 @@ macro_rules! impl_bitset {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                $crate::iter::CachingIndexIter::new(self)
+                $crate::implement::into_index_iter(self)
             }
         }        
         
@@ -278,13 +312,13 @@ macro_rules! impl_bitset {
             #[inline]
             pub fn block_iter<'a>(&'a self) -> $crate::iter::CachingBlockIter<&'a Self> 
             {
-                $crate::iter::CachingBlockIter::new(self)
+                $crate::implement::block_iter(self)
             }   
             
             #[inline]
             pub fn iter<'a>(&'a self) -> $crate::iter::CachingIndexIter<&'a Self> 
             {
-                $crate::iter::CachingIndexIter::new(self)
+                $crate::implement::index_iter(self)
             }
             
             #[inline]
@@ -310,7 +344,7 @@ macro_rules! impl_bitset {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                $crate::iter::CachingIndexIter::new(self)
+                $crate::implement::into_index_iter(self)
             }
         }
         
