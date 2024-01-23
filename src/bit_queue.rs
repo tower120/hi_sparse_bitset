@@ -71,6 +71,7 @@ pub trait BitQueue: Iterator<Item = usize> + Clone{
 
 /// [BitQueue] for [Primitive].
 #[derive(Clone)]
+#[repr(transparent)]
 pub struct PrimitiveBitQueue<P>{
     bit_block_iter: OneBitsIter<P>
 }
@@ -149,6 +150,8 @@ pub struct ArrayBitQueue<P, const N: usize>{
     /// first element - always active one. 
     /// (copy of bit_block_iters[bit_block_index]).
     bit_block_iters: [OneBitsIter<P>; N],
+    /// should be () for N == 1, but not in stable
+    /// Rust, not yet. 
     bit_block_index: usize,
 }
 
@@ -202,6 +205,13 @@ where
 
     #[inline]
     fn zero_first_n(&mut self, n: usize) {
+        /*const*/ if N == 1 {
+            let this: &mut PrimitiveBitQueue<P> = unsafe{
+                mem::transmute(&mut self.bit_block_iters[0])
+            };
+            return this.zero_first_n(n);
+        }
+        
         let element_index = n / (size_of::<P>() * 8); // compile-time math optimization
         
         // clamp to empty
@@ -260,6 +270,13 @@ where
 
     #[inline]
     fn current(&self) -> usize {
+        /*const*/ if N == 1 {
+            let this: &PrimitiveBitQueue<P> = unsafe{
+                mem::transmute(&self.bit_block_iters[0])
+            };
+            return this.current();
+        }
+        
         let active_block_iter = &self.bit_block_iters[0];
         self.bit_block_index * size_of::<P>() * 8 + trailing_zeroes(active_block_iter)
     }
@@ -269,6 +286,14 @@ where
     where
         F: FnMut(usize) -> ControlFlow<()>        
     {
+        /*const*/ if N == 1 {
+            let this: PrimitiveBitQueue<P> = unsafe{
+                // copy should be optimized away by compiler
+                mem::transmute_copy(&self.bit_block_iters[0])
+            };
+            return this.traverse(f);
+        }
+        
         // This is faster, then iterating active value, then the rest ones
         unsafe{
             // copy active back to its place.
@@ -302,6 +327,13 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        /*const*/ if N == 1 {
+            let this: &mut PrimitiveBitQueue<P> = unsafe{
+                mem::transmute(&mut self.bit_block_iters[0])
+            };
+            return this.next();
+        }        
+        
         loop {
             if let Some(index) = self.bit_block_iters[0].next() {
                 return Some(self.bit_block_index * size_of::<P>() * 8 + index);
