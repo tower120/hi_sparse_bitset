@@ -45,6 +45,16 @@ where
     pub fn blocks_mut(&mut self) -> &mut [Block<Mask, BlockIndex, BlockIndices>]{
         self.blocks.as_mut_slice()
     }
+
+    /// Next empty block link
+    /// 
+    /// Block's mask used as index to next empty block
+    #[inline]
+    unsafe fn next_empty_block_index(
+        block: &mut Block<Mask, BlockIndex, BlockIndices>
+    ) -> &mut u64 {
+        block.mask_mut().as_array_mut().get_unchecked_mut(0)
+    }
     
     #[inline]
     fn pop_empty_block(&mut self) -> Option<usize> {
@@ -55,13 +65,13 @@ where
         let index = self.root_empty_block as usize;
         unsafe{
             let empty_block = self.blocks.get_unchecked_mut(index);
-            let next_empty_block = empty_block.mask_mut().first_u64_mut(); 
+            let next_empty_block_index = Self::next_empty_block_index(empty_block); 
             
             // update list root 
-            self.root_empty_block = *next_empty_block;
+            self.root_empty_block = *next_empty_block_index;
             
             // restore original mask zero state
-            *next_empty_block = 0;
+            *next_empty_block_index = 0;
         }
         Some(index)
     }
@@ -72,8 +82,8 @@ where
     #[inline]
     unsafe fn push_empty_block(&mut self, block_index: usize){
         let empty_block = self.blocks.get_unchecked_mut(block_index);
-        let next_empty_block = empty_block.mask_mut().first_u64_mut();
-        *next_empty_block = self.root_empty_block;
+        let next_empty_block_index = Self::next_empty_block_index(empty_block);
+        *next_empty_block_index = self.root_empty_block;
         
         self.root_empty_block = block_index as u64;
     }

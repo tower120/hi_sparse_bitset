@@ -559,7 +559,7 @@ impl<Block: BitBlock> DataBlock<Block>{
     pub fn iter(&self) -> DataBlockIter<Block>{
         DataBlockIter{
             start_index: self.start_index,
-            bit_block_iter: self.bit_block.clone().bits_iter()
+            bit_block_iter: self.bit_block.clone().into_bits_iter()
         }
     }
     
@@ -587,7 +587,7 @@ impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
     fn into_iter(self) -> Self::IntoIter {
         DataBlockIter{
             start_index: self.start_index,
-            bit_block_iter: self.bit_block.bits_iter()
+            bit_block_iter: self.bit_block.into_bits_iter()
         }
     }
 }

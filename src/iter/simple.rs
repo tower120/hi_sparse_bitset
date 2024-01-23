@@ -30,7 +30,7 @@ where
 {
     #[inline]
     pub fn new(virtual_set: T) -> Self {
-        let level0_iter = virtual_set.level0_mask().bits_iter();
+        let level0_iter = virtual_set.level0_mask().into_bits_iter();
         Self{
             virtual_set,
             level0_iter,
@@ -61,7 +61,7 @@ where
                     let level1_mask = unsafe {
                         self.virtual_set.level1_mask(index)
                     };
-                    self.level1_iter = level1_mask.bits_iter();
+                    self.level1_iter = level1_mask.into_bits_iter();
                 } else {
                     return None;
                 }

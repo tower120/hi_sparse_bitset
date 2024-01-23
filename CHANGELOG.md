@@ -18,8 +18,9 @@
 - `config::with_cache::*` moved to `config::*` with additional default generic argument. 
 
 ### Added
-- `BitBlock::first_u64()`.
-- `BitBlock::first_u64_mut()`.
+- `BitBlock::as_array()`.
+- `BitBlock::as_array_mut()`.
+- `BitBlock` now have default implementations.
 - `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like 
   optimization in user-defined operations.
 - Machinery, which allows to implement custom bitsets. Enabled with `impl` flag.

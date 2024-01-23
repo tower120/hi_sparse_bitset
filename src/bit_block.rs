@@ -1,3 +1,4 @@
+use std::mem;
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use crate::bit_utils;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
@@ -14,45 +15,68 @@ pub trait BitBlock
     + Eq + PartialEq
     + Sized + Copy + Clone
 {
+    /// 2^N bits
     const SIZE_POT_EXPONENT: usize;
     
+    /// Size in bits
     #[inline]
     /*const*/ fn size() -> usize {
         1 << Self::SIZE_POT_EXPONENT
     }
 
     fn zero() -> Self;
-    fn is_zero(&self) -> bool;
-
-    // We could actually use more universal as_array and as_array_mut instead.
-    // But this seems to be unnecessary now.
-    fn first_u64(&self) -> &u64;
-    fn first_u64_mut(&mut self) -> &mut u64;
+    
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self == &Self::zero()
+    }
 
     /// Returns previous bit
     /// 
     /// `bit_index` is guaranteed to be valid
-    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool;
+    #[inline]
+    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
+        unsafe{
+            bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
+        }
+    }
 
     /// `bit_index` is guaranteed to be valid
-    fn get_bit(&self, bit_index: usize) -> bool;
+    #[inline]
+    fn get_bit(&self, bit_index: usize) -> bool{
+        unsafe{
+            bit_utils::get_array_bit_unchecked(self.as_array(), bit_index)
+        }
+    }
 
     // TODO: This can be removed, since there is BitQueue::traverse
     //       which do the same and perform the same in optimized build.
     /// Returns [Break] if traverse was interrupted (`f` returns [Break]).
     /// 
     /// [Break]: ControlFlow::Break
+    #[inline]
     fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
     where
-        F: FnMut(usize) -> ControlFlow<()>;
+        F: FnMut(usize) -> ControlFlow<()>
+    {
+        bit_utils::traverse_array_one_bits(self.as_array(), f)
+    }
 
     type BitsIter: BitQueue;
-    fn bits_iter(self) -> Self::BitsIter;
-
-    /*type AsArray: AsRef<[u64]>;
-    fn as_array_u64(&self) -> &Self::AsArray;*/
+    fn into_bits_iter(self) -> Self::BitsIter;
     
-    fn count_ones(&self) -> usize;
+    fn as_array(&self) -> &[u64];
+    fn as_array_mut(&mut self) -> &mut [u64];
+    
+    #[inline]
+    fn count_ones(&self) -> usize {
+        let mut sum = 0;
+        // will be unrolled at compile time
+        for i in self.as_array(){
+            sum += i.count_ones();
+        } 
+        sum as usize
+    }
 }
 
 impl BitBlock for u64{
@@ -61,21 +85,6 @@ impl BitBlock for u64{
     #[inline]
     fn zero() -> Self{
         0
-    }
-
-    #[inline]
-    fn is_zero(&self) -> bool {
-        *self == 0
-    }
-
-    #[inline]
-    fn first_u64(&self) -> &u64 {
-        self
-    }
-    
-    #[inline]
-    fn first_u64_mut(&mut self) -> &mut u64 {
-        self
     }
 
     #[inline]
@@ -102,22 +111,22 @@ impl BitBlock for u64{
 
     type BitsIter = PrimitiveBitQueue<u64>;
     #[inline]
-    fn bits_iter(self) -> Self::BitsIter {
+    fn into_bits_iter(self) -> Self::BitsIter {
         PrimitiveBitQueue::new(self)
     }
 
-    /*type AsArray = [u64; 1];
-
     #[inline]
-    fn as_array_u64(&self) -> &Self::AsArray {
+    fn as_array(&self) -> &[u64] {
         unsafe {
             mem::transmute::<&u64, &[u64; 1]>(self)
-        }
-    }*/
+        }        
+    }
 
     #[inline]
-    fn count_ones(&self) -> usize {
-        u64::count_ones(*self) as usize
+    fn as_array_mut(&mut self) -> &mut [u64] {
+        unsafe {
+            mem::transmute::<&mut u64, &mut [u64; 1]>(self)
+        }        
     }
 }
 
@@ -138,58 +147,20 @@ impl BitBlock for wide::u64x2{
         (array[0] | array[1]) == 0
     }
 
-    #[inline]
-    fn first_u64(&self) -> &u64 {
-        unsafe{ self.as_array_ref().get_unchecked(0) }
-    }
-    
-    #[inline]
-    fn first_u64_mut(&mut self) -> &mut u64 {
-        unsafe{ self.as_array_mut().get_unchecked_mut(0) }
-    }
-
-    #[inline]
-    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
-        unsafe{
-            bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
-        }
-    }
-
-    #[inline]
-    fn get_bit(&self, bit_index: usize) -> bool {
-        unsafe{
-            bit_utils::get_array_bit_unchecked(self.as_array_ref(), bit_index)
-        }
-    }
-
-    #[inline]
-    fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>
-    {
-        let array = self.as_array_ref();
-        bit_utils::traverse_array_one_bits(array, f)
-    }  
-
     type BitsIter = ArrayBitQueue<u64, 2>;
     #[inline]
-    fn bits_iter(self) -> Self::BitsIter {
+    fn into_bits_iter(self) -> Self::BitsIter {
         Self::BitsIter::new(self.to_array())
     }
 
-    /*type AsArray = [u64; 2];
-
     #[inline]
-    fn as_array_u64(&self) -> &[u64; 2] {
+    fn as_array(&self) -> &[u64] {
         self.as_array_ref()
-    }*/
+    }
 
     #[inline]
-    fn count_ones(&self) -> usize {
-        // TODO: there is faster solutions for this http://0x80.pl/articles/sse-popcount.html
-        let primitives = self.as_array_ref();
-        let len = primitives[0].count_ones() + primitives[1].count_ones();
-        len as usize
+    fn as_array_mut(&mut self) -> &mut [u64] {
+        self.as_array_mut()
     }
 }
 
@@ -202,56 +173,19 @@ impl BitBlock for wide::u64x4{
         wide::u64x4::ZERO
     }
 
-    #[inline]
-    fn is_zero(&self) -> bool {
-        *self == Self::zero()
-    }
-    
-    #[inline]
-    fn first_u64(&self) -> &u64 {
-        unsafe{ self.as_array_ref().get_unchecked(0) }
-    }
-    
-    #[inline]
-    fn first_u64_mut(&mut self) -> &mut u64 {
-        unsafe{ self.as_array_mut().get_unchecked_mut(0) }
-    }
-
-    #[inline]
-    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
-        unsafe{
-            bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
-        }
-    }
-
-    #[inline]
-    fn get_bit(&self, bit_index: usize) -> bool {
-        unsafe{
-            bit_utils::get_array_bit_unchecked(self.as_array_ref(), bit_index)
-        }
-    }
-
-    #[inline]
-    fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>
-    {
-        let array = self.as_array_ref();
-        bit_utils::traverse_array_one_bits(array, f)
-    }
-
     type BitsIter = ArrayBitQueue<u64, 4>;
     #[inline]
-    fn bits_iter(self) -> Self::BitsIter {
+    fn into_bits_iter(self) -> Self::BitsIter {
         Self::BitsIter::new(self.to_array())
     }
 
     #[inline]
-    fn count_ones(&self) -> usize {
-        // TODO: there is faster solutions for this http://0x80.pl/articles/sse-popcount.html
-        let primitives = self.as_array_ref();
-        let len = primitives[0].count_ones() + primitives[1].count_ones()
-                + primitives[2].count_ones() + primitives[3].count_ones();
-        len as usize
+    fn as_array(&self) -> &[u64] {
+        self.as_array_ref()
+    }
+
+    #[inline]
+    fn as_array_mut(&mut self) -> &mut [u64] {
+        self.as_array_mut()
     }
 }
