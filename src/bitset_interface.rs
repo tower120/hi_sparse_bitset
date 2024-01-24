@@ -227,7 +227,7 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 /// 
 /// [CachingBlockIter]: crate::iter::CachingBlockIter
 /// [CachingIndexIter]: crate::iter::CachingIndexIter
-/// [LevelMasksIterExt]: crate::implement::LevelMasksIterExt
+/// [LevelMasksIterExt]: crate::internals::LevelMasksIterExt
 /// [impl_bitset!]: crate::impl_bitset!
 /// [apply]: crate::apply()
 /// [reduce]: crate::reduce()

@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use hi_sparse_bitset::config::Config;
 use hi_sparse_bitset::{BitBlock, BitSetBase, impl_bitset};
-use hi_sparse_bitset::implement::{LevelMasks, LevelMasksIterExt};
+use hi_sparse_bitset::internals::{LevelMasks, LevelMasksIterExt};
 
 #[derive(Default)]
 struct Empty<Conf: Config>(PhantomData<Conf>);

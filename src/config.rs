@@ -120,6 +120,7 @@ impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
 #[derive(Default)]
 pub struct _128bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
 #[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
     type Level0BitBlock = wide::u64x2;
     type Level0BlockIndices = [u8; 128];
@@ -140,6 +141,7 @@ impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
 #[derive(Default)]
 pub struct _256bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
 #[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
     type Level0BitBlock = wide::u64x4;
     type Level0BlockIndices = [u8; 256];

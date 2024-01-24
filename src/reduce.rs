@@ -3,7 +3,7 @@ use std::{mem, ptr};
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
 use crate::{assume, BitSetInterface, LevelMasks};
-use crate::implement::impl_bitset;
+use crate::internals::impl_bitset;
 use crate::ops::BitSetOp;
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};

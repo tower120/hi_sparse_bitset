@@ -106,7 +106,7 @@ where
 {
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self {
-        let level0_iter = virtual_set.level0_mask().bits_iter(); 
+        let level0_iter = virtual_set.level0_mask().into_bits_iter(); 
         let state = virtual_set.make_iter_state();
         Self{
             virtual_set,
@@ -172,7 +172,7 @@ where
     pub fn move_to(mut self, cursor: BlockCursor<T::Conf>) -> Self{
         // Reset level0 mask if we not in "initial state"
         if self.level0_index != usize::MAX{
-            self.level0_iter = self.virtual_set.level0_mask().bits_iter();    
+            self.level0_iter = self.virtual_set.level0_mask().into_bits_iter();    
         }
         
         // Mask out level0 mask
@@ -192,7 +192,7 @@ where
                 );
                 level1_mask
             };
-            self.level1_iter = level1_mask.bits_iter();
+            self.level1_iter = level1_mask.into_bits_iter();
             
             // TODO: can we mask SIMD block directly? 
             // mask out level1 mask, if this is block pointed by cursor
@@ -277,7 +277,7 @@ where
                         level1_mask
                     };
 
-                    self.level1_iter = level1_mask.bits_iter();
+                    self.level1_iter = level1_mask.into_bits_iter();
                 } else {
                     return None;
                 }

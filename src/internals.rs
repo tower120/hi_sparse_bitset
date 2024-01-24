@@ -1,6 +1,21 @@
-//! Means for custom bitset implementation.
+//! Implementation details for customization.
 //! 
-//! This allows you to make generative bitsets, like
+//! # Custom bitblock
+//! 
+//! If your target architecture have some specific SIMD registers, which
+//! you want to use as bitblocks, or you just want to have wider bitblocks to 
+//! increase [BitSet] range - you can do this:
+//!  * Implement [BitBlock] for your type.
+//!  * Make [Config] with your bitblocks.
+//!  * Use that config with [BitSet].
+//! 
+//! [BitSet]: crate::BitSet
+//! [BitBlock]: crate::BitBlock
+//! [Config]: crate::config::Config
+//! 
+//! # Custom bitset
+//! 
+//! You can make generative bitsets, like
 //! "empty", "full", "range-fill", etc. with virtually zero memory overhead
 //! and instant construction. 
 //! 
@@ -10,50 +25,48 @@
 //!
 //! [BitSetInterface]: crate::BitSetInterface
 //! [impl_bitset!]: crate::impl_bitset
-//! [impl_simple_bitset!]: crate::impl_bitset_simple   
-//! 
-//! # Example
+//! [impl_simple_bitset!]: crate::impl_bitset_simple
 //! 
 //! ```
 //! # use std::marker::PhantomData;
 //! # use std::mem::{ManuallyDrop, MaybeUninit};
 //! # use hi_sparse_bitset::config::Config;
 //! # use hi_sparse_bitset::{BitBlock, BitSetBase, BitSetInterface, impl_bitset};
-//! # use hi_sparse_bitset::implement::*;
+//! # use hi_sparse_bitset::internals::*;
 //! #[derive(Default)]
 //! struct Empty<Conf: Config>(PhantomData<Conf>);
-//! 
+//!
 //! impl<Conf: Config> BitSetBase for Empty<Conf> {
 //!     type Conf = Conf;
 //!     const TRUSTED_HIERARCHY: bool = true; 
 //! }
-//! 
+//!
 //! impl<Conf: Config> LevelMasks for Empty<Conf> {
 //!     fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock {
 //!         BitBlock::zero()
 //!     }
-//! 
+//!
 //!     unsafe fn level1_mask(&self, _: usize)
 //!         -> <Self::Conf as Config>::Level1BitBlock 
 //!     { 
 //!         BitBlock::zero()
 //!     }
-//! 
+//!
 //!     unsafe fn data_mask(&self, _: usize, _: usize)
 //!         -> <Self::Conf as Config>::DataBitBlock
 //!     {
 //!         BitBlock::zero()
 //!     }
 //! }
-//! 
+//!
 //! // This is not needed with impl_bitset_simple!
 //! impl<Conf: Config> LevelMasksIterExt for Empty<Conf> {
 //!     type IterState = ();
 //!     type Level1BlockData = ();
-//! 
+//!
 //!     fn make_iter_state(&self) -> Self::IterState { () }
 //!     unsafe fn drop_iter_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
-//! 
+//!
 //!     unsafe fn init_level1_block_data(
 //!         &self, 
 //!         _: &mut Self::IterState, 
@@ -69,7 +82,7 @@
 //!         BitBlock::zero()
 //!     }
 //! }
-//! 
+//!
 //! impl_bitset!(
 //!     impl<Conf> for Empty<Conf> where Conf: Config
 //! );
@@ -82,8 +95,24 @@
 use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
 use crate::config::{DefaultBlockIterator, DefaultIndexIterator};
 use crate::bitset_interface::BitSetInterface;
+
+#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
+#[cfg(feature = "impl")]
 pub use crate::bitset_interface::LevelMasks;
+#[cfg(not(feature = "impl"))]
+pub(crate) use crate::bitset_interface::LevelMasks;
+
+#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
+#[cfg(feature = "impl")]
 pub use crate::bitset_interface::LevelMasksIterExt;
+#[cfg(not(feature = "impl"))]
+pub(crate) use crate::bitset_interface::LevelMasksIterExt;
+
+pub use crate::primitive::Primitive;
+
+pub mod bit_queue{
+    pub use crate::bit_queue::*;
+}
 
 #[inline]
 pub fn into_index_iter<T>(set: T) -> DefaultIndexIterator<T>
@@ -150,12 +179,13 @@ pub fn contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
 /// You have to use [impl_bitset!] if you need `$t` to be [BitSetInterface].
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
-/// [Level1BlockData]: crate::implement::LevelMasksIterExt::Level1BlockData
+/// [Level1BlockData]: crate::internals::LevelMasksIterExt::Level1BlockData
+#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
 #[cfg(feature = "impl")]
 #[macro_export]
 macro_rules! impl_bitset_simple {
     (impl <$($generics:tt),*> for ref $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> $crate::implement::LevelMasksIterExt for $t
+        impl<$($generics),*> $crate::internals::LevelMasksIterExt for $t
         where
             $($where_bounds)*
         {
@@ -192,7 +222,8 @@ macro_rules! impl_bitset_simple {
 }
 //pub(crate) use impl_bitset_simple;
 
-
+/// Makes bitset from [LevelMasksIterExt].
+/// 
 /// Implements [BitSetInterface], [IntoIterator], [Eq], [Debug], [BitAnd], [BitOr], [BitXor], [Sub]
 /// for [LevelMasksIterExt]. Also duplicates part of BitSetInterface in struct impl,
 /// for ease of use. 
@@ -209,6 +240,7 @@ macro_rules! impl_bitset_simple {
 /// [BitSetInterface]: crate::BitSetInterface 
 /// [BitSet]: crate::BitSet
 /// [Level1BlockData]: LevelMasksIterExt::Level1BlockData
+#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
 #[cfg_attr(feature = "impl", macro_export)]
 macro_rules! impl_bitset {
     (impl <$($generics:tt),*> for $t:ty) => {
@@ -230,7 +262,7 @@ macro_rules! impl_bitset {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                $crate::implement::into_index_iter(self)
+                $crate::internals::into_index_iter(self)
             }
         }        
         
@@ -312,24 +344,24 @@ macro_rules! impl_bitset {
             #[inline]
             pub fn block_iter<'a>(&'a self) -> $crate::iter::CachingBlockIter<&'a Self> 
             {
-                $crate::implement::block_iter(self)
+                $crate::internals::block_iter(self)
             }   
             
             #[inline]
             pub fn iter<'a>(&'a self) -> $crate::iter::CachingIndexIter<&'a Self> 
             {
-                $crate::implement::index_iter(self)
+                $crate::internals::index_iter(self)
             }
             
             #[inline]
             pub fn contains(&self, index: usize) -> bool {
-                $crate::implement::contains(self, index)
+                $crate::internals::contains(self, index)
             }
             
             /// See [BitSetInterface::is_empty()]
             #[inline]
             pub fn is_empty(&self) -> bool {
-                $crate::implement::is_empty(self)
+                $crate::internals::is_empty(self)
             }
         }
         
@@ -344,7 +376,7 @@ macro_rules! impl_bitset {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                $crate::implement::into_index_iter(self)
+                $crate::internals::into_index_iter(self)
             }
         }
         
@@ -352,15 +384,15 @@ macro_rules! impl_bitset {
         // Eq
         impl<$($generics),*,Rhs> PartialEq<Rhs> for $t
         where
-            Rhs: $crate::implement::LevelMasksIterExt<Conf = <Self as BitSetBase>::Conf>,
+            Rhs: $crate::internals::LevelMasksIterExt<Conf = <Self as BitSetBase>::Conf>,
             $($where_bounds)*
         {
             /// Works faster with [TRUSTED_HIERARCHY].
-            /// 
+            ///
             /// [TRUSTED_HIERARCHY]: crate::bitset_interface::BitSetBase::TRUSTED_HIERARCHY
             #[inline]
             fn eq(&self, other: &Rhs) -> bool {
-                $crate::implement::is_eq(self, other)
+                $crate::internals::is_eq(self, other)
             }
         }        
         

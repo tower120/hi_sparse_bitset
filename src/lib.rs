@@ -108,15 +108,18 @@
 //! 
 //! You can make your own bitsets - like 
 //! generative sets (empty, full), specially packed sets (range-fill), 
-//! adapters, etc. See [implement] module. You need `impl` feature for that.
+//! adapters, etc. See [internals] module. You need `impl` feature for that.
 //! 
 //! # SIMD
 //! 
-//! 128 and 256 bit configurations use SIMD. Make sure you compile with simd support
+//! 128 and 256 bit configurations use SIMD powered by [wide]. Make sure you compile with simd support
 //! enabled (`sse2` for _128bit, `avx` for _256bit) to achieve best performance.
 //! _sse2 enabled by default in Rust for most desktop environments_ 
-//! 
-//! If you don't need "wide" configurations, you may disable default feature `simd`.   
+//!
+//! If you want to use other SIMD types/registers - see [internals] module.
+//! If you don't need "wide" configurations, you may disable default feature `simd`.
+//!
+//! [wide]: https://crates.io/crates/wide
 
 #[cfg(test)]
 mod test;
@@ -125,7 +128,7 @@ mod primitive;
 mod block;
 mod level;
 mod bit_block;
-pub mod bit_queue;
+mod bit_queue;
 mod bit_utils;
 pub mod config;
 pub mod ops;
@@ -134,18 +137,14 @@ mod bitset_interface;
 mod apply;
 pub mod iter;
 pub mod cache;
+pub mod internals;
 
-#[cfg(feature = "impl")]
-#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
-pub mod implement;
-#[cfg(not(feature = "impl"))]
-mod implement;
-
-pub use primitive::Primitive;
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
+pub use bit_block::BitBlock;
 
+use crate::primitive::Primitive;
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
@@ -153,7 +152,6 @@ use config::Config;
 use block::Block;
 use level::Level;
 use ops::BitSetOp;
-pub use bit_block::BitBlock;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksIterExt};
@@ -529,7 +527,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
     }
 }
 
-implement::impl_bitset!(impl<Conf> for ref BitSet<Conf> where Conf: Config);
+internals::impl_bitset!(impl<Conf> for ref BitSet<Conf> where Conf: Config);
 
 
 #[inline]
@@ -559,7 +557,7 @@ impl<Block: BitBlock> DataBlock<Block>{
     pub fn iter(&self) -> DataBlockIter<Block>{
         DataBlockIter{
             start_index: self.start_index,
-            bit_block_iter: self.bit_block.clone().bits_iter()
+            bit_block_iter: self.bit_block.clone().into_bits_iter()
         }
     }
     
@@ -587,7 +585,7 @@ impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
     fn into_iter(self) -> Self::IntoIter {
         DataBlockIter{
             start_index: self.start_index,
-            bit_block_iter: self.bit_block.bits_iter()
+            bit_block_iter: self.bit_block.into_bits_iter()
         }
     }
 }
