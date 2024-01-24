@@ -72,8 +72,8 @@ pub trait BitBlock
     fn count_ones(&self) -> usize {
         let mut sum = 0;
         // will be unrolled at compile time
-        for i in self.as_array(){
-            sum += i.count_ones();
+        for &i in self.as_array(){
+            sum += u64::count_ones(i);
         } 
         sum as usize
     }
