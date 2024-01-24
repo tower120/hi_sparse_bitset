@@ -11,10 +11,13 @@ use super::*;
 /// Caching block iterator.
 ///
 /// Constructed by [BitSetInterface].
-/// 
-/// Cache pre-data level block pointers, making data blocks access faster.
-/// Also, can discard (on pre-data level) sets with empty level1 blocks from iteration.
-/// (See [binary_op] - this have no effect for AND operation, but can speed up all other)
+///
+/// Cache pre-data level block info, making data blocks access faster.
+/// This allows to have some additional logic - for example [Reduce] discard 
+/// sets with empty level1 blocks.
+/// Since only intersection operation produce TrustedHierarchy, which exists in all input sets -
+/// all other operations eventually could traverse through empty level blocks across hierarchy.
+/// [Reduce] logic - eliminate this effect.
 /// 
 /// # traverse / for_each
 /// 
@@ -35,6 +38,7 @@ use super::*;
 /// Cache affects only [reduce] operations.
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
+/// [Reduce]: crate::Reduce
 /// [cache]: crate::cache
 /// [reduce]: crate::reduce()
 /// [binary_op]: crate::ops

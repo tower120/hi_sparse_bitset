@@ -225,7 +225,7 @@ type LevelData<Conf> = Level<
 /// Hierarchical sparse bitset.
 ///
 /// Tri-level hierarchy. Highest uint it can hold
-/// is Level0Mask::BITS * Level1Mask::BITS * DenseBlock::BITS.
+/// is [Level0BitBlock]::size() * [Level1BitBlock]::size() * [DataBitBlock]::size().
 ///
 /// Only last level contains blocks of actual data. Empty(skipped) data blocks
 /// are not allocated.
@@ -233,6 +233,10 @@ type LevelData<Conf> = Level<
 /// Structure optimized for intersection speed. 
 /// _(Other inter-bitset operations are in fact fast too - but intersection has lowest algorithmic complexity.)_
 /// Insert/remove/contains is fast O(1) too.
+/// 
+/// [Level0BitBlock]: crate::config::Config::Level0BitBlock
+/// [Level1BitBlock]: crate::config::Config::Level1BitBlock
+/// [DataBitBlock]: crate::config::Config::DataBitBlock
 pub struct BitSet<Conf: Config>{
     level0: Level0Block<Conf>,
     level1: Level1<Conf>,
