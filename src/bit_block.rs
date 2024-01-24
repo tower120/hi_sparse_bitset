@@ -131,6 +131,7 @@ impl BitBlock for u64{
 }
 
 #[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 impl BitBlock for wide::u64x2{
     const SIZE_POT_EXPONENT: usize = 7;
 
@@ -165,6 +166,7 @@ impl BitBlock for wide::u64x2{
 }
 
 #[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 impl BitBlock for wide::u64x4{
     const SIZE_POT_EXPONENT: usize = 8;
 
