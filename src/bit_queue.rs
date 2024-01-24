@@ -1,7 +1,3 @@
-//! Bit iterator for [BitBlock]. 
-//! 
-//! [BitBlock]: crate::BitBlock
-
 use std::mem;
 use std::mem::{ManuallyDrop, size_of};
 use std::ops::ControlFlow;

@@ -15,15 +15,18 @@
 - `BitSetInterface` now have default implementation.
 - `BitSet` no longer implements `BitSetInterface`. 
   But `&BitSet` still does. This prevents accidental sending container by value.
-- `config::with_cache::*` moved to `config::*` with additional default generic argument. 
+- `config::with_cache::*` moved to `config::*` with additional default generic argument.
+- `crate::bit_queue` moved to `internals::bit_queue`.
+- `crate::Primitive` moved to `internals::Primitive`.
 
 ### Added
 - `BitBlock::as_array()`.
 - `BitBlock::as_array_mut()`.
-- `BitBlock` now have default implementations.
+- Some `BitBlock` methods  now have default implementations.
 - `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like 
   optimization in user-defined operations.
 - Machinery, which allows to implement custom bitsets. Enabled with `impl` flag.
+- `internals` module, with implementation details that end user can use for deep customization.
 
 ### Removed
 - `num_traits` dependency removed.

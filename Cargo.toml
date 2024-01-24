@@ -12,8 +12,10 @@ exclude = ["/doc", "/.github"]
 
 [features]
 default = ["simd"]
-# Makes implement module and impl_bitset* macros visible. 
-# Allows to implement custom bitsets.
+# Makes LevelMasks, LevelMasksIterExt and impl_bitset! visible. 
+# Having them hidden by default prevents your code completion tool
+# from showing you irrelevant implementation methods 
+# (even if you did not import them).
 impl = []
 # You don't need this. Original legacy iterator.
 simple_iter = []

@@ -4,7 +4,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::addr_of_mut;
 use crate::ops::*;
 use crate::BitSetInterface;
-use crate::implement::impl_bitset;
+use crate::internals::impl_bitset;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksIterExt};
 use crate::config::Config;
 
