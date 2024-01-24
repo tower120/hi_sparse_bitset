@@ -18,6 +18,7 @@
 - `config::with_cache::*` moved to `config::*` with additional default generic argument.
 - `crate::bit_queue` moved to `internals::bit_queue`.
 - `crate::Primitive` moved to `internals::Primitive`.
+- `Config` bitblocks no longer require `Default`.
 
 ### Added
 - `BitBlock::as_array()`.

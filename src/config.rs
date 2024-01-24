@@ -25,32 +25,32 @@ pub(crate) type DefaultIndexIterator<T> = CachingIndexIter<T>;
 pub trait Config: 'static {
 // Level 0
     /// BitBlock used as bitmask for level 0.
-    type Level0BitBlock: BitBlock + Default;
+    type Level0BitBlock: BitBlock;
 
     /// Contiguous container, used as indirection storage for level 0.
     ///
-    /// Must be big enough to accommodate at least [Level0BitBlock]::SIZE.  
+    /// Must be big enough to accommodate at least [Level0BitBlock]::size().  
     /// Must be `[Self::Level1BlockIndex; 1 << Level0BitBlock::SIZE_POT_EXPONENT]`
     ///
     /// [Level0BitBlock]: Self::Level0BitBlock
     type Level0BlockIndices: AsRef<[Self::Level1BlockIndex]> + AsMut<[Self::Level1BlockIndex]> + Clone;
 
 // Level 1
-// There can be maximum [Level0BitBlock]::SIZE level1 blocks
+// There can be maximum [Level0BitBlock]::size() level1 blocks
 
     /// BitBlock used as bitmask for level 1 block.
-    type Level1BitBlock: BitBlock + Default;
+    type Level1BitBlock: BitBlock;
 
     /// Index type, used for indirection from level0 to level1.
     ///
-    /// Should be able to store [Level0BitBlock]::SIZE integer.
+    /// Should be able to store [Level0BitBlock]::size() integer.
     /// 
     /// [Level0BitBlock]: Self::Level0BitBlock
     type Level1BlockIndex: Primitive;
 
     /// Contiguous container, used as indirection storage for level 1 block.
     ///
-    /// Must be big enough to accommodate at least [Level1BitBlock]::SIZE.  
+    /// Must be big enough to accommodate at least [Level1BitBlock]::size().  
     /// Must be `[Self::DataBlockIndex; 1 << Level1BitBlock::SIZE_POT_EXPONENT]`
     ///
     /// [Level1BitBlock]: Self::Level1BitBlock
@@ -60,11 +60,11 @@ pub trait Config: 'static {
 // There can be maximum [Level0BitBlock]::SIZE * [Level1BitBlock]::SIZE data level blocks
 
     /// BitBlock used as bitmask for data level block.
-    type DataBitBlock: BitBlock + Default;
+    type DataBitBlock: BitBlock;
 
     /// Index type, used for indirection from level1 to data level.
     ///
-    /// Should be able to store [Level0BitBlock]::SIZE * [Level1BitBlock]::SIZE integer.
+    /// Should be able to store [Level0BitBlock]::size() * [Level1BitBlock]::size() integer.
     ///
     /// [Level0BitBlock]: Self::Level0BitBlock
     /// [Level1BitBlock]: Self::Level1BitBlock
