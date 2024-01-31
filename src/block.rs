@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 
-use crate::{PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::Primitive;
 
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndex, BlockIndices> {
@@ -21,13 +21,8 @@ where
     fn default() -> Self {
         Self {
             mask: Mask::zero(),
-            block_indices:
-                if !PREALLOCATED_EMPTY_BLOCK {
-                    unsafe{MaybeUninit::uninit().assume_init()}
-                } else {
-                    // All indices 0.
-                    unsafe{MaybeUninit::zeroed().assume_init()}
-                },
+            // All indices 0.
+            block_indices: unsafe{ MaybeUninit::zeroed().assume_init() },
             phantom: PhantomData
         }
     }
@@ -89,14 +84,14 @@ where
     pub unsafe fn remove(&mut self, index: usize) -> bool {
         // mask
         let prev = self.mask.set_bit::<false>(index);
-        // don't touch block_index - it state is irrelevant
-        if PREALLOCATED_EMPTY_BLOCK {
-            // If we have block_indices section (compile-time check)
-            if !size_of::<BlockIndices>().is_zero(){
-                let block_indices = self.block_indices.as_mut();
-                *block_indices.get_unchecked_mut(index) = BlockIndex::ZERO;
-            }
+        
+        // If we have block_indices section (compile-time check),
+        // point to empty block (0).
+        if !size_of::<BlockIndices>().is_zero(){
+            let block_indices = self.block_indices.as_mut();
+            *block_indices.get_unchecked_mut(index) = BlockIndex::ZERO;
         }
+        
         prev
     }
 

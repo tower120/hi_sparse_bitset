@@ -1,5 +1,5 @@
 use crate::block::Block;
-use crate::{BitBlock, PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::{BitBlock, Primitive};
 
 #[derive(Clone)]
 pub struct Level<Mask, BlockIndex, BlockIndices>{
@@ -19,12 +19,8 @@ where
     #[inline]
     fn default() -> Self {
         Self{
-            blocks: if PREALLOCATED_EMPTY_BLOCK {
-                //Always have empty block at index 0.
-                vec![Default::default()]
-            } else {
-                Default::default()
-            },
+            //Always have empty block at index 0.
+            blocks: vec![Default::default()],
             root_empty_block: u64::MAX,
         }
     }

@@ -138,6 +138,7 @@ mod apply;
 pub mod iter;
 pub mod cache;
 pub mod internals;
+mod bitset_ranges;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
@@ -155,12 +156,6 @@ use ops::BitSetOp;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksIterExt};
-
-/// Use any other operation then intersection(and) require
-/// to either do checks on block access (in LevelMasks), or
-/// have one empty block at each level as default, and default indices pointing at it.
-/// Second variant is in use now.
-const PREALLOCATED_EMPTY_BLOCK: bool = true;
 
 macro_rules! assume {
     ($e: expr) => {
@@ -238,6 +233,11 @@ type LevelData<Conf> = Level<
 /// [Level0BitBlock]: crate::config::Config::Level0BitBlock
 /// [Level1BitBlock]: crate::config::Config::Level1BitBlock
 /// [DataBitBlock]: crate::config::Config::DataBitBlock
+//
+// # Implementation details
+//
+// At level1 and data level allocated one empty block at index 0.
+// With this hierarchy traverse in deep is completely branchless.   
 pub struct BitSet<Conf: Config>{
     level0: Level0Block<Conf>,
     level1: Level1<Conf>,
@@ -280,16 +280,10 @@ where
     /// [BitSet]: crate::BitSet
     #[inline]
     pub const fn max_value() -> usize {
-        let mut max_range = max_addressable_index::<Conf>();
-            
-        if PREALLOCATED_EMPTY_BLOCK {
-            // We occupy one block for "empty" at each level, except root.
-            max_range = max_range
-                - (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
-                - (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT);
-        }
-    
-        max_range
+        // We occupy one block for "empty" at each level, except root.
+        max_addressable_index::<Conf>()
+            - (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
+            - (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT)
     }    
     
     #[inline]
@@ -301,37 +295,22 @@ where
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
         -> Option<(usize, usize)>
     {
-        if PREALLOCATED_EMPTY_BLOCK {
-            let level1_block_index = unsafe{
-                self.level0.get_unchecked(level0_index)
-            }.as_usize();
-    
-            // 2. Level1
-            let data_block_index = unsafe{
-                let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-                level1_block.get_unchecked(level1_index)
-            }.as_usize();
-            
-            return if data_block_index == 0 {
-                // Block 0 - is preallocated empty block
-                None
-            } else {
-                Some((level1_block_index, data_block_index))
-            };
-        }
-        
-        // 1. Level0
         let level1_block_index = unsafe{
-            self.level0.get(level0_index)?
+            self.level0.get_unchecked(level0_index)
         }.as_usize();
 
         // 2. Level1
         let data_block_index = unsafe{
             let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-            level1_block.get(level1_index)?
+            level1_block.get_unchecked(level1_index)
         }.as_usize();
-
-        Some((level1_block_index, data_block_index))
+        
+        if data_block_index == 0 {
+            // Block 0 - is preallocated empty block
+            None
+        } else {
+            Some((level1_block_index, data_block_index))
+        }
     }
 
     /// # Safety
