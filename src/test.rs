@@ -996,3 +996,18 @@ fn non_trusted_hierarchy_eq_test(){
     ]);
     assert_eq!(&set1 - &set2, set3);
 }
+
+#[test]
+fn cursor_from_invalid_index(){
+    type Conf = crate::config::_64bit;
+    
+    let set = BitSet::<Conf>::from([
+        10, 64000, 10000
+    ]);
+    
+    let ic = IndexCursor::from(1_000_000_000);
+    let bc = BlockCursor::from(1_000_000_000);
+    
+    assert!(set.iter().move_to(ic).next().is_none());
+    assert!(set.block_iter().move_to(bc).next().is_none());
+}

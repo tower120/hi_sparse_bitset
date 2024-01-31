@@ -5,7 +5,7 @@ use std::mem;
 
 use crate::{DataBlock, DataBlockIter, level_indices};
 use crate::bit_block::BitBlock;
-use crate::config::Config;
+use crate::config::{Config, max_addressable_index};
 
 mod caching;
 pub use caching::{CachingBlockIter, CachingIndexIter};
@@ -89,7 +89,7 @@ impl<Conf: Config> From<usize> for BlockCursor<Conf>{
     /// Build cursor that points to the block, that contains `index`.
     #[inline]
     fn from(mut index: usize) -> Self {
-        index = std::cmp::min(index, Conf::max_value());
+        index = std::cmp::min(index, max_addressable_index::<Conf>());
 
         let (level0, level1, _) = level_indices::<Conf>(index);
         Self{
@@ -162,7 +162,7 @@ impl<Conf: Config> From<usize> for IndexCursor<Conf>{
     /// Build cursor that points to the `index`.
     #[inline]
     fn from(mut index: usize) -> Self {
-        index = std::cmp::min(index, Conf::max_value());
+        index = std::cmp::min(index, max_addressable_index::<Conf>());
 
         let (level0, level1, data) = level_indices::<Conf>(index);
         Self{

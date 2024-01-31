@@ -170,6 +170,7 @@ macro_rules! assume {
     };
 }
 pub(crate) use assume;
+use crate::config::max_addressable_index;
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -272,10 +273,28 @@ where
     pub fn new() -> Self{
         Self::default()
     }
-
+    
+    // TODO: max_index?
+    /// Max usize, [BitSet] with this `Config` can hold.
+    /// 
+    /// [BitSet]: crate::BitSet
+    #[inline]
+    pub const fn max_value() -> usize {
+        let mut max_range = max_addressable_index::<Conf>();
+            
+        if PREALLOCATED_EMPTY_BLOCK {
+            // We occupy one block for "empty" at each level, except root.
+            max_range = max_range
+                - (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
+                - (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT);
+        }
+    
+        max_range
+    }    
+    
     #[inline]
     fn is_in_range(index: usize) -> bool{
-        index < Conf::max_value()
+        index < Self::max_value()
     }
 
     #[inline]

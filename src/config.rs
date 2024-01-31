@@ -11,7 +11,7 @@
 
 use std::marker::PhantomData;
 use crate::bit_block::BitBlock;
-use crate::{cache, PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::{cache, Primitive};
 use crate::cache::ReduceCache;
 use crate::iter::{CachingBlockIter, CachingIndexIter};
 
@@ -76,25 +76,13 @@ pub trait Config: 'static {
     /// 
     /// [reduce()]: crate::reduce()
     type DefaultCache: ReduceCache;
-    
-    /// Max usize, [BitSet] with this `Config` can hold.
-    /// 
-    /// [BitSet]: crate::BitSet
-    #[inline]
-    /*const*/ fn max_value() -> usize {
-        let mut max_range = (1 << Self::Level0BitBlock::SIZE_POT_EXPONENT)
-            * (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
-            * (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
-    
-        if PREALLOCATED_EMPTY_BLOCK {
-            // We occupy one block for "empty" at each level, except root.
-            max_range = max_range
-                - (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
-                - (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
-        }
-    
-        max_range
-    }
+}
+
+#[inline]
+pub(crate) const fn max_addressable_index<Conf: Config>() -> usize {
+    (1 << Conf::Level0BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT)
 }
 
 /// MAX = 262_144
