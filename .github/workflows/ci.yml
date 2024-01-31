@@ -21,7 +21,7 @@ jobs:
       - run: RUSTFLAGS="--deny warnings" cargo build --all-features
 
   tests:
-    uses: tower120/hi_sparse_bitset/.github/workflows/tests.yml
+    uses: ./.github/workflows/tests.yml
     with:
       rustflags: '--deny warnings'
 
