@@ -21,61 +21,9 @@ jobs:
       - run: RUSTFLAGS="--deny warnings" cargo build --all-features
 
   tests:
-    name: careful tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        cache_type_flag: [
-          hisparsebitset_test_NoCache,
-          hisparsebitset_test_FixedCache,
-          hisparsebitset_test_DynamicCache
-        ]
-        config_type_flag: [
-          hisparsebitset_test_64,
-          hisparsebitset_test_128,
-          hisparsebitset_test_256
-        ]
-    steps:
-    - uses: dtolnay/rust-toolchain@nightly
-    - uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-careful
-    - uses: actions/checkout@v4
-    - run: RUSTFLAGS="
-             --deny warnings 
-             --cfg ${{ matrix.cache_type_flag }}
-             --cfg ${{ matrix.config_type_flag }}
-           " cargo +nightly careful test --all-features
-
-  miri:
-    name: miri tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        cache_type_flag: [
-          hisparsebitset_test_NoCache,
-          hisparsebitset_test_FixedCache,
-          hisparsebitset_test_DynamicCache
-        ]
-        config_type_flag: [
-          hisparsebitset_test_64,
-          hisparsebitset_test_128,
-          hisparsebitset_test_256
-        ]
-    steps:
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-        components: miri
-    - uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-nextest
-    - uses: actions/checkout@v4
-    - run: RUSTFLAGS="
-             --deny warnings
-             --cfg ${{ matrix.cache_type_flag }}
-             --cfg ${{ matrix.config_type_flag }}        
-           " cargo +nightly miri nextest run -j6 --all-features
+    uses: tower120/hi_sparse_bitset/.github/workflows/tests.yml
+    with:
+      rustflags: '--deny warnings'
 
   benchmarks:
     name: benchmarks build
