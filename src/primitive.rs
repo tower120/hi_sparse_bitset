@@ -1,10 +1,11 @@
 use std::fmt::Debug;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign/*, Shr, ShrAssign*/};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr, ShrAssign, Sub};
 
 // num_traits was just **TOO** hard to use with primitives...
 // Cast from/to concrete primitive was a final nail into num_trait's coffin.
 pub trait Primitive: 
-    Default 
+    Default
+    + Sub<Output = Self>
     + BitAnd<Output = Self>
     + BitAndAssign
     + BitOr<Output = Self>
@@ -39,10 +40,10 @@ pub trait Primitive:
 }
 
 macro_rules! impl_primitive {
-    ($x:ty) => {
-        impl Primitive for $x{
-            const MIN: $x = <$x>::MIN;
-            const MAX: $x = <$x>::MAX;
+    ($t:ty) => {
+        impl Primitive for $t{
+            const MIN: $t = <$t>::MIN;
+            const MAX: $t = <$t>::MAX;
 
             const ZERO: Self = 0;
             const ONE : Self = 1;

@@ -11,21 +11,6 @@ pub struct Level<Mask, BlockIndex, BlockIndices>{
     root_empty_block: u64,
 }
 
-impl<Mask, BlockIndex, BlockIndices> Default for Level<Mask, BlockIndex, BlockIndices>
-where
-    Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
-{
-    #[inline]
-    fn default() -> Self {
-        Self{
-            //Always have empty block at index 0.
-            blocks: vec![Default::default()],
-            root_empty_block: u64::MAX,
-        }
-    }
-}
-
 impl<Mask, BlockIndex, BlockIndices> Level<Mask, BlockIndex, BlockIndices>
 where
     Mask: BitBlock,
@@ -33,10 +18,20 @@ where
     BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
 {
     #[inline]
+    pub fn new(blocks: Vec<Block<Mask, BlockIndex, BlockIndices>>) -> Self{
+        Self{
+            blocks,
+            root_empty_block: u64::MAX,
+        }
+    }
+    
+    // TODO: remove, have get_unchecked() instead?
+    #[inline]
     pub fn blocks(&self) -> &[Block<Mask, BlockIndex, BlockIndices>]{
         self.blocks.as_slice()
     }
 
+    // TODO: remove?
     #[inline]
     pub fn blocks_mut(&mut self) -> &mut [Block<Mask, BlockIndex, BlockIndices>]{
         self.blocks.as_mut_slice()
@@ -85,12 +80,29 @@ where
     }
 
     #[inline]
-    pub fn insert_block(&mut self) -> usize {
+    pub fn insert_empty_block(&mut self) -> usize {
         if let Some(index) = self.pop_empty_block(){
             index
         } else {
             let index = self.blocks.len();
-            self.blocks.push(Default::default());
+            self.blocks.push(Block::empty());
+            index
+        }
+    }
+    
+    #[inline]
+    pub fn insert_block(
+        &mut self, 
+        block: Block<Mask, BlockIndex, BlockIndices>
+    ) -> usize {
+        if let Some(index) = self.pop_empty_block(){
+            unsafe{
+                *self.blocks.get_unchecked_mut(index) = block;
+            }
+            index
+        } else {
+            let index = self.blocks.len();
+            self.blocks.push(block);
             index
         }
     }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0
+### Changed
+- `config::Config::max_value()` moved to `BitSet::max_capacity()`.
+- `BitBlock::set_bit` signature changed.
+
 ## 0.5.0
 ### Fix
 - `NoCache` reduce version was unsound for iterators which had to be dropped. 

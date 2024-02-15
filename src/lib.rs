@@ -25,11 +25,11 @@
 //! Bitmasks allow to cutoff empty tree/hierarchy branches early for intersection operation,
 //! and traverse only actual data during iteration.
 //!
-//! In addition to this, during the inter-bitset operation, level1 blocks of
+//! In addition to this, during the [reduce] operation, level1 blocks of
 //! bitsets are cached for faster access. Empty blocks are skipped and not added
 //! to the cache container, which algorithmically speeds up bitblock computations
 //! at the data level.
-//! This has observable effect in a merge operation between N non-intersecting
+//! This has an observable effect on a merge operation between N non-intersecting
 //! bitsets: without this optimization - the data level bitmask would be OR-ed N times;
 //! with it - only once.
 //! 
@@ -141,14 +141,16 @@ pub mod internals;
 mod bitset_ranges;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
+pub use bitset_ranges::BitSetRanges;
 pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
 
-use crate::primitive::Primitive;
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
+use primitive::Primitive;
+use config::max_addressable_index;
 use config::Config;
 use block::Block;
 use level::Level;
@@ -165,7 +167,17 @@ macro_rules! assume {
     };
 }
 pub(crate) use assume;
-use crate::config::max_addressable_index;
+
+macro_rules! drop_lifetime {
+    ($e: expr) => {
+        {
+            fn check<T>(_: &mut T){}
+            check($e);
+            NonNull::from($e).as_mut()
+        }
+    };
+}
+pub(crate) use drop_lifetime;
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -248,9 +260,9 @@ impl<Conf: Config> Default for BitSet<Conf> {
     #[inline]
     fn default() -> Self{
         Self{
-            level0: Default::default(),
-            level1: Default::default(),
-            data: Default::default(),
+            level0: Block::empty(),
+            level1: Level::new(vec![Block::empty()]),
+            data  : Level::new(vec![Block::empty()]),
         }
     }
 }
@@ -260,7 +272,7 @@ impl<Conf: Config> Clone for BitSet<Conf> {
         Self{
             level0: self.level0.clone(),
             level1: self.level1.clone(),
-            data: self.data.clone(),
+            data  : self.data.clone(),
         }
     }
 }
@@ -274,12 +286,11 @@ where
         Self::default()
     }
     
-    // TODO: max_index?
     /// Max usize, [BitSet] with this `Config` can hold.
     /// 
     /// [BitSet]: crate::BitSet
     #[inline]
-    pub const fn max_value() -> usize {
+    pub const fn max_capacity() -> usize {
         // We occupy one block for "empty" at each level, except root.
         max_addressable_index::<Conf>()
             - (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
@@ -288,62 +299,125 @@ where
     
     #[inline]
     fn is_in_range(index: usize) -> bool{
-        index < Self::max_value()
+        index < Self::max_capacity()
     }
-
+    
     #[inline]
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
-        -> Option<(usize, usize)>
+        -> (usize/*level1_block_index*/, usize/*data_block_index*/)
     {
         let level1_block_index = unsafe{
-            self.level0.get_unchecked(level0_index)
+            self.level0.block_indices().get_unchecked(level0_index)
         }.as_usize();
 
         // 2. Level1
         let data_block_index = unsafe{
             let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-            level1_block.get_unchecked(level1_index)
+            level1_block.block_indices().get_unchecked(level1_index)
         }.as_usize();
         
-        if data_block_index == 0 {
-            // Block 0 - is preallocated empty block
-            None
-        } else {
-            Some((level1_block_index, data_block_index))
-        }
+        (level1_block_index, data_block_index)
     }
+    
+    //TODO: try use Self::level1 instead of self?
+    //      or move function to level1?      
+    #[inline]
+    pub(crate) unsafe fn get_or_insert_level1block(
+        &mut self, 
+        in_block_level0_index: usize,
+    ) -> (usize/*level1_block_index*/, &mut Level1Block<Conf>) {
+        let level1_block_index = unsafe{
+            self.level0.get_or_insert(in_block_level0_index, ||{
+                let block_index = self.level1.insert_empty_block();
+                Conf::Level1BlockIndex::from_usize(block_index)
+            })
+        }.as_usize();  
+        
+        let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
+        (level1_block_index, level1_block)
+    }
+    
+    //TODO: try use Self::data instead of self
+    #[inline]
+    pub(crate) unsafe fn get_or_insert_datablock(
+        &mut self,
+        level1_block: &mut Level1Block<Conf>,
+        in_block_level1_index: usize
+    ) -> (usize/*data_block_index*/, &mut LevelDataBlock<Conf>) {
+        let data_block_index =          
+            level1_block.get_or_insert(in_block_level1_index, ||{
+                let block_index = self.data.insert_empty_block();
+                Conf::DataBlockIndex::from_usize(block_index)
+            }).as_usize();
 
+        // 3. Data level
+        let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
+
+        (data_block_index, data_block)
+    }
+    
+    #[inline]
+    pub(crate) unsafe fn insert_impl(&mut self, index: usize) -> (
+        usize/*in_block_level0_index*/,
+        usize/*level1_block_index*/, &mut Level1Block<Conf>,    usize/*in_block_level1_index*/,
+        usize/*data_block_index*/,   &mut LevelDataBlock<Conf>, usize/*in_block_data_index*/,
+        u64/*mutated_block_primitive*/
+    ) {
+        let (in_block_level0_index, in_block_level1_index, in_block_data_index) = level_indices::<Conf>(index);
+        
+        let (level1_block_index, level1_block) = self.get_or_insert_level1block(in_block_level0_index);
+        let level1_block = drop_lifetime!(level1_block);
+        let (data_block_index, data_block) = self.get_or_insert_datablock(level1_block, in_block_level1_index);
+        let (_, primitive) = data_block.mask_mut().set_bit::<true>(in_block_data_index);
+        
+        (
+            in_block_level0_index,
+            level1_block_index, level1_block, in_block_level1_index,
+            data_block_index, data_block, in_block_data_index, 
+            primitive
+        )
+    }    
+    
     /// # Safety
     ///
     /// Will panic, if `index` is out of range.
-    pub fn insert(&mut self, index: usize){
+    pub fn insert(&mut self, index: usize) {
         assert!(Self::is_in_range(index), "index out of range!");
+        unsafe{ self.insert_impl(index); }
+    }
+    
+    #[inline]
+    pub(crate) unsafe fn remove_impl(
+        &mut self,
+        level0_index: usize,
+        level1_index: usize,
+        data_index: usize,
+        level1_block_index: usize,
+        data_block_index: usize,
+    ) -> bool{
+        // 2. Get Data block and set bit
+        let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
+        let (existed, primitive) = data_block.remove(data_index);
+        
+        // 3. Remove free blocks
+        if primitive == 0 && data_block.is_empty() {
+            // remove data block
+            self.data.remove_empty_block_unchecked(data_block_index);
 
-        // That's indices to next level
-        let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
-
-        // 1. Level0
-        let level1_block_index = unsafe{
-            self.level0.get_or_insert(level0_index, ||{
-                let block_index = self.level1.insert_block();
-                Conf::Level1BlockIndex::from_usize(block_index)
-            })
-        }.as_usize();
-
-        // 2. Level1
-        let data_block_index = unsafe{
+            // remove pointer from level1
             let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-            level1_block.get_or_insert(level1_index, ||{
-                let block_index = self.data.insert_block();
-                Conf::DataBlockIndex::from_usize(block_index)
-            })
-        }.as_usize();
+            level1_block.remove(level1_index);
 
-        // 3. Data level
-        unsafe{
-            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
-            data_block.insert_mask_unchecked(data_index);
+            if level1_block.is_empty(){
+                // remove level1 block
+                self.level1.remove_empty_block_unchecked(level1_block_index);
+
+                // remove pointer from level0
+                self.level0.remove(level0_index);
+            }
         }
+        
+        existed    
     }
 
     /// Returns false if index is invalid/not in bitset.
@@ -354,38 +428,16 @@ where
 
         // 1. Resolve indices
         let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
-        let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
-            None => return false,
-            Some(value) => value,
-        };
+        let (level1_block_index, data_block_index) = self.get_block_indices(level0_index, level1_index);
+        if data_block_index == 0{
+            return false;
+        }
 
         unsafe{
-            // 2. Get Data block and set bit
-            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
-            let existed = data_block.remove(data_index);
-            
-            // TODO: fast check of mutated data_block's primitive == 0?  
-
-            //if existed{
-                // 3. Remove free blocks
-                if data_block.is_empty(){
-                    // remove data block
-                    self.data.remove_empty_block_unchecked(data_block_index);
-
-                    // remove pointer from level1
-                    let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-                    level1_block.remove(level1_index);
-
-                    if level1_block.is_empty(){
-                        // remove level1 block
-                        self.level1.remove_empty_block_unchecked(level1_block_index);
-
-                        // remove pointer from level0
-                        self.level0.remove(level0_index);
-                    }
-                }
-            //}
-            existed
+            self.remove_impl(
+                level0_index, level1_index, data_index,
+                level1_block_index, data_block_index
+            )
         }
     }
 
@@ -465,17 +517,17 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
+        let level1_block_index = self.level0.block_indices().get_unchecked(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
         *level1_block.mask()
     }
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Conf::DataBitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
+        let level1_block_index = self.level0.block_indices().get_unchecked(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
 
-        let data_block_index = level1_block.get_unchecked(level1_index).as_usize();
+        let data_block_index = level1_block.block_indices().get_unchecked(level1_index).as_usize();
         let data_block = self.data.blocks().get_unchecked(data_block_index);
         *data_block.mask()
     }
@@ -501,7 +553,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
-        let level1_block_index = self.level0.get_unchecked(level0_index);
+        let level1_block_index = self.level0.block_indices().get_unchecked(level0_index);
 
         // TODO: This can point to static empty block, if level1_block_index invalid.
         //       But looks like this way it is a tiny bit faster.
@@ -523,7 +575,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         let array_ptr = level1_blocks.0.unwrap_unchecked().as_ptr().cast_const();
         let level1_block = level1_blocks.1.unwrap_unchecked().as_ref();
 
-        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block_index = level1_block.block_indices().get_unchecked(level1_index);
         let data_block = &*array_ptr.add(data_block_index.as_usize());
         *data_block.mask()
     }

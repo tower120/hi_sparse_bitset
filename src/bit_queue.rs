@@ -214,7 +214,7 @@ where
         }
 
 
-
+// TODO: benchmark again
 /*        // 2.0
         unsafe {
             self.bit_block_index = element_index;

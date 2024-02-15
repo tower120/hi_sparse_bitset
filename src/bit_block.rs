@@ -31,11 +31,13 @@ pub trait BitBlock
         self == &Self::zero()
     }
 
-    /// Returns previous bit
+    /// Returns (previous bit, edited u64).
+    /// 
+    /// "edited u64" used as a hint for block emptiness/fullness after `set_bit`.
     /// 
     /// `bit_index` is guaranteed to be valid
     #[inline]
-    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
+    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> (bool, u64) {
         unsafe{
             bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
         }
@@ -79,6 +81,16 @@ pub trait BitBlock
     }
 }
 
+pub trait BitBlockFull: BitBlock{
+    /// All bits 1.
+    fn full() -> Self;
+    
+    #[inline]
+    fn is_full(&self) -> bool{
+        self == &Self::full()
+    }
+}
+
 impl BitBlock for u64{
     const SIZE_POT_EXPONENT: usize = 6;
 
@@ -88,10 +100,11 @@ impl BitBlock for u64{
     }
 
     #[inline]
-    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool{
-        unsafe{
-            bit_utils::set_bit_unchecked::<BIT, _>(self, bit_index)
-        }
+    fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> (bool, u64) {
+        unsafe{(
+            bit_utils::set_bit_unchecked::<BIT, _>(self, bit_index),
+            *self
+        )}
     }
 
     #[inline]
@@ -130,6 +143,13 @@ impl BitBlock for u64{
     }
 }
 
+impl BitBlockFull for u64{
+    #[inline]
+    fn full() -> Self {
+        u64::MAX
+    }
+}
+
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 impl BitBlock for wide::u64x2{
@@ -162,6 +182,14 @@ impl BitBlock for wide::u64x2{
     #[inline]
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
+    }
+}
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+impl BitBlockFull for wide::u64x2{
+    #[inline]
+    fn full() -> Self {
+        wide::u64x2::MAX
     }
 }
 

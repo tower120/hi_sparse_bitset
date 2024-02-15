@@ -1,15 +1,16 @@
 use std::collections::HashSet;
 use std::iter::zip;
+use std::ops::ControlFlow;
 
 use itertools::assert_equal;
 use rand::Rng;
-use crate::ops::{And, Or, Sub, Xor};
-use crate::cache::{DynamicCache, FixedCache};
+use crate::ops::{And, BitSetOp, Or, Sub, Xor};
+use crate::{level_indices, reduce, reduce_w_cache};
+use crate::cache;
+use crate::config;
 use crate::iter::{BlockCursor, IndexCursor};
 use crate::apply::Apply;
 use crate::bitset_interface::BitSetInterface;
-
-use super::*;
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_NoCache)] {
@@ -36,7 +37,16 @@ cfg_if::cfg_if! {
     }
 }
 
-type HiSparseBitset = super::BitSet<Conf>;
+cfg_if::cfg_if! {
+    if #[cfg(hisparsebitset_test_bitsetranges)] {
+        type BitSet<Conf> = super::BitSetRanges<Conf>;        
+    } else if #[cfg(hisparsebitset_test_bitset)] {
+        type BitSet<Conf> = super::BitSet<Conf>;
+    } else {
+        type BitSet<Conf> = super::BitSet<Conf>;
+    }
+}
+type HiSparseBitset = BitSet<Conf>;
 
 #[test]
 fn level_indices_test(){
@@ -661,6 +671,7 @@ fn regression_test1() {
 
 #[test]
 fn resume_valid_level1_index_miri_test(){
+    use crate::cache::*;
     let s1: HiSparseBitset = [1000, 2000, 3000].into();
     let s2 = s1.clone();
 
@@ -710,7 +721,7 @@ fn reduce2_test() {
 
 #[test]
 fn reduce_or_test(){
-    type HiSparseBitset = super::BitSet<config::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -765,7 +776,7 @@ fn op_or_regression_test1(){
 
 #[test]
 fn reduce_xor_test(){
-    type HiSparseBitset = super::BitSet<config::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -838,7 +849,7 @@ fn multilayer_test(){
 
 #[test]
 fn multilayer_or_test(){
-    type HiSparseBitset = super::BitSet<config::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_1: usize = BLOCK_SIZE;
@@ -876,6 +887,7 @@ fn op_or_test(){
 
 #[test]
 fn multilayer_fixed_dynamic_cache(){
+    use crate::cache::*;
     let seq1: HiSparseBitset = [1,2,3].into();
     let seq2: HiSparseBitset = [3,4,5].into();
     let seq3: HiSparseBitset = [5,6,7].into();
