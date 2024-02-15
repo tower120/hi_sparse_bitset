@@ -19,7 +19,7 @@ use crate::primitive::Primitive;
 // and one full block at index 1. As soon as block become full - 
 // it replaced with preallocated block 1. 
 // Full block allows to have more packed bitset,
-// and do contiguous fill algorithmically faster (read "instant"). 
+// and do contiguous fill algorithmically faster. 
 pub struct BitSetRanges<Conf: Config>{
     bitset: BitSet<Conf>,
     // TODO: type in Config

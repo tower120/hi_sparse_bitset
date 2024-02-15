@@ -204,12 +204,12 @@ pub unsafe fn fill_array_bits_unchecked<const FLAG: bool, T: Primitive>(blocks: 
     let first_element_index = range_first / (size_of::<T>() * 8); // compile-time math optimization
     let first_bit_index     = range_first % (size_of::<T>() * 8); // compile-time math optimization
     
-    let range_last = range_last + 1;
+    let range_last = range_last;
     let last_element_index = range_last / (size_of::<T>() * 8); // compile-time math optimization
     let last_bit_index     = range_last % (size_of::<T>() * 8); // compile-time math optimization
     
     let left_mask  = T::MAX << first_bit_index;
-    let right_mask = !(T::MAX << last_bit_index);
+    let right_mask = !((T::MAX - T::ONE) << last_bit_index);    // same as !(T::MAX << (last_bit_index+1)), considering shift overflow == 0.
     
     if first_element_index == last_element_index {
         let mask = left_mask & right_mask;
@@ -547,6 +547,16 @@ mod test{
             let range = 15..=67;
             fill_array_bits_unchecked::<false, _>(&mut n, range.clone());
             assert_equal(array_one_bits_iter(n), (0..15).chain(68..256));
+        }
+    }
+    
+    #[test]
+    fn test_fill_range_regression1(){
+        unsafe{
+            let mut n = [0u64];
+            let range = 0..=63;
+            fill_array_bits_unchecked::<true, _>(&mut n, range.clone());
+            assert_equal(array_one_bits_iter(n), range.clone());
         }
     }
 }
