@@ -219,3 +219,11 @@ impl BitBlock for wide::u64x4{
         self.as_array_mut()
     }
 }
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+impl BitBlockFull for wide::u64x4{
+    #[inline]
+    fn full() -> Self {
+        wide::u64x4::MAX
+    }
+}
