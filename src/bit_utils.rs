@@ -148,7 +148,7 @@ pub unsafe fn slice_array_bits_unchecked<T: Primitive>(blocks: &mut [T], range: 
 #[inline]
 pub unsafe fn fill_array_bits_to_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeToInclusive<usize>) {
     debug_assert!(!blocks.is_empty());
-    let last = range.end + 1;
+    let last = range.end;
     let element_index = last / (size_of::<T>() * 8); // compile-time math optimization
     let bit_index     = last % (size_of::<T>() * 8); // compile-time math optimization
     
@@ -156,13 +156,13 @@ pub unsafe fn fill_array_bits_to_unchecked<const FLAG: bool, T: Primitive>(block
     let first_part = &mut*std::ptr::slice_from_raw_parts_mut(
         blocks.as_mut_ptr(), element_index
     );
+    first_part.fill(if FLAG {T::MAX} else {T::ZERO});
+
     let block = blocks.get_unchecked_mut(element_index);
-    let mask = T::MAX << bit_index;
+    let mask = (T::MAX - T::ONE) << bit_index; // T::MAX << (bit_index + 1) 
     if FLAG {
-        first_part.fill(T::MAX);
         *block |= !mask;
     } else {
-        first_part.fill(T::ZERO);
         *block &= mask;
     }
 }
@@ -227,7 +227,7 @@ pub unsafe fn fill_array_bits_unchecked<const FLAG: bool, T: Primitive>(blocks: 
         // solid_blocks_len = last_solid_index - first_solid_index + 1
         let solid_blocks_len  = last_element_index - first_solid_index;
         let solid_blocks = &mut*std::ptr::slice_from_raw_parts_mut(
-          blocks.as_mut_ptr().add(first_solid_index), solid_blocks_len
+            blocks.as_mut_ptr().add(first_solid_index), solid_blocks_len
         );
         solid_blocks.fill(
             if FLAG {T::MAX} else {T::ZERO}

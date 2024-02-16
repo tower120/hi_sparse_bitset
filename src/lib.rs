@@ -341,7 +341,7 @@ where
     #[inline]
     pub(crate) unsafe fn get_or_insert_datablock(
         &mut self,
-        level1_block: &mut Level1Block<Conf>,
+        level1_block: &mut Level1Block<Conf>,       // TODO: NonNull?
         in_block_level1_index: usize
     ) -> (usize/*data_block_index*/, &mut LevelDataBlock<Conf>) {
         let data_block_index =          

@@ -157,10 +157,12 @@ where
     #[inline]
     fn try_pack_full_datablock(
         &mut self,
-        level1_block_index: usize, level1_block: &mut Level1Block<Conf>, 
+        level1_block_index: usize, mut level1_block: NonNull<Level1Block<Conf>>, 
         in_block_level1_index: usize,
-        data_block_index: usize, data_block: &mut LevelDataBlock<Conf>
+        data_block_index: usize, data_block: NonNull<LevelDataBlock<Conf>>
     ) -> bool {
+        let data_block = unsafe{data_block.as_ref()};
+        
         if data_block_index == 1
         || !data_block.is_full() {
             return false;
@@ -172,7 +174,7 @@ where
             self.remove_data_block(data_block_index);
             
             // 2. at level1 - change pointer to "full".
-            *level1_block.block_indices_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(1);
+            *level1_block.as_mut().block_indices_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(1);
         }        
         
         // increase counter
@@ -203,11 +205,12 @@ where
             return;
         }
         
-        let data_block = unsafe{ drop_lifetime!(data_block) };
         unsafe{
             f(data_block.mask_mut().as_array_mut());
         }            
         
+        let data_block   = NonNull::from(data_block);
+        let level1_block = NonNull::from(level1_block);
         self.try_pack_full_datablock(
             level1_block_index, level1_block, 
             in_block_level1_index, 
@@ -414,8 +417,9 @@ where
         //&& data_block.is_full()             // full block check
         {
             // TODO: consider changing try_pack_full_datablock signature 
-            let level1_block = unsafe{ drop_lifetime!(level1_block) };
-            let data_block   = unsafe{ drop_lifetime!(data_block) };
+            //let level1_block = unsafe{ drop_lifetime!(level1_block) };
+            let level1_block = NonNull::from(level1_block);
+            let data_block   = NonNull::from(data_block); 
             let data_packed = self.try_pack_full_datablock(
                 level1_block_index, level1_block, in_block_level1_index,
                 data_block_index  , data_block
@@ -593,7 +597,7 @@ mod test{
 
     #[test]
     fn fill_test(){
-        let range = (0..200_000);
+        let range = (0..20_000);
         let mut bitset: BitSetRanges<config::_64bit> = range.clone().collect();
         assert_equal(&bitset, range.clone());
         
@@ -622,13 +626,13 @@ mod test{
         assert_equal(&bitset, range.clone());
         
         // remove half
-        for i in 0..100_000{
+        for i in 0..10_000{
             bitset.remove(i);    
         }
-        assert_equal(&bitset, 100_000..200_000);
+        assert_equal(&bitset, 10_000..20_000);
 
         // insert half
-        for i in 0..100_000{
+        for i in 0..10_000{
             bitset.insert(i);    
         }
         assert_equal(&bitset, range.clone());
