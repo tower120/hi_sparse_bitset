@@ -31,9 +31,9 @@ pub trait BitSetOp: Default + Copy + 'static{
     /// Enables some optimizations. False - is always safe value.
     const TRUSTED_HIERARCHY: bool;
     
-    /// Does [hierarchy_op] operands contain result?
-    /// - left contains all bits from [hierarchy_op] result,
-    /// - right contains all bits from [hierarchy_op] result,
+    /// Do [hierarchy_op] operands contain result?
+    /// - `left` contains all bits from [hierarchy_op] result.
+    /// - `right` contains all bits from [hierarchy_op] result.
     /// 
     /// This is true for [intersection], or narrower.
     /// 

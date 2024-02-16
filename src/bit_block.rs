@@ -61,7 +61,7 @@ pub trait BitBlock
     where
         F: FnMut(usize) -> ControlFlow<()>
     {
-        bit_utils::traverse_array_one_bits(self.as_array(), f)
+        bit_utils::traverse_one_bits_array(self.as_array(), f)
     }
 
     type BitsIter: BitQueue;

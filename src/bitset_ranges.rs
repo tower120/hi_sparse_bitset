@@ -4,7 +4,7 @@ use std::ops::ControlFlow::Continue;
 use std::ptr::NonNull;
 use crate::{BitBlock, BitSet, BitSetBase, DataBlock, drop_lifetime, internals, Level0Block, Level1, Level1Block, level_indices, LevelData, LevelDataBlock};
 use crate::bit_block::BitBlockFull;
-use crate::bit_utils::{fill_array_bits_from_unchecked, fill_array_bits_to_unchecked, fill_array_bits_unchecked, slice_array_bits_unchecked, traverse_array_one_bits};
+use crate::bit_utils::{fill_bits_array_from_unchecked, fill_bits_array_to_unchecked, fill_bits_array_unchecked, slice_bits_array_unchecked, traverse_one_bits_array};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::block::Block;
 use crate::config::{Config, max_addressable_index};
@@ -249,10 +249,10 @@ where
             {
                 let mut mask = *level1_block.mask();
                 let (offset, mask) = unsafe{
-                    slice_array_bits_unchecked(mask.as_array_mut(), range_start..=range_end-1)    
+                    slice_bits_array_unchecked(mask.as_array_mut(), range_start..=range_end-1)    
                 };
                 
-                traverse_array_one_bits(mask, |index|{
+                traverse_one_bits_array(mask, |index|{
                     let index = offset + index;
                     
                     // remove data_block
@@ -286,20 +286,20 @@ where
         if first_level1_index == last_level1_index{
             self.fill_data_block(level1_block_index, level1_block, 
                 first_level1_index, 
-                |bits| unsafe{ fill_array_bits_unchecked::<true, _>(
+                |bits| unsafe{ fill_bits_array_unchecked::<true, _>(
                     bits, first_data_index..=last_data_index
                 ) }
             );
         } else {
             self.fill_data_block(level1_block_index, level1_block, 
                 first_level1_index, 
-                |bits| unsafe{ fill_array_bits_from_unchecked::<true, _>(
+                |bits| unsafe{ fill_bits_array_from_unchecked::<true, _>(
                     bits, first_data_index..
                 ) }
             );
             self.fill_data_block(level1_block_index, level1_block, 
                 last_level1_index, 
-                |bits| unsafe{ fill_array_bits_to_unchecked::<true, _>(
+                |bits| unsafe{ fill_bits_array_to_unchecked::<true, _>(
                     bits, ..=last_data_index
                 ) }
             );
@@ -307,7 +307,7 @@ where
         
         // update level1 mask
         unsafe{
-            fill_array_bits_unchecked::<true, _>(
+            fill_bits_array_unchecked::<true, _>(
                 level1_block.mask_mut().as_array_mut(),
                 first_level1_index..=last_level1_index
             );
@@ -373,7 +373,7 @@ where
         
         // fill level0 mask
         unsafe{
-            fill_array_bits_unchecked::<true, _>(
+            fill_bits_array_unchecked::<true, _>(
                 self.bitset.level0.mask_mut().as_array_mut(),
                 (first_level0_index..=last_level0_index)
             )

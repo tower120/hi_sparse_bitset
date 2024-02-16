@@ -278,7 +278,7 @@ where
             );
             
             let start_index = self.bit_block_index*size_of::<P>()*8;
-            return bit_utils::traverse_array_one_bits( slice, |i|f(start_index + i));
+            return bit_utils::traverse_one_bits_array(slice, |i|f(start_index + i));
         }
     }
 

@@ -88,7 +88,7 @@ pub unsafe fn get_bit_unchecked<T: Primitive>(block: T, bit_index: usize) -> boo
 /// Direction: 0 - left; 1 - right;
 /// 
 #[inline]
-pub unsafe fn split_array_bits_unchecked<const DIRECTION: usize, T: Primitive>(blocks: &mut [T], at: usize) -> (usize, &mut [T]) {
+pub unsafe fn split_bits_array_unchecked<const DIRECTION: usize, T: Primitive>(blocks: &mut [T], at: usize) -> (usize, &mut [T]) {
     let element_index = at / (size_of::<T>() * 8); // compile-time math optimization
     let bit_index     = at % (size_of::<T>() * 8); // compile-time math optimization
     
@@ -120,7 +120,7 @@ pub unsafe fn split_array_bits_unchecked<const DIRECTION: usize, T: Primitive>(b
 /// 
 /// * `range` must be in `blocks` range.
 #[inline]
-pub unsafe fn slice_array_bits_unchecked<T: Primitive>(blocks: &mut [T], range: RangeInclusive<usize>) -> (usize, &mut [T]) {
+pub unsafe fn slice_bits_array_unchecked<T: Primitive>(blocks: &mut [T], range: RangeInclusive<usize>) -> (usize, &mut [T]) {
     let (range_first, range_last) = range.into_inner();
 
     let first_element_index = range_first / (size_of::<T>() * 8); // compile-time math optimization
@@ -146,7 +146,7 @@ pub unsafe fn slice_array_bits_unchecked<T: Primitive>(blocks: &mut [T], range: 
 /// * `n` must be in `blocks` bit-range.
 /// * `blocks` must be non-empty.
 #[inline]
-pub unsafe fn fill_array_bits_to_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeToInclusive<usize>) {
+pub unsafe fn fill_bits_array_to_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeToInclusive<usize>) {
     debug_assert!(!blocks.is_empty());
     let last = range.end;
     let element_index = last / (size_of::<T>() * 8); // compile-time math optimization
@@ -172,7 +172,7 @@ pub unsafe fn fill_array_bits_to_unchecked<const FLAG: bool, T: Primitive>(block
 /// * `n` must be in `blocks` bit-range.
 /// * `blocks` must be non-empty.
 #[inline]
-pub unsafe fn fill_array_bits_from_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeFrom<usize>) {
+pub unsafe fn fill_bits_array_from_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeFrom<usize>) {
     debug_assert!(!blocks.is_empty());
     let element_index = range.start / (size_of::<T>() * 8); // compile-time math optimization
     let bit_index     = range.start % (size_of::<T>() * 8); // compile-time math optimization
@@ -198,7 +198,7 @@ pub unsafe fn fill_array_bits_from_unchecked<const FLAG: bool, T: Primitive>(blo
 /// 
 /// `range` must be in `blocks` bit-range.
 #[inline]
-pub unsafe fn fill_array_bits_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeInclusive<usize>) {
+pub unsafe fn fill_bits_array_unchecked<const FLAG: bool, T: Primitive>(blocks: &mut [T], range: RangeInclusive<usize>) {
     let (range_first, range_last) = range.into_inner();
 
     let first_element_index = range_first / (size_of::<T>() * 8); // compile-time math optimization
@@ -243,11 +243,9 @@ pub unsafe fn fill_array_bits_unchecked<const FLAG: bool, T: Primitive>(blocks: 
     }
 }
 
-// TODO: traverse_one_bits_array
-//
 /// Blocks traversed in the same order as [set_array_bit], [get_array_bit].
 #[inline]
-pub fn traverse_array_one_bits<P, F>(array: &[P], mut f: F) -> ControlFlow<()>
+pub fn traverse_one_bits_array<P, F>(array: &[P], mut f: F) -> ControlFlow<()>
 where
     P: Primitive,
     F: FnMut(usize) -> ControlFlow<()>
@@ -255,14 +253,10 @@ where
     let len = array.len();
     for i in 0..len{
         let element = unsafe{*array.get_unchecked(i)};
-        // TODO: benchmark this change (should be identical)
         let start_index = i*size_of::<P>()*8;
         let control = traverse_one_bits(
             element,
-            |r|{
-                let index = start_index + r;
-                f(index)
-            }
+            |r| f(start_index + r)
         );
         if control.is_break(){
             return ControlFlow::Break(());
@@ -335,9 +329,8 @@ where
     }
 }
 
-// TODO: one_bits_array_iter ?
 #[inline]
-pub fn array_one_bits_iter<I>(blocks: I) -> ArrayOneBitsIter<I::IntoIter>
+pub fn one_bits_array_iter<I>(blocks: I) -> OneBitsArrayIter<I::IntoIter>
 where
     I: IntoIterator,
     I::Item: Primitive
@@ -345,14 +338,14 @@ where
     let mut blocks_iter = blocks.into_iter();
     let block = blocks_iter.next().unwrap_or(Primitive::ZERO);
     
-    ArrayOneBitsIter { 
+    OneBitsArrayIter { 
         start_index: 0, 
         blocks_iter, 
         bit_iter: one_bits_iter(block)
     }
 }
 
-pub struct ArrayOneBitsIter<I>
+pub struct OneBitsArrayIter<I>
 where
     I: Iterator,
     I::Item: Primitive
@@ -362,7 +355,7 @@ where
     bit_iter: OneBitsIter<I::Item>
 }
 
-impl<I> Iterator for ArrayOneBitsIter<I>
+impl<I> Iterator for OneBitsArrayIter<I>
 where
     I: Iterator,
     I::Item: Primitive
@@ -400,19 +393,19 @@ mod test{
             set_array_bit_unchecked::<true, _>(&mut n, 3);
             set_array_bit_unchecked::<true, _>(&mut n, 4);
             set_array_bit_unchecked::<true, _>(&mut n, 10);
-            assert_equal(array_one_bits_iter(n), [1,3,4,10]);
+            assert_equal(one_bits_array_iter(n), [1,3,4,10]);
             
             {
                 let mut n = n.clone();
-                let s = split_array_bits_unchecked::<0, _>(&mut n, 4);
+                let s = split_bits_array_unchecked::<0, _>(&mut n, 4);
                 assert_eq!(s.0, 0);
-                assert_equal(array_one_bits_iter(s.1.iter().copied()), [1,3]);
+                assert_equal(one_bits_array_iter(s.1.iter().copied()), [1,3]);
             }
             {
                 let mut n = n.clone();
-                let s = split_array_bits_unchecked::<1, _>(&mut n, 4);
+                let s = split_bits_array_unchecked::<1, _>(&mut n, 4);
                 assert_eq!(s.0, 0);
-                assert_equal(array_one_bits_iter(s.1.iter().copied()), [4,10]);
+                assert_equal(one_bits_array_iter(s.1.iter().copied()), [4,10]);
             }
         }
     }
@@ -427,11 +420,11 @@ mod test{
             set_array_bit_unchecked::<true, _>(&mut n, 10);
             set_array_bit_unchecked::<true, _>(&mut n, 11);
             set_array_bit_unchecked::<true, _>(&mut n, 12);
-            assert_equal(array_one_bits_iter(n), [1,3,4,10,11,12]);
+            assert_equal(one_bits_array_iter(n), [1,3,4,10,11,12]);
             
-            let s = slice_array_bits_unchecked(&mut n, 3..=11);
+            let s = slice_bits_array_unchecked(&mut n, 3..=11);
             assert_eq!(s.0, 0);
-            assert_equal(array_one_bits_iter(s.1.iter().copied()), [3,4,10,11]);
+            assert_equal(one_bits_array_iter(s.1.iter().copied()), [3,4,10,11]);
         }        
         
         unsafe{
@@ -444,19 +437,19 @@ mod test{
             set_array_bit_unchecked::<true, _>(&mut n, 64);
             set_array_bit_unchecked::<true, _>(&mut n, 65);
             set_array_bit_unchecked::<true, _>(&mut n, 66);
-            assert_equal(array_one_bits_iter(n), [1,3,4,62,63,64,65,66]);
+            assert_equal(one_bits_array_iter(n), [1,3,4,62,63,64,65,66]);
 
             {
                 let mut n = n.clone();
-                let s = slice_array_bits_unchecked(&mut n, 3..=63);
+                let s = slice_bits_array_unchecked(&mut n, 3..=63);
                 assert_eq!(s.0, 0);
-                assert_equal(array_one_bits_iter(s.1.iter().copied()), [3,4,62,63]);
+                assert_equal(one_bits_array_iter(s.1.iter().copied()), [3,4,62,63]);
             }
             {
                 let mut n = n.clone();
-                let s = slice_array_bits_unchecked(&mut n, 3..=64);
+                let s = slice_bits_array_unchecked(&mut n, 3..=64);
                 assert_eq!(s.0, 0);
-                assert_equal(array_one_bits_iter(s.1.iter().copied()), [3,4,62,63,64]);
+                assert_equal(one_bits_array_iter(s.1.iter().copied()), [3,4,62,63,64]);
             }
         }
     }
@@ -471,17 +464,17 @@ mod test{
             set_array_bit_unchecked::<true, _>(&mut n, 10);
             assert_equal(one_bits_iter(n[0]), [1,3,4,10]);   
             
-            fill_array_bits_to_unchecked::<false, _>(&mut n, ..=3);
+            fill_bits_array_to_unchecked::<false, _>(&mut n, ..=3);
             assert_equal(one_bits_iter(n[0]), [4,10]);
             
-            fill_array_bits_to_unchecked::<true, _>(&mut n, ..=5);
+            fill_bits_array_to_unchecked::<true, _>(&mut n, ..=5);
             assert_equal(one_bits_iter(n[0]), [0,1,2,3,4,5,10]);
 
-            fill_array_bits_to_unchecked::<true, _>(&mut n, ..=63);
+            fill_bits_array_to_unchecked::<true, _>(&mut n, ..=63);
             assert_equal(one_bits_iter(n[0]), 0..=63);
 
-            fill_array_bits_to_unchecked::<true, _>(&mut n, ..=64);
-            assert_equal(array_one_bits_iter(n), 0..=64);
+            fill_bits_array_to_unchecked::<true, _>(&mut n, ..=64);
+            assert_equal(one_bits_array_iter(n), 0..=64);
         }         
     }
     
@@ -497,10 +490,10 @@ mod test{
             set_array_bit_unchecked::<true, _>(&mut n, 63);
             assert_equal(one_bits_iter(n[0]), [1,3,4,60,61,63]);   
             
-            fill_array_bits_from_unchecked::<false, _>(&mut n, 61..);
+            fill_bits_array_from_unchecked::<false, _>(&mut n, 61..);
             assert_equal(one_bits_iter(n[0]), [1,3,4, 60]);
             
-            fill_array_bits_from_unchecked::<true, _>(&mut n, 60..);
+            fill_bits_array_from_unchecked::<true, _>(&mut n, 60..);
             assert_equal(one_bits_iter(n[0]), [1,3,4,60,61,62,63]);
         }         
     }    
@@ -511,42 +504,42 @@ mod test{
         unsafe{
             let mut n = [0u64];
             let range = 15..=58;
-            fill_array_bits_unchecked::<true, _>(&mut n, range.clone());
-            assert_equal(array_one_bits_iter(n), range.clone());
+            fill_bits_array_unchecked::<true, _>(&mut n, range.clone());
+            assert_equal(one_bits_array_iter(n), range.clone());
         }
         // reset
         unsafe{
             let mut n = [u64::MAX];
-            fill_array_bits_unchecked::<false, _>(&mut n, 15..=57);
-            assert_equal(array_one_bits_iter(n), (0..15).chain(58..64));
+            fill_bits_array_unchecked::<false, _>(&mut n, 15..=57);
+            assert_equal(one_bits_array_iter(n), (0..15).chain(58..64));
         }
         
         // insert array
         unsafe{
             let mut n = [0u64; 4];
             let range = 15..=203;
-            fill_array_bits_unchecked::<true, _>(&mut n, range.clone());
-            assert_equal(array_one_bits_iter(n), range.clone());
+            fill_bits_array_unchecked::<true, _>(&mut n, range.clone());
+            assert_equal(one_bits_array_iter(n), range.clone());
         }
         unsafe{
             let mut n = [0u64; 4];
             let range = 15..=68;
-            fill_array_bits_unchecked::<true, _>(&mut n, range.clone());
-            assert_equal(array_one_bits_iter(n), range.clone());
+            fill_bits_array_unchecked::<true, _>(&mut n, range.clone());
+            assert_equal(one_bits_array_iter(n), range.clone());
         }        
         
         // remove array
         unsafe{
             let mut n = [u64::MAX; 4];
             let range = 15..=202;
-            fill_array_bits_unchecked::<false, _>(&mut n, range.clone());
-            assert_equal(array_one_bits_iter(n), (0..15).chain(203..256));
+            fill_bits_array_unchecked::<false, _>(&mut n, range.clone());
+            assert_equal(one_bits_array_iter(n), (0..15).chain(203..256));
         }
         unsafe{
             let mut n = [u64::MAX; 4];
             let range = 15..=67;
-            fill_array_bits_unchecked::<false, _>(&mut n, range.clone());
-            assert_equal(array_one_bits_iter(n), (0..15).chain(68..256));
+            fill_bits_array_unchecked::<false, _>(&mut n, range.clone());
+            assert_equal(one_bits_array_iter(n), (0..15).chain(68..256));
         }
     }
     
@@ -555,8 +548,8 @@ mod test{
         unsafe{
             let mut n = [0u64];
             let range = 0..=63;
-            fill_array_bits_unchecked::<true, _>(&mut n, range.clone());
-            assert_equal(array_one_bits_iter(n), range.clone());
+            fill_bits_array_unchecked::<true, _>(&mut n, range.clone());
+            assert_equal(one_bits_array_iter(n), range.clone());
         }
     }
 }
