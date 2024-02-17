@@ -94,13 +94,12 @@ where
         let level1_block = unsafe{drop_lifetime!(
             self.bitset.level1.blocks_mut().as_mut().get_unchecked_mut(level1_block_index)
         )};
-        let level1_block_mask = unsafe{drop_lifetime!(level1_block.mask_mut())};
         
         // I. Clear child data blocks.
         use ControlFlow::*;
-        level1_block_mask.traverse_bits(|i|{
+        level1_block.mask.traverse_bits(|i|{
             let data_block_index_ref = unsafe{
-                level1_block.block_indices_mut().get_unchecked_mut(i)
+                level1_block.block_indices.as_mut().get_unchecked_mut(i)
             }; 
             let data_block_index = data_block_index_ref.as_usize();
             
@@ -115,7 +114,7 @@ where
         
         // II. Clear level1 block mask and counter
         unsafe{
-            *level1_block_mask = BitBlock::zero();
+            level1_block.mask = BitBlock::zero();
             *self.level1_full_data_block_counters.get_unchecked_mut(level1_block_index) = Primitive::from_usize(0);
         }
     }
@@ -136,14 +135,14 @@ where
             // make level1_block empty. Ala *level1_block = Block::empty()
             unsafe {
                 let level1_block = level1_block.as_mut();
-                *level1_block.mask_mut() = BitBlock::zero();
-                level1_block.block_indices_mut().fill(Primitive::ZERO);
+                level1_block.mask = BitBlock::zero();
+                level1_block.block_indices.as_mut().fill(Primitive::ZERO);
             }
             
             // remove level1_block
             unsafe{
                 self.bitset.level1.remove_empty_block_unchecked(level1_block_index);
-                *self.bitset.level0.block_indices_mut().get_unchecked_mut(in_block_level0_index) = Primitive::from_usize(1);
+                *self.bitset.level0.block_indices.as_mut().get_unchecked_mut(in_block_level0_index) = Primitive::from_usize(1);
             }
             true
         } else {
@@ -171,7 +170,7 @@ where
             self.remove_data_block(data_block_index);
             
             // 2. at level1 - change pointer to "full".
-            *level1_block.as_mut().block_indices_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(1);
+            *level1_block.as_mut().block_indices.as_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(1);
         }        
         
         // increase counter
@@ -202,7 +201,7 @@ where
         }
         
         unsafe{
-            f(data_block.as_mut().mask_mut().as_array_mut());
+            f(data_block.as_mut().mask.as_array_mut());
         }            
         
         self.try_pack_full_datablock(
@@ -241,7 +240,7 @@ where
             
             // 1. remove all non-fixed data_blocks in range 
             {
-                let mut mask = *level1_block.as_ref().mask();
+                let mut mask = level1_block.as_ref().mask;
                 let (offset, mask) = slice_bits_array_unchecked(
                     mask.as_array_mut(), 
                     range_start..=range_end-1
@@ -250,7 +249,7 @@ where
                 traverse_one_bits_array(mask, |index|{
                     let index = offset + index;
                     let data_block_index = level1_block.as_ref()
-                                           .block_indices()
+                                           .block_indices.as_ref()
                                            .get_unchecked(index).as_usize();
                     
                     // remove data_block
@@ -266,7 +265,7 @@ where
             // 2. fill all index-pointers with 1 in range
             //level1_block.block_indices_mut()[range].fill(Primitive::from_usize(1));
             std::slice::from_raw_parts_mut(
-                level1_block.as_mut().block_indices_mut().as_mut_ptr().add(range_start),
+                level1_block.as_mut().block_indices.as_mut().as_mut_ptr().add(range_start),
                 range_len
             ).fill(Primitive::from_usize(1));
             
@@ -301,7 +300,7 @@ where
         // III. Update level1 mask
         unsafe{
             fill_bits_array_unchecked::<true, _>(
-                level1_block.as_mut().mask_mut().as_array_mut(),
+                level1_block.as_mut().mask.as_array_mut(),
                 first_level1_index..=last_level1_index
             );
         }
@@ -350,7 +349,7 @@ where
             last_level0_index  + full_rightest_level1 as usize
         {
             let level1_block_index = unsafe {
-                let index_ref = self.bitset.level0.block_indices_mut().get_unchecked_mut(level0_index);
+                let index_ref = self.bitset.level0.block_indices.as_mut().get_unchecked_mut(level0_index);
                 let index = index_ref.as_usize();
                 
                 // replace level0 index with 1
@@ -371,7 +370,7 @@ where
         // fill level0 mask
         unsafe{
             fill_bits_array_unchecked::<true, _>(
-                self.bitset.level0.mask_mut().as_array_mut(),
+                self.bitset.level0.mask.as_array_mut(),
                 first_level0_index..=last_level0_index
             )
         }
@@ -438,7 +437,7 @@ where
                 level1_block_index = self.bitset.level1.insert_block(Block::full());
                 unsafe{
                     // update pointer
-                    *self.bitset.level0.block_indices_mut().get_unchecked_mut(in_block_level0_index) = Primitive::from_usize(level1_block_index);
+                    *self.bitset.level0.block_indices.as_mut().get_unchecked_mut(in_block_level0_index) = Primitive::from_usize(level1_block_index);
                     // reset counter
                     *self.level1_full_data_block_counters.get_unchecked_mut(level1_block_index) = Conf::Level1BitBlock::size() as _;
                 }
@@ -451,17 +450,17 @@ where
             
             
             // make new data block
-            let new_data_block_index = unsafe {
+            let new_data_block_index = {
                 let mut block: LevelDataBlock<Conf> = Block::full();
                 // we will not run remove_impl, so just directly remove bit
-                block.mask_mut().set_bit::<false>(in_block_data_index);
+                block.mask.set_bit::<false>(in_block_data_index);
                 self.bitset.data.insert_block(block)
             };
             
             // point to it from level1 block
             unsafe{
                 let level1_block = self.bitset.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-                *level1_block.block_indices_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(new_data_block_index);
+                *level1_block.block_indices.as_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(new_data_block_index);
             }
             
             return true;
@@ -557,7 +556,7 @@ mod test{
 
     #[test]
     fn fill_test(){
-        let range = (0..20_000);
+        let range = 0..20_000;
         let mut bitset: BitSetRanges<config::_64bit> = range.clone().collect();
         assert_equal(&bitset, range.clone());
         

@@ -44,7 +44,7 @@ where
     unsafe fn next_empty_block_index(
         block: &mut Block<Mask, BlockIndex, BlockIndices>
     ) -> &mut u64 {
-        block.mask_mut().as_array_mut().get_unchecked_mut(0)
+        block.mask.as_array_mut().get_unchecked_mut(0)
     }
     
     #[inline]

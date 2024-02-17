@@ -307,13 +307,13 @@ where
         -> (usize/*level1_block_index*/, usize/*data_block_index*/)
     {
         let level1_block_index = unsafe{
-            self.level0.block_indices().get_unchecked(level0_index)
+            self.level0.block_indices.as_ref().get_unchecked(level0_index)
         }.as_usize();
 
         // 2. Level1
         let data_block_index = unsafe{
             let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-            level1_block.block_indices().get_unchecked(level1_index)
+            level1_block.block_indices.as_ref().get_unchecked(level1_index)
         }.as_usize();
         
         (level1_block_index, data_block_index)
@@ -364,7 +364,7 @@ where
         
         let (level1_block_index, level1_block) = self.get_or_insert_level1block(in_block_level0_index);
         let (data_block_index, mut data_block) = self.get_or_insert_datablock(level1_block, in_block_level1_index);
-        let (_, primitive) = data_block.as_mut().mask_mut().set_bit::<true>(in_block_data_index);
+        let (_, primitive) = data_block.as_mut().mask.set_bit::<true>(in_block_data_index);
         
         (
             in_block_level0_index,
@@ -508,24 +508,24 @@ impl<Conf: Config> BitSetBase for BitSet<Conf>{
 impl<Conf: Config> LevelMasks for BitSet<Conf>{
     #[inline]
     fn level0_mask(&self) -> Conf::Level0BitBlock {
-        *self.level0.mask()
+        self.level0.mask
     }
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
-        let level1_block_index = self.level0.block_indices().get_unchecked(level0_index).as_usize();
+        let level1_block_index = self.level0.block_indices.as_ref().get_unchecked(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-        *level1_block.mask()
+        level1_block.mask
     }
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Conf::DataBitBlock {
-        let level1_block_index = self.level0.block_indices().get_unchecked(level0_index).as_usize();
+        let level1_block_index = self.level0.block_indices.as_ref().get_unchecked(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
 
-        let data_block_index = level1_block.block_indices().get_unchecked(level1_index).as_usize();
+        let data_block_index = level1_block.block_indices.as_ref().get_unchecked(level1_index).as_usize();
         let data_block = self.data.blocks().get_unchecked(data_block_index);
-        *data_block.mask()
+        data_block.mask
     }
 }
 
@@ -549,7 +549,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
-        let level1_block_index = self.level0.block_indices().get_unchecked(level0_index);
+        let level1_block_index = self.level0.block_indices.as_ref().get_unchecked(level0_index);
 
         // TODO: This can point to static empty block, if level1_block_index invalid.
         //       But looks like this way it is a tiny bit faster.
@@ -561,7 +561,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
                 Some(NonNull::from(level1_block))
             )
         );
-        (*level1_block.mask(), !level1_block_index.is_zero())
+        (level1_block.mask, !level1_block_index.is_zero())
     }
 
     #[inline]
@@ -571,9 +571,9 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         let array_ptr = level1_blocks.0.unwrap_unchecked().as_ptr().cast_const();
         let level1_block = level1_blocks.1.unwrap_unchecked().as_ref();
 
-        let data_block_index = level1_block.block_indices().get_unchecked(level1_index);
+        let data_block_index = level1_block.block_indices.as_ref().get_unchecked(level1_index);
         let data_block = &*array_ptr.add(data_block_index.as_usize());
-        *data_block.mask()
+        data_block.mask
     }
 }
 

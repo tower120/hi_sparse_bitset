@@ -6,10 +6,9 @@ use crate::Primitive;
 
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndex, BlockIndices> {
-    // TODO: consider making pub
-    mask: Mask,
+    pub mask: Mask,
     /// Next level block indices
-    block_indices: BlockIndices,
+    pub block_indices: BlockIndices,
     phantom: PhantomData<BlockIndex>
 }
 
@@ -63,7 +62,7 @@ where
         f: impl FnOnce() -> BlockIndex
     ) -> BlockIndex {
         // mask
-        self.mask_mut().set_bit::<true>(index);
+        self.mask.set_bit::<true>(index);
 
         // indices
         let block_indices = self.block_indices.as_mut();
@@ -96,53 +95,6 @@ where
         self.mask.set_bit::<false>(index)
     }
 
-    /*/// # Safety
-    ///
-    /// index is not checked for out-of-bounds.
-    #[inline]
-    pub unsafe fn get(&self, index: usize) -> Option<BlockIndex> {
-        let exists = self.contains(index);
-        if !exists{
-            None
-        } else {
-            Some(self.get_unchecked(index))
-        }
-    }*/
-
-/*    /// # Safety
-    ///
-    /// - index is not checked for out-of-bounds.
-    /// - index is not checked for validity.
-    #[inline]
-    pub unsafe fn get_unchecked(&self, index: usize) -> BlockIndex {
-        let block_indices = self.block_indices.as_ref();
-        *block_indices.get_unchecked(index)
-    }
-    
-    // TODO: consider replacing with insert?
-    /// # Safety
-    ///
-    /// - mask must correspond to the new index value.
-    /// - index is not checked for out-of-bounds.
-    /// - index is not checked for validity.
-    #[inline]
-    pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut BlockIndex {
-        let block_indices = self.block_indices.as_mut();
-        block_indices.get_unchecked_mut(index)
-    }
-    */
-    /*// TODO: remove this
-    #[inline]
-    pub fn clear(&mut self){
-        self.mask = BitBlock::zero();
-        if !size_of::<BlockIndices>().is_zero(){
-            // fill zero
-            unsafe {
-                (&mut self.block_indices as *mut BlockIndices).write_bytes(0u8, 1);
-            }
-        }
-    }*/
-
     // TODO: unused?
     /// # Safety
     ///
@@ -152,32 +104,7 @@ where
         self.mask.get_bit(index)
     }
 
-    #[inline]
-    pub fn mask(&self) -> &Mask {
-        &self.mask
-    }
-    
-    /// # Safety
-    /// 
-    /// Mask must correspond to pointed blocks state
-    #[inline]
-    pub unsafe fn mask_mut(&mut self) -> &mut Mask{
-        &mut self.mask
-    }
-    
-    #[inline]
-    pub fn block_indices(&self) -> &[BlockIndex]{
-        self.block_indices.as_ref()
-    }
-
-    /// # Safety
-    /// 
-    /// Pointed blocks state must correspond to mask 
-    #[inline]
-    pub unsafe fn block_indices_mut(&mut self) -> &mut [BlockIndex]{
-        self.block_indices.as_mut()
-    }
-
+    // TODO: remove this?
     #[inline]
     pub fn is_empty(&self) -> bool {
         Mask::is_zero(&self.mask)
