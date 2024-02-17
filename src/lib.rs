@@ -168,7 +168,7 @@ macro_rules! assume {
 }
 pub(crate) use assume;
 
-macro_rules! drop_lifetime {
+/*macro_rules! drop_lifetime {
     ($e: expr) => {
         {
             fn check<T>(_: &mut T){}
@@ -177,7 +177,7 @@ macro_rules! drop_lifetime {
         }
     };
 }
-pub(crate) use drop_lifetime;
+pub(crate) use drop_lifetime;*/
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){

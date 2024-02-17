@@ -2,7 +2,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{ControlFlow, Range, RangeBounds, RangeInclusive};
 use std::ops::ControlFlow::Continue;
 use std::ptr::NonNull;
-use crate::{BitBlock, BitSet, BitSetBase, DataBlock, drop_lifetime, internals, Level0Block, Level1, Level1Block, level_indices, LevelData, LevelDataBlock};
+use crate::{BitBlock, BitSet, BitSetBase, DataBlock, internals, Level0Block, Level1, Level1Block, level_indices, LevelData, LevelDataBlock};
 use crate::bit_block::BitBlockFull;
 use crate::bit_utils::{fill_bits_array_from_unchecked, fill_bits_array_to_unchecked, fill_bits_array_unchecked, slice_bits_array_unchecked, traverse_one_bits_array};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
@@ -80,20 +80,20 @@ where
     }
     
     #[inline]
-    fn remove_data_block(&mut self, data_block_index: usize){
+    fn remove_data_block(data: &mut LevelData<Conf>, data_block_index: usize){
         let data_block = unsafe{
-            self.bitset.data.blocks_mut().get_unchecked_mut(data_block_index)
+            data.blocks_mut().get_unchecked_mut(data_block_index)
         };
         *data_block = Block::empty();
         unsafe{
-            self.bitset.data.remove_empty_block_unchecked(data_block_index);
+            data.remove_empty_block_unchecked(data_block_index);
         }
     }
     
     fn clear_level1_block(&mut self, level1_block_index: usize){
-        let level1_block = unsafe{drop_lifetime!(
+        let level1_block = unsafe{
             self.bitset.level1.blocks_mut().as_mut().get_unchecked_mut(level1_block_index)
-        )};
+        };
         
         // I. Clear child data blocks.
         use ControlFlow::*;
@@ -104,7 +104,7 @@ where
             let data_block_index = data_block_index_ref.as_usize();
             
             // 1. free data block
-            self.remove_data_block(data_block_index);
+            Self::remove_data_block(&mut self.bitset.data, data_block_index);
             
             // 2. replace its level1 index-pointer with 0.
             *data_block_index_ref = Primitive::from_usize(0);
@@ -167,7 +167,7 @@ where
         // replace data block with "full"
         unsafe{
             // 1. at data level - make block empty, and remove
-            self.remove_data_block(data_block_index);
+            Self::remove_data_block(&mut self.bitset.data, data_block_index);
             
             // 2. at level1 - change pointer to "full".
             *level1_block.as_mut().block_indices.as_mut().get_unchecked_mut(in_block_level1_index) = Primitive::from_usize(1);
@@ -255,7 +255,7 @@ where
                     // remove data_block
                     // if this is not fixed block
                     if data_block_index > 1{
-                        self.remove_data_block(data_block_index);
+                        Self::remove_data_block(&mut self.bitset.data, data_block_index);
                     }
                     
                     Continue(())
