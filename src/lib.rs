@@ -319,13 +319,11 @@ where
         (level1_block_index, data_block_index)
     }
     
-    //TODO: try use Self::level1 instead of self?
-    //      or move function to level1?      
     #[inline]
     pub(crate) unsafe fn get_or_insert_level1block(
         &mut self, 
         in_block_level0_index: usize,
-    ) -> (usize/*level1_block_index*/, &mut Level1Block<Conf>) {
+    ) -> (usize/*level1_block_index*/, NonNull<Level1Block<Conf>>) {
         let level1_block_index = unsafe{
             self.level0.get_or_insert(in_block_level0_index, ||{
                 let block_index = self.level1.insert_empty_block();
@@ -334,18 +332,17 @@ where
         }.as_usize();  
         
         let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-        (level1_block_index, level1_block)
+        (level1_block_index, NonNull::from(level1_block))
     }
     
-    //TODO: try use Self::data instead of self
     #[inline]
     pub(crate) unsafe fn get_or_insert_datablock(
         &mut self,
-        level1_block: &mut Level1Block<Conf>,       // TODO: NonNull?
+        mut level1_block: NonNull<Level1Block<Conf>>,
         in_block_level1_index: usize
-    ) -> (usize/*data_block_index*/, &mut LevelDataBlock<Conf>) {
-        let data_block_index =          
-            level1_block.get_or_insert(in_block_level1_index, ||{
+    ) -> (usize/*data_block_index*/, NonNull<LevelDataBlock<Conf>>) {
+        let data_block_index =
+            level1_block.as_mut().get_or_insert(in_block_level1_index, ||{
                 let block_index = self.data.insert_empty_block();
                 Conf::DataBlockIndex::from_usize(block_index)
             }).as_usize();
@@ -353,22 +350,21 @@ where
         // 3. Data level
         let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
 
-        (data_block_index, data_block)
+        (data_block_index, NonNull::from(data_block))
     }
     
     #[inline]
     pub(crate) unsafe fn insert_impl(&mut self, index: usize) -> (
         usize/*in_block_level0_index*/,
-        usize/*level1_block_index*/, &mut Level1Block<Conf>,    usize/*in_block_level1_index*/,
-        usize/*data_block_index*/,   &mut LevelDataBlock<Conf>, usize/*in_block_data_index*/,
+        usize/*level1_block_index*/, NonNull<Level1Block<Conf>>,    usize/*in_block_level1_index*/,
+        usize/*data_block_index*/,   NonNull<LevelDataBlock<Conf>>, usize/*in_block_data_index*/,
         u64/*mutated_block_primitive*/
     ) {
         let (in_block_level0_index, in_block_level1_index, in_block_data_index) = level_indices::<Conf>(index);
         
         let (level1_block_index, level1_block) = self.get_or_insert_level1block(in_block_level0_index);
-        let level1_block = drop_lifetime!(level1_block);
-        let (data_block_index, data_block) = self.get_or_insert_datablock(level1_block, in_block_level1_index);
-        let (_, primitive) = data_block.mask_mut().set_bit::<true>(in_block_data_index);
+        let (data_block_index, mut data_block) = self.get_or_insert_datablock(level1_block, in_block_level1_index);
+        let (_, primitive) = data_block.as_mut().mask_mut().set_bit::<true>(in_block_data_index);
         
         (
             in_block_level0_index,
