@@ -1,9 +1,8 @@
 //! Iteration always return ordered (or sorted) index sequences.
 
 use std::marker::PhantomData;
-use std::mem;
 
-use crate::{DataBlock, DataBlockIter, level_indices};
+use crate::{DataBlock, level_indices};
 use crate::bit_block::BitBlock;
 use crate::config::Config;
 

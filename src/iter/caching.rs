@@ -1,12 +1,14 @@
+use std::marker::PhantomData;
+use std::mem;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
-use crate::{data_block_start_index, level_indices};
-
-use super::*;
+use crate::{data_block_start_index, DataBlock, DataBlockIter, level_indices};
+use crate::Config;
+use crate::iter::{BlockCursor, IndexCursor};
 
 /// Caching block iterator.
 ///
