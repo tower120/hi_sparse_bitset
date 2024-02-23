@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+### Fix
+- Intersection operation `ops::And` does **not** produce `TRUSTED_HIERARCHY`.
+
 ## 0.5.0
 ### Fix
 - `NoCache` reduce version was unsound for iterators which had to be dropped. 

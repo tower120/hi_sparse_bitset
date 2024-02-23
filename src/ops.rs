@@ -56,7 +56,7 @@ pub trait BitSetOp: Default + Copy + 'static{
 #[derive(Default, Copy, Clone)]
 pub struct And;
 impl BitSetOp for And {
-    const TRUSTED_HIERARCHY: bool = true;
+    const TRUSTED_HIERARCHY: bool = false;
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = true;
     
     #[inline]

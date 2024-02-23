@@ -8,7 +8,8 @@ use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
 pub trait BitSetBase {
     type Conf: Config;
     
-    /// Does this bitset have `TrustedHierarchy`?
+    /// Does each raised bit in hierarchy bitblock
+    /// correspond to non-empty data block?
     const TRUSTED_HIERARCHY: bool;
 }
 
@@ -293,7 +294,7 @@ pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
 
 /// Optimistic depth-first check.
 /// 
-/// This traverse-based implementation is faster then using two iterators.
+/// This traverse-based implementation is faster than using two iterators.
 pub(crate) fn bitsets_eq<L, R>(left: L, right: R) -> bool
 where
     L: LevelMasksIterExt,
