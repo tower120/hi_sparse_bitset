@@ -70,6 +70,10 @@ pub trait BitBlock
     fn as_array(&self) -> &[u64];
     fn as_array_mut(&mut self) -> &mut [u64];
     
+    // TODO: try to use this trick  with as_arrayXXX ?
+    type Array: AsRef<[u64]> + AsMut<[u64]> + Clone;
+    fn into_array(self) -> Self::Array;
+    
     #[inline]
     fn count_ones(&self) -> usize {
         let mut sum = 0;
@@ -141,6 +145,12 @@ impl BitBlock for u64{
             mem::transmute::<&mut u64, &mut [u64; 1]>(self)
         }        
     }
+    
+    type Array = [u64;1];
+    #[inline]
+    fn into_array(self) -> Self::Array {
+        unsafe { mem::transmute(self) }        
+    }
 }
 
 impl BitBlockFull for u64{
@@ -183,6 +193,12 @@ impl BitBlock for wide::u64x2{
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
     }
+    
+    type Array = [u64;2];
+    #[inline]
+    fn into_array(self) -> Self::Array {
+        unsafe { mem::transmute(self) }        
+    }    
 }
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
@@ -218,6 +234,12 @@ impl BitBlock for wide::u64x4{
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
     }
+    
+    type Array = [u64;4];
+    #[inline]
+    fn into_array(self) -> Self::Array {
+        unsafe { mem::transmute(self) }        
+    }    
 }
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]

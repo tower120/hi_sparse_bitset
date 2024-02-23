@@ -9,6 +9,10 @@ pub struct Block<Mask, BlockIndex, BlockIndices> {
     pub mask: Mask,
     /// Next level block indices
     pub block_indices: BlockIndices,
+    
+    // TODO: change somehow
+    pub full_mask: Mask,
+    
     phantom: PhantomData<BlockIndex>
 }
 
@@ -22,6 +26,7 @@ where
     pub fn empty() -> Self{
         Self {
             mask: Mask::zero(),
+            full_mask: Mask::zero(),
             // All indices 0.
             block_indices: unsafe{ MaybeUninit::zeroed().assume_init() },
             phantom: PhantomData
@@ -42,6 +47,7 @@ where
         
         Self {
             mask: Mask::full(),
+            full_mask: Mask::full(),
             block_indices,
             phantom: PhantomData
         }

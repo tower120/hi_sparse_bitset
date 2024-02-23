@@ -243,6 +243,22 @@ pub unsafe fn fill_bits_array_unchecked<const FLAG: bool, T: Primitive>(blocks: 
     }
 }
 
+/// # Safety
+/// 
+/// `range` must be in `array` bit range.
+#[inline]
+pub unsafe fn traverse_one_bits_array_range_unchecked<Array, P, F>(
+    mut array: Array, range: RangeInclusive<usize>, mut f: F
+) -> ControlFlow<()>
+where
+    Array: AsMut<[P]>,
+    P: Primitive,
+    F: FnMut(usize) -> ControlFlow<()>
+{
+    let (offset, slice) = unsafe{ slice_bits_array_unchecked(array.as_mut(), range) };
+    traverse_one_bits_array(slice, |i| f(offset+i))
+}
+
 /// Blocks traversed in the same order as [set_array_bit], [get_array_bit].
 #[inline]
 pub fn traverse_one_bits_array<P, F>(array: &[P], mut f: F) -> ControlFlow<()>

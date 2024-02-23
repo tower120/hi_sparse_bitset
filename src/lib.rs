@@ -302,21 +302,22 @@ where
         index < Self::max_capacity()
     }
     
+    // TODO: get_inblock_indices
     #[inline]
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
-        -> (usize/*level1_block_index*/, usize/*data_block_index*/)
+        -> (usize/*level1_block_index*/, NonNull<Level1Block<Conf>>, usize/*data_block_index*/)
     {
         let level1_block_index = unsafe{
             self.level0.block_indices.as_ref().get_unchecked(level0_index)
         }.as_usize();
-
-        // 2. Level1
+        let level1_block = unsafe{ 
+            self.level1.blocks().get_unchecked(level1_block_index) 
+        };
         let data_block_index = unsafe{
-            let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
             level1_block.block_indices.as_ref().get_unchecked(level1_index)
         }.as_usize();
         
-        (level1_block_index, data_block_index)
+        (level1_block_index, level1_block.into(), data_block_index)
     }
     
     #[inline]
@@ -383,36 +384,70 @@ where
     }
     
     #[inline]
+    pub(crate) fn try_pack_empty_level1block(
+        &mut self,
+        in_block_level0_index: usize, level1_block_index: usize, level1_block: NonNull<Level1Block<Conf>>
+    ) -> bool {
+        unsafe{
+            debug_assert!(level1_block_index != 0);
+            if !level1_block.as_ref().is_empty(){
+                return false;
+            }
+            
+            // remove level1 block
+            self.level1.remove_empty_block_unchecked(level1_block_index);
+            // remove pointer from level0
+            self.level0.remove(in_block_level0_index);
+            
+            true
+        }
+    }
+    
+    #[inline]
+    pub(crate) fn try_pack_empty_datablock(
+        &mut self,
+        in_block_level1_index: usize, mut level1_block: NonNull<Level1Block<Conf>>, 
+        data_block_index: usize,      data_block:       NonNull<LevelDataBlock<Conf>>
+    ) -> bool {
+        unsafe{
+            debug_assert!(data_block_index != 0);
+            if data_block.as_ref().is_empty() {
+                // remove data block
+                self.data.remove_empty_block_unchecked(data_block_index);
+                // remove pointer from level1
+                level1_block.as_mut().remove(in_block_level1_index);
+                true
+            } else {
+                false
+            }
+        }
+    }
+    
+    #[inline]
     pub(crate) unsafe fn remove_impl(
         &mut self,
-        level0_index: usize,
-        level1_index: usize,
-        data_index: usize,
+        in_block_level0_index: usize,
+        in_block_level1_index: usize,
+        in_block_data_index: usize,
         level1_block_index: usize,
+        level1_block: NonNull<Level1Block<Conf>>,        
         data_block_index: usize,
     ) -> bool{
         // 2. Get Data block and set bit
         let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
-        let (existed, primitive) = data_block.remove(data_index);
+        let (existed, primitive) = data_block.remove(in_block_data_index);
         
-        // 3. Remove free blocks
-        if primitive == 0 && data_block.is_empty() {
-            // remove data block
-            self.data.remove_empty_block_unchecked(data_block_index);
-
-            // remove pointer from level1
-            let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-            level1_block.remove(level1_index);
-
-            if level1_block.is_empty(){
-                // remove level1 block
-                self.level1.remove_empty_block_unchecked(level1_block_index);
-
-                // remove pointer from level0
-                self.level0.remove(level0_index);
+        // 3. Remove/pack empty blocks
+        if primitive == 0{
+            let data_block = data_block.into();
+            let data_packed = self.try_pack_empty_datablock(
+                in_block_level1_index, level1_block, data_block_index, data_block
+            );
+            if data_packed{
+                let level1_block = level1_block.into(); 
+                self.try_pack_empty_level1block(in_block_level0_index, level1_block_index, level1_block);
             }
         }
-        
         existed    
     }
 
@@ -424,7 +459,7 @@ where
 
         // 1. Resolve indices
         let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
-        let (level1_block_index, data_block_index) = self.get_block_indices(level0_index, level1_index);
+        let (level1_block_index, level1_block, data_block_index) = self.get_block_indices(level0_index, level1_index);
         if data_block_index == 0{
             return false;
         }
@@ -432,7 +467,8 @@ where
         unsafe{
             self.remove_impl(
                 level0_index, level1_index, data_index,
-                level1_block_index, data_block_index
+                level1_block_index, level1_block,
+                data_block_index
             )
         }
     }
