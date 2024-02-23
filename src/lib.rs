@@ -304,14 +304,14 @@ where
     
     // TODO: get_inblock_indices
     #[inline]
-    fn get_block_indices(&self, level0_index: usize, level1_index: usize)
+    fn get_block_indices(&mut self, level0_index: usize, level1_index: usize)
         -> (usize/*level1_block_index*/, NonNull<Level1Block<Conf>>, usize/*data_block_index*/)
     {
         let level1_block_index = unsafe{
             self.level0.block_indices.as_ref().get_unchecked(level0_index)
         }.as_usize();
         let level1_block = unsafe{ 
-            self.level1.blocks().get_unchecked(level1_block_index) 
+            self.level1.blocks_mut().get_unchecked_mut(level1_block_index) 
         };
         let data_block_index = unsafe{
             level1_block.block_indices.as_ref().get_unchecked(level1_index)

@@ -319,18 +319,19 @@ where
         if range.is_empty(){
             return;
         }
-        let level_block = unsafe{ level_block.as_mut() };
         debug_assert!(range.end <= Block::<Mask, BlockIndex, BlockIndices>::size());
         let range = range.start..=range.end-1;
         
         // 1. remove all non-fixed blocks.
         traverse_one_bits_array_range_unchecked(
-            level_block.mask.into_array(), range.clone(), 
+            level_block.as_ref().mask.into_array(), range.clone(), 
             |level0_index|{
                 block_remove_fn(level0_index);
                 Continue(())
             }
         );
+        
+        let level_block = unsafe{ level_block.as_mut() };
         
         // 2. fill level0 index-pointers
         level_block
@@ -398,7 +399,7 @@ where
                 level1_block, range_start..range_end,
                 |level1_index|{
                     let data_block_index = unsafe {
-                        level1_block.as_mut().block_indices.as_ref().get_unchecked(level1_index).as_usize()
+                        level1_block.as_ref().block_indices.as_ref().get_unchecked(level1_index).as_usize()
                     };
                     
                     // remove non-fixed data block
@@ -469,13 +470,14 @@ where
             let range_start = first_level0_index + !full_leftest_level1 as usize;
             let range_end   = last_level0_index  + full_rightest_level1 as usize;
             
-            let BitSet{level0, level1, data} = &mut self.bitset; 
+            let BitSet{level0, level1, data} = &mut self.bitset;
+            let level0 = level0.into();
             
             Self::coarse_fill_level_block(BoolConst::<FILL>,
-                level0.into(), range_start..range_end,
+                level0, range_start..range_end,
                 |level0_index|{
                     let level1_block_index = unsafe {
-                        level0.block_indices.as_mut().get_unchecked_mut(level0_index).as_usize()
+                        level0.as_ref().block_indices.as_ref().get_unchecked(level0_index).as_usize()
                     };
                     
                     // remove non-fixed level1 block
@@ -722,11 +724,20 @@ mod test{
     
     #[test]
     fn range_fuzzy_test(){
-        const REPEATS: usize = 1000;
-        const INNER_REPEATS: usize = 20;
-        const MAX_INSERTS: usize = 5;
-        const MAX_REMOVES: usize = 5;
-        const MAX_RANGE: usize = 20_000;
+        cfg_if::cfg_if! {
+        if #[cfg(miri)] {
+            const REPEATS: usize = 2;
+            const INNER_REPEATS: usize = 3;
+            const MAX_INSERTS: usize = 5;
+            const MAX_REMOVES: usize = 5;
+            const MAX_RANGE: usize = 20_000;
+        } else {
+            const REPEATS: usize = 1000;
+            const INNER_REPEATS: usize = 20;
+            const MAX_INSERTS: usize = 5;
+            const MAX_REMOVES: usize = 5;
+            const MAX_RANGE: usize = 20_000;
+        }}
         
         let mut rng = rand::thread_rng();
         let mut gen_range = {
