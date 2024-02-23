@@ -6,8 +6,6 @@ use rand::Rng;
 use crate::ops::{And, Or, Sub, Xor};
 use crate::cache::{DynamicCache, FixedCache};
 use crate::iter::{BlockCursor, IndexCursor};
-use crate::apply::Apply;
-use crate::bitset_interface::BitSetInterface;
 
 use super::*;
 
