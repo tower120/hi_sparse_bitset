@@ -7,7 +7,7 @@ use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
 use crate::{data_block_start_index, DataBlock, DataBlockIter, level_indices};
-use crate::Config;
+use crate::config::Config;
 use crate::iter::{BlockCursor, IndexCursor};
 
 /// Caching block iterator.

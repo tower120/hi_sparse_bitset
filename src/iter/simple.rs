@@ -1,7 +1,7 @@
 use crate::bitset_interface::{BitSetBase, LevelMasks};
 use crate::bit_queue::BitQueue;
-use crate::data_block_start_index;
-use super::*;
+use crate::{BitBlock, data_block_start_index, DataBlock, DataBlockIter};
+use crate::config::Config;
 
 /// Simple iterator - access each data block, by traversing all hierarchy
 /// levels indirections each time.
