@@ -147,6 +147,9 @@ where
     DefaultBlockIterator::new(set)
 } 
 
+/// Can detect inequality earlier with [TRUSTED_HIERARCHY].
+/// 
+/// [TRUSTED_HIERARCHY]: crate::BitSetBase::TRUSTED_HIERARCHY
 #[inline]
 pub fn is_eq<L, R>(left: L, right: R) -> bool
 where
@@ -156,6 +159,9 @@ where
     bitsets_eq(left, right)
 }
 
+/// O(1) for [TRUSTED_HIERARCHY].
+/// 
+/// [TRUSTED_HIERARCHY]: crate::BitSetBase::TRUSTED_HIERARCHY 
 #[inline]
 pub fn is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     bitset_is_empty(bitset)

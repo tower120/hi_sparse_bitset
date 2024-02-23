@@ -10,6 +10,12 @@ pub trait BitSetBase {
     
     /// Does each raised bit in hierarchy bitblock
     /// correspond to non-empty data block?
+    /// 
+    /// Currently has effect for [Eq]/[internals::is_eq()] and 
+    /// [BitSetInterface::is_empty()]/[internals::is_empty()].
+    /// 
+    /// [internals::is_eq()]: crate::internals::is_eq
+    /// [internals::is_empty()]: crate::internals::is_empty
     const TRUSTED_HIERARCHY: bool;
 }
 

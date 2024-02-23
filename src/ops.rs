@@ -25,10 +25,12 @@ use crate::bit_block::BitBlock;
 /// 
 /// [BitSetInterface]: crate::BitSetInterface
 pub trait BitSetOp: Default + Copy + 'static{
-    /// Will operation between two TrustedHierarchy bitsets produce 
-    /// TrustedHierarchy as well?
+    /// Will operation between two [TRUSTED_HIERARCHY] bitsets produce 
+    /// [TRUSTED_HIERARCHY] as well?
     /// 
     /// Enables some optimizations. False - is always safe value.
+    /// 
+    /// [TRUSTED_HIERARCHY]: crate::BitSetBase::TRUSTED_HIERARCHY
     const TRUSTED_HIERARCHY: bool;
     
     /// Does [hierarchy_op] operands contain result?
