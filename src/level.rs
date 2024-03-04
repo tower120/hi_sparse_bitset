@@ -1,9 +1,19 @@
-use crate::block::Block;
-use crate::{BitBlock, PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::{BitBlock, PREALLOCATED_EMPTY_BLOCK};
+
+pub trait IBlock: Sized + Default{
+    type Mask: BitBlock;
+    fn mask(&self) -> &Self::Mask; 
+    fn mask_mut(&mut self) -> &mut Self::Mask;
+    
+    #[inline]
+    fn is_empty(&self) -> bool {
+        Self::Mask::is_zero(self.mask())
+    }
+}
 
 #[derive(Clone)]
-pub struct Level<Mask, BlockIndex, BlockIndices>{
-    blocks: Vec<Block<Mask, BlockIndex, BlockIndices>>,
+pub struct Level<Block: IBlock>{
+    blocks: Vec<Block>,
     
     /// Single linked list of empty block indices.
     /// Mask of empty block used as a "next free block".
@@ -11,11 +21,7 @@ pub struct Level<Mask, BlockIndex, BlockIndices>{
     root_empty_block: u64,
 }
 
-impl<Mask, BlockIndex, BlockIndices> Default for Level<Mask, BlockIndex, BlockIndices>
-where
-    Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
-{
+impl<Block: IBlock> Default for Level<Block> {
     #[inline]
     fn default() -> Self {
         Self{
@@ -30,19 +36,14 @@ where
     }
 }
 
-impl<Mask, BlockIndex, BlockIndices> Level<Mask, BlockIndex, BlockIndices>
-where
-    Mask: BitBlock,
-    BlockIndex: Primitive,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
-{
+impl<Block: IBlock> Level<Block> {
     #[inline]
-    pub fn blocks(&self) -> &[Block<Mask, BlockIndex, BlockIndices>]{
+    pub fn blocks(&self) -> &[Block] {
         self.blocks.as_slice()
     }
 
     #[inline]
-    pub fn blocks_mut(&mut self) -> &mut [Block<Mask, BlockIndex, BlockIndices>]{
+    pub fn blocks_mut(&mut self) -> &mut [Block] {
         self.blocks.as_mut_slice()
     }
 
@@ -50,9 +51,7 @@ where
     /// 
     /// Block's mask used as index to next empty block
     #[inline]
-    unsafe fn next_empty_block_index(
-        block: &mut Block<Mask, BlockIndex, BlockIndices>
-    ) -> &mut u64 {
+    unsafe fn next_empty_block_index(block: &mut Block) -> &mut u64 {
         block.mask_mut().as_array_mut().get_unchecked_mut(0)
     }
     

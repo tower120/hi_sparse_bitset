@@ -3,6 +3,7 @@ use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 
 use crate::{PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::level::IBlock;
 
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndex, BlockIndices> {
@@ -144,5 +145,23 @@ where
     #[inline]
     pub fn is_empty(&self) -> bool {
         Mask::is_zero(&self.mask)
+    }
+}
+
+impl<Mask, BlockIndex, BlockIndices> IBlock for Block<Mask, BlockIndex, BlockIndices>
+where
+    Mask: BitBlock,
+    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
+{
+    type Mask = Mask;
+
+    #[inline]
+    fn mask(&self) -> &Self::Mask {
+        &self.mask
+    }
+
+    #[inline]
+    fn mask_mut(&mut self) -> &mut Self::Mask {
+        &mut self.mask
     }
 }

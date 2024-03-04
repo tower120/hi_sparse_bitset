@@ -138,13 +138,14 @@ mod apply;
 pub mod iter;
 pub mod cache;
 pub mod internals;
+mod compact_block;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
 
-use crate::primitive::Primitive;
+use primitive::Primitive;
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
@@ -155,6 +156,7 @@ use ops::BitSetOp;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksIterExt};
+use compact_block::CompactBlock;
 
 /// Use any other operation then intersection(and) require
 /// to either do checks on block access (in LevelMasks), or
@@ -170,6 +172,18 @@ macro_rules! assume {
     };
 }
 pub(crate) use assume;
+
+pub trait PrimitiveArray: AsRef<[Self::Item]> + AsMut<[Self::Item]> + Clone {
+    type Item: Primitive;
+    const CAP: usize;
+}
+impl<T, const N: usize> PrimitiveArray for [T; N]
+where
+    T: Primitive
+{
+    type Item = T;
+    const CAP: usize = N;
+}
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -204,23 +218,30 @@ type Level0Block<Conf> = Block<
     <Conf as Config>::Level1BlockIndex, 
     <Conf as Config>::Level0BlockIndices
 >;
-type Level1Block<Conf> = Block<
+type Level1Block<Conf> = CompactBlock<
+    <Conf as Config>::Level1BitBlock,
+    <Conf as Config>::Level1BlockIndices,
+    [<<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item; 6],    
+>;
+/*type Level1Block<Conf> = Block<
     <Conf as Config>::Level1BitBlock,
     <Conf as Config>::DataBlockIndex,
     <Conf as Config>::Level1BlockIndices
->;
+>;*/
 type LevelDataBlock<Conf> = Block<
     <Conf as Config>::DataBitBlock, usize, [usize;0]
 >;
 
-type Level1<Conf> = Level<
+/*type Level1<Conf> = Level<
     <Conf as Config>::Level1BitBlock,
     <Conf as Config>::DataBlockIndex,
     <Conf as Config>::Level1BlockIndices
 >;
 type LevelData<Conf> = Level<
     <Conf as Config>::DataBitBlock, usize, [usize;0]
->;
+>;*/
+type Level1<Conf> = Level<Level1Block<Conf>>;
+type LevelData<Conf> = Level<LevelDataBlock<Conf>>;
 
 /// Hierarchical sparse bitset.
 ///
@@ -290,7 +311,7 @@ where
             // 2. Level1
             let data_block_index = unsafe{
                 let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-                level1_block.get_unchecked(level1_index)
+                level1_block.get_or_zero(level1_index)
             }.as_usize();
             
             return if data_block_index == 0 {
@@ -301,6 +322,8 @@ where
             };
         }
         
+        unreachable!()
+        /*
         // 1. Level0
         let level1_block_index = unsafe{
             self.level0.get(level0_index)?
@@ -312,7 +335,7 @@ where
             level1_block.get(level1_index)?
         }.as_usize();
 
-        Some((level1_block_index, data_block_index))
+        Some((level1_block_index, data_block_index))*/
     }
 
     /// # Safety
@@ -337,7 +360,7 @@ where
             let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
             level1_block.get_or_insert(level1_index, ||{
                 let block_index = self.data.insert_block();
-                Conf::DataBlockIndex::from_usize(block_index)
+                Primitive::from_usize(block_index)
             })
         }.as_usize();
 
@@ -366,7 +389,8 @@ where
             let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
             let existed = data_block.remove(data_index);
             
-            // TODO: fast check of mutated data_block's primitive == 0?  
+            // TODO: fast check of mutated data_block's primitive == 0?
+            use crate::level::IBlock;
 
             //if existed{
                 // 3. Remove free blocks
@@ -376,7 +400,7 @@ where
 
                     // remove pointer from level1
                     let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-                    level1_block.remove(level1_index);
+                    level1_block.remove_unchecked(level1_index);
 
                     if level1_block.is_empty(){
                         // remove level1 block
@@ -467,6 +491,7 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
+        use crate::level::IBlock;
         let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
         *level1_block.mask()
@@ -477,7 +502,7 @@ impl<Conf: Config> LevelMasks for BitSet<Conf>{
         let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
 
-        let data_block_index = level1_block.get_unchecked(level1_index).as_usize();
+        let data_block_index = level1_block.get_or_zero(level1_index).as_usize();
         let data_block = self.data.blocks().get_unchecked(data_block_index);
         *data_block.mask()
     }
@@ -515,6 +540,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
                 Some(NonNull::from(level1_block))
             )
         );
+        use crate::level::IBlock;
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
 
@@ -525,7 +551,7 @@ impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
         let array_ptr = level1_blocks.0.unwrap_unchecked().as_ptr().cast_const();
         let level1_block = level1_blocks.1.unwrap_unchecked().as_ref();
 
-        let data_block_index = level1_block.get_unchecked(level1_index);
+        let data_block_index = level1_block.get_or_zero(level1_index);
         let data_block = &*array_ptr.add(data_block_index.as_usize());
         *data_block.mask()
     }

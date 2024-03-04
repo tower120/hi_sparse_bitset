@@ -11,7 +11,7 @@
 
 use std::marker::PhantomData;
 use crate::bit_block::BitBlock;
-use crate::{cache, PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::{cache, PREALLOCATED_EMPTY_BLOCK, Primitive, PrimitiveArray};
 use crate::cache::ReduceCache;
 use crate::iter::{CachingBlockIter, CachingIndexIter};
 
@@ -33,7 +33,7 @@ pub trait Config: 'static {
     /// Must be `[Self::Level1BlockIndex; 1 << Level0BitBlock::SIZE_POT_EXPONENT]`
     ///
     /// [Level0BitBlock]: Self::Level0BitBlock
-    type Level0BlockIndices: AsRef<[Self::Level1BlockIndex]> + AsMut<[Self::Level1BlockIndex]> + Clone;
+    type Level0BlockIndices: PrimitiveArray<Item=Self::Level1BlockIndex>;
 
 // Level 1
 // There can be maximum [Level0BitBlock]::size() level1 blocks
@@ -41,6 +41,7 @@ pub trait Config: 'static {
     /// BitBlock used as bitmask for level 1 block.
     type Level1BitBlock: BitBlock;
 
+    // TODO: try to remove
     /// Index type, used for indirection from level0 to level1.
     ///
     /// Should be able to store [Level0BitBlock]::size() integer.
@@ -54,7 +55,7 @@ pub trait Config: 'static {
     /// Must be `[Self::DataBlockIndex; 1 << Level1BitBlock::SIZE_POT_EXPONENT]`
     ///
     /// [Level1BitBlock]: Self::Level1BitBlock
-    type Level1BlockIndices: AsRef<[Self::DataBlockIndex]> + AsMut<[Self::DataBlockIndex]> + Clone;
+    type Level1BlockIndices: PrimitiveArray<Item=Self::DataBlockIndex>;
 
 // Level data
 // There can be maximum [Level0BitBlock]::SIZE * [Level1BitBlock]::SIZE data level blocks
