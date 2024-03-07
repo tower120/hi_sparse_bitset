@@ -11,7 +11,7 @@
 
 use std::marker::PhantomData;
 use crate::bit_block::BitBlock;
-use crate::{cache, PREALLOCATED_EMPTY_BLOCK, Primitive, PrimitiveArray};
+use crate::{cache, Primitive, PrimitiveArray};
 use crate::cache::ReduceCache;
 use crate::iter::{CachingBlockIter, CachingIndexIter};
 
@@ -77,25 +77,31 @@ pub trait Config: 'static {
     /// 
     /// [reduce()]: crate::reduce()
     type DefaultCache: ReduceCache;
+}
+
+#[inline]
+pub(crate) const fn max_addressable_index<Conf: Config>() -> usize {
+    (1 << Conf::Level0BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
+        * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT)
+}
+
+// TODO: rename to SmallConfig?
+/// [SmallBitSet] configuration.
+/// 
+/// Try to keep level1 block small. Remember that [Level1BitBlock] has huge align.
+/// Try to keep [Level1MaskU64Populations] + [Level1SmallBlockIndices] size within 
+/// SIMD align.
+pub trait ConfigSmall: Config {
+    type Level1SmallBlockIndices : PrimitiveArray<
+        Item = <<Self as Config>::Level1BlockIndices as PrimitiveArray>::Item
+    >;
     
-    /// Max usize, [BitSet] with this `Config` can hold.
+    /// mask's bit-population at the start of each u64 block.
+    /// Should be [u8; Self::Mask::size()/64].
     /// 
-    /// [BitSet]: crate::BitSet
-    #[inline]
-    /*const*/ fn max_value() -> usize {
-        let mut max_range = (1 << Self::Level0BitBlock::SIZE_POT_EXPONENT)
-            * (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
-            * (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
-    
-        if PREALLOCATED_EMPTY_BLOCK {
-            // We occupy one block for "empty" at each level, except root.
-            max_range = max_range
-                - (1 << Self::Level1BitBlock::SIZE_POT_EXPONENT)
-                - (1 << Self::DataBitBlock::SIZE_POT_EXPONENT);
-        }
-    
-        max_range
-    }
+    /// P.S. Should be deductible from Mask, but the RUST...  
+    type Level1MaskU64Populations: PrimitiveArray<Item=u8>;
 }
 
 /// MAX = 262_144
@@ -113,6 +119,10 @@ impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
     type DataBlockIndex = u16;
 
     type DefaultCache = DefaultCache;
+}
+impl<DefaultCache: ReduceCache> ConfigSmall for _64bit<DefaultCache> {
+    type Level1SmallBlockIndices  = [u16;7];
+    type Level1MaskU64Populations = [u8;1];
 }
 
 /// MAX = 2_097_152
@@ -135,6 +145,12 @@ impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
 
     type DefaultCache = DefaultCache;
 }
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+impl<DefaultCache: ReduceCache> ConfigSmall for _128bit<DefaultCache> {
+    type Level1SmallBlockIndices  = [u16;7];
+    type Level1MaskU64Populations = [u8;2];
+}
 
 /// MAX = 16_777_216 
 #[cfg(feature = "simd")]
@@ -155,4 +171,10 @@ impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
     type DataBlockIndex = u16;
 
     type DefaultCache = DefaultCache;
+}
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+impl<DefaultCache: ReduceCache> ConfigSmall for _256bit<DefaultCache> {
+    type Level1SmallBlockIndices  = [u16;14];
+    type Level1MaskU64Populations = [u8;4];
 }

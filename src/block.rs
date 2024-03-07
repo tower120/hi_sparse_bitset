@@ -1,48 +1,39 @@
-use std::marker::PhantomData;
 use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 
-use crate::{PREALLOCATED_EMPTY_BLOCK, Primitive};
+use crate::{Primitive, PrimitiveArray};
 use crate::level::IBlock;
 
 #[derive(Clone)]
-pub struct Block<Mask, BlockIndex, BlockIndices> {
+pub struct Block<Mask, BlockIndices> {
     mask: Mask,
     /// Next level block indices
     block_indices: BlockIndices,
-    phantom: PhantomData<BlockIndex>
 }
 
-impl<Mask, BlockIndex, BlockIndices> Default for Block<Mask, BlockIndex, BlockIndices>
+impl<Mask, BlockIndices> Default for Block<Mask, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
+    BlockIndices: PrimitiveArray
 {
     #[inline]
     fn default() -> Self {
         Self {
             mask: Mask::zero(),
-            block_indices:
-                if !PREALLOCATED_EMPTY_BLOCK {
-                    unsafe{MaybeUninit::uninit().assume_init()}
-                } else {
-                    // All indices 0.
-                    unsafe{MaybeUninit::zeroed().assume_init()}
-                },
-            phantom: PhantomData
+            // All indices 0.
+            block_indices: unsafe{MaybeUninit::zeroed().assume_init()}
         }
     }
 }
 
-impl<Mask, BlockIndex, BlockIndices> Block<Mask, BlockIndex, BlockIndices>
+impl<Mask, BlockIndices> Block<Mask, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndex: Primitive,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
+    BlockIndices: PrimitiveArray
 {
     #[inline]
     pub unsafe fn from_raw(mask: Mask, block_indices: BlockIndices) -> Self {
-        Self{ mask, block_indices, phantom: PhantomData }
+        Self{ mask, block_indices }
     }
     
     /// # Safety
@@ -52,8 +43,8 @@ where
     pub unsafe fn get_or_insert(
         &mut self,
         index: usize,
-        mut f: impl FnMut() -> BlockIndex
-    ) -> BlockIndex {
+        mut f: impl FnMut() -> BlockIndices::Item
+    ) -> BlockIndices::Item {
         // mask
         let exists = self.insert_mask_unchecked(index);
 
@@ -68,6 +59,7 @@ where
         }
     }
 
+    // TODO: remove
     /// Insert mask only
     ///
     /// Return previous mask bit
@@ -81,22 +73,19 @@ where
         self.mask.set_bit::<true>(index)
     }
 
-    /// Return previous mask bit
+    /// Return previous mask bit.
     ///
     /// # Safety
     ///
-    /// index is not checked for out-of-bounds.
+    /// `index` is not checked for out-of-bounds.
     #[inline]
     pub unsafe fn remove(&mut self, index: usize) -> bool {
         // mask
         let prev = self.mask.set_bit::<false>(index);
-        // don't touch block_index - it state is irrelevant
-        if PREALLOCATED_EMPTY_BLOCK {
-            // If we have block_indices section (compile-time check)
-            if !size_of::<BlockIndices>().is_zero(){
-                let block_indices = self.block_indices.as_mut();
-                *block_indices.get_unchecked_mut(index) = BlockIndex::ZERO;
-            }
+        // If we have block_indices section (compile-time check)
+        if !size_of::<BlockIndices>().is_zero(){
+            let block_indices = self.block_indices.as_mut();
+            *block_indices.get_unchecked_mut(index) = Primitive::ZERO;
         }
         prev
     }
@@ -105,7 +94,7 @@ where
     ///
     /// index is not checked for out-of-bounds.
     #[inline]
-    pub unsafe fn get(&self, index: usize) -> Option<BlockIndex> {
+    pub unsafe fn get(&self, index: usize) -> Option<BlockIndices::Item> {
         let exists = self.contains(index);
         if !exists{
             None
@@ -114,12 +103,13 @@ where
         }
     }
 
+    // TODO: remove
     /// # Safety
     ///
     /// - index is not checked for out-of-bounds.
     /// - index is not checked for validity.
     #[inline]
-    pub unsafe fn get_unchecked(&self, index: usize) -> BlockIndex {
+    pub unsafe fn get_unchecked(&self, index: usize) -> BlockIndices::Item {
         let block_indices = self.block_indices.as_ref();
         *block_indices.get_unchecked(index)
     }
@@ -148,10 +138,10 @@ where
     }
 }
 
-impl<Mask, BlockIndex, BlockIndices> IBlock for Block<Mask, BlockIndex, BlockIndices>
+impl<Mask, BlockIndices> IBlock for Block<Mask, BlockIndices>
 where
     Mask: BitBlock,
-    BlockIndices: AsRef<[BlockIndex]> + AsMut<[BlockIndex]> + Clone
+    BlockIndices: PrimitiveArray
 {
     type Mask = Mask;
 
@@ -161,7 +151,43 @@ where
     }
 
     #[inline]
-    fn mask_mut(&mut self) -> &mut Self::Mask {
+    unsafe fn mask_mut(&mut self) -> &mut Self::Mask {
         &mut self.mask
+    }
+
+    type Item = BlockIndices::Item;
+
+    /// Same as `get_unchecked`
+    #[inline]
+    unsafe fn get_or_zero(&self, index: usize) -> Self::Item {
+        let block_indices = self.block_indices.as_ref();
+        *block_indices.get_unchecked(index)
+    }
+
+    #[inline]
+    unsafe fn get_or_insert(&mut self, index: usize, mut f: impl FnMut() -> Self::Item) -> Self::Item {
+        // mask
+        let exists = self.insert_mask_unchecked(index);
+
+        // indices
+        let block_indices = self.block_indices.as_mut();
+        if exists {
+            *block_indices.get_unchecked(index)
+        } else {
+            let block_index = f();
+            *block_indices.get_unchecked_mut(index) = block_index;
+            block_index
+        }
+    }
+
+    #[inline]
+    unsafe fn remove_unchecked(&mut self, index: usize) {
+        // mask
+        self.mask.set_bit::<false>(index);
+        // If we have block_indices section (compile-time check)
+        if !size_of::<BlockIndices>().is_zero(){
+            let block_indices = self.block_indices.as_mut();
+            *block_indices.get_unchecked_mut(index) = Primitive::ZERO;
+        }
     }
 }

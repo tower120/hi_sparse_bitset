@@ -55,3 +55,8 @@ harness = false
 name = "union_bench"
 path = "benches/union.rs"
 harness = false
+
+[[bench]]
+name = "insert_bench"
+path = "benches/insert.rs"
+harness = false

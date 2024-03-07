@@ -1,9 +1,45 @@
-use crate::{BitBlock, PREALLOCATED_EMPTY_BLOCK};
+use crate::BitBlock;
+use crate::primitive::Primitive;
 
 pub trait IBlock: Sized + Default{
     type Mask: BitBlock;
+    
     fn mask(&self) -> &Self::Mask; 
-    fn mask_mut(&mut self) -> &mut Self::Mask;
+    unsafe fn mask_mut(&mut self) -> &mut Self::Mask;
+    
+    // TODO: BlockIndex
+    type Item: Primitive;
+    
+    /*/// # Safety
+    ///
+    /// - index is not checked for out-of-bounds.
+    /// - index is not checked for validity (must exist).
+    unsafe fn get_unchecked(&self, index: usize) -> Self::Item;*/
+    
+    /// Returns 0 if item does not exist at `index`.
+    /// 
+    /// # Safety
+    /// 
+    /// - index is not checked for out-of-bounds.
+    unsafe fn get_or_zero(&self, index: usize) -> Self::Item;
+    
+    /// # Safety
+    ///
+    /// index is not checked.
+    unsafe fn get_or_insert(
+        &mut self,
+        index: usize,
+        f: impl FnMut() -> Self::Item
+    ) -> Self::Item;
+    
+    /// Return previous mask bit.
+    /// 
+    /// # Safety
+    ///
+    /// * `index` must be set
+    /// * `index` is not checked for out-of-bounds.
+    #[inline]
+    unsafe fn remove_unchecked(&mut self, index: usize);
     
     #[inline]
     fn is_empty(&self) -> bool {
@@ -25,12 +61,8 @@ impl<Block: IBlock> Default for Level<Block> {
     #[inline]
     fn default() -> Self {
         Self{
-            blocks: if PREALLOCATED_EMPTY_BLOCK {
-                //Always have empty block at index 0.
-                vec![Default::default()]
-            } else {
-                Default::default()
-            },
+            //Always have empty block at index 0.
+            blocks:vec![Default::default()],
             root_empty_block: u64::MAX,
         }
     }

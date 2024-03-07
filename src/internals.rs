@@ -237,7 +237,7 @@ macro_rules! impl_bitset_simple {
 /// `ref` version will implement [BitSetInterface] for &T only. 
 /// Otherwise - it will be implemented for both T and &T. 
 /// Working only with refs will prevent T from being passed to apply/reduce
-/// as value, and will allow to store &self safely inside [Level1BlockData].
+/// as value, and will allow to store `&self` pointer safely inside [Level1BlockData].
 /// 
 /// [BitAnd]: std::ops::BitAnd
 /// [BitOr]: std::ops::BitOr

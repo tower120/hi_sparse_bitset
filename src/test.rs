@@ -34,7 +34,17 @@ cfg_if::cfg_if! {
     }
 }
 
-type HiSparseBitset = super::BitSet<Conf>;
+
+cfg_if::cfg_if! {
+    if #[cfg(hisparsebitset_test_smallbitset)] {
+        type BitSet<Conf> = super::SmallBitSet<Conf>;        
+    } else if #[cfg(hisparsebitset_test_bitset)] {
+        type BitSet<Conf> = super::BitSet<Conf>;
+    } else {
+        type BitSet<Conf> = super::SmallBitSet<Conf>;
+    }
+}
+type HiSparseBitset = BitSet<Conf>;
 
 #[test]
 fn level_indices_test(){
@@ -708,7 +718,7 @@ fn reduce2_test() {
 
 #[test]
 fn reduce_or_test(){
-    type HiSparseBitset = super::BitSet<config::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -745,7 +755,7 @@ fn reduce_or_test(){
 
 #[test]
 fn op_or_regression_test1(){
-    type HiSparseBitset = crate::BitSet<crate::config::_64bit>;
+    type HiSparseBitset = BitSet<crate::config::_64bit>;
     let h1 = HiSparseBitset::from([0]);
     let h2 = HiSparseBitset::from([0]);
     let h3 = HiSparseBitset::from([4096]);
@@ -763,7 +773,7 @@ fn op_or_regression_test1(){
 
 #[test]
 fn reduce_xor_test(){
-    type HiSparseBitset = super::BitSet<config::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_0: usize = BLOCK_SIZE*BLOCK_SIZE;
@@ -836,7 +846,7 @@ fn multilayer_test(){
 
 #[test]
 fn multilayer_or_test(){
-    type HiSparseBitset = super::BitSet<config::_64bit>;
+    type HiSparseBitset = BitSet<config::_64bit>;
 
     const BLOCK_SIZE: usize = 64;
     const LEVEL_1: usize = BLOCK_SIZE;

@@ -1,0 +1,56 @@
+name: tests
+
+on:
+  workflow_call: 
+    inputs:
+        rustflags:
+          required: false
+          type: string
+        cache_type_flag:
+          required: true
+          type: string
+        config_type_flag:
+          required: true
+          type: string
+        bitset:
+          required: true
+          type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  tests:
+    name: careful tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dtolnay/rust-toolchain@nightly
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-careful
+    - uses: actions/checkout@v4
+    - run: RUSTFLAGS="
+             ${{ inputs.rustflags }}
+             --cfg ${{ inputs.cache_type_flag }}
+             --cfg ${{ inputs.config_type_flag }}
+             --cfg ${{ inputs.bitset }}
+           " cargo +nightly careful test --all-features
+
+  miri:
+    name: miri tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: miri
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+    - uses: actions/checkout@v4
+    - run: RUSTFLAGS="
+             ${{ inputs.rustflags }}
+             --cfg ${{ inputs.cache_type_flag }}
+             --cfg ${{ inputs.config_type_flag }}        
+             --cfg ${{ inputs.bitset }}
+           " cargo +nightly miri nextest run -j6 --all-features

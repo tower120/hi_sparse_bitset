@@ -139,30 +139,29 @@ pub mod iter;
 pub mod cache;
 pub mod internals;
 mod compact_block;
+mod raw;
+mod small_bitset;
+mod primitive_array;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
+pub use small_bitset::SmallBitSet;
 
 use primitive::Primitive;
+use primitive_array::PrimitiveArray;
 use std::ops::ControlFlow;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
 use config::Config;
+use level::IBlock;
 use block::Block;
 use level::Level;
 use ops::BitSetOp;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
 use bitset_interface::{LevelMasks, LevelMasksIterExt};
-use compact_block::CompactBlock;
-
-/// Use any other operation then intersection(and) require
-/// to either do checks on block access (in LevelMasks), or
-/// have one empty block at each level as default, and default indices pointing at it.
-/// Second variant is in use now.
-const PREALLOCATED_EMPTY_BLOCK: bool = true;
 
 macro_rules! assume {
     ($e: expr) => {
@@ -172,18 +171,8 @@ macro_rules! assume {
     };
 }
 pub(crate) use assume;
+use crate::config::max_addressable_index;
 
-pub trait PrimitiveArray: AsRef<[Self::Item]> + AsMut<[Self::Item]> + Clone {
-    type Item: Primitive;
-    const CAP: usize;
-}
-impl<T, const N: usize> PrimitiveArray for [T; N]
-where
-    T: Primitive
-{
-    type Item = T;
-    const CAP: usize = N;
-}
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -215,21 +204,21 @@ fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*
 
 type Level0Block<Conf> = Block<
     <Conf as Config>::Level0BitBlock, 
-    <Conf as Config>::Level1BlockIndex, 
     <Conf as Config>::Level0BlockIndices
 >;
-type Level1Block<Conf> = CompactBlock<
+/*type Level1Block<Conf> = CompactBlock<
     <Conf as Config>::Level1BitBlock,
+    [u8;2],
     <Conf as Config>::Level1BlockIndices,
-    [<<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item; 6],    
->;
-/*type Level1Block<Conf> = Block<
-    <Conf as Config>::Level1BitBlock,
-    <Conf as Config>::DataBlockIndex,
-    <Conf as Config>::Level1BlockIndices
+    //[MaybeUninit<<<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item>; 6],    
+    [MaybeUninit<u16>; 6],
 >;*/
+type Level1Block<Conf> = Block<
+    <Conf as Config>::Level1BitBlock,
+    <Conf as Config>::Level1BlockIndices
+>;
 type LevelDataBlock<Conf> = Block<
-    <Conf as Config>::DataBitBlock, usize, [usize;0]
+    <Conf as Config>::DataBitBlock, [usize;0]
 >;
 
 /*type Level1<Conf> = Level<
@@ -296,46 +285,30 @@ where
 
     #[inline]
     fn is_in_range(index: usize) -> bool{
-        index < Conf::max_value()
+        // TODO: this is wrong, use Raw's version
+        index < max_addressable_index::<Conf>()
     }
 
     #[inline]
     fn get_block_indices(&self, level0_index: usize, level1_index: usize)
         -> Option<(usize, usize)>
     {
-        if PREALLOCATED_EMPTY_BLOCK {
-            let level1_block_index = unsafe{
-                self.level0.get_unchecked(level0_index)
-            }.as_usize();
-    
-            // 2. Level1
-            let data_block_index = unsafe{
-                let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-                level1_block.get_or_zero(level1_index)
-            }.as_usize();
-            
-            return if data_block_index == 0 {
-                // Block 0 - is preallocated empty block
-                None
-            } else {
-                Some((level1_block_index, data_block_index))
-            };
-        }
-        
-        unreachable!()
-        /*
-        // 1. Level0
         let level1_block_index = unsafe{
-            self.level0.get(level0_index)?
+            self.level0.get_unchecked(level0_index)
         }.as_usize();
 
         // 2. Level1
         let data_block_index = unsafe{
             let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-            level1_block.get(level1_index)?
+            level1_block.get_or_zero(level1_index)
         }.as_usize();
-
-        Some((level1_block_index, data_block_index))*/
+        
+        return if data_block_index == 0 {
+            // Block 0 - is preallocated empty block
+            None
+        } else {
+            Some((level1_block_index, data_block_index))
+        };
     }
 
     /// # Safety

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+### Changed
+- `config::Config::max_value()` moved to `BitSet::max_capacity()`.
+
 ## 0.5.1
 ### Fix
 - Intersection operation `ops::And` does **not** produce `TRUSTED_HIERARCHY`.
