@@ -58,7 +58,7 @@ type RawSmallBitSet<Conf> = RawBitSet<
 /// Data     Vec│   128bit SIMD    │                                   
 ///             └                  ┘                                   
 /// ```
-/// SparseBitMap - `bit_block` acts as sparse array:
+/// SparseBitMap - `bit_block` acts as a sparse array:
 /// ```text
 ///                   0 1       2 3          ◁═ popcnt before element
 ///                                                                  
@@ -72,11 +72,15 @@ type RawSmallBitSet<Conf> = RawBitSet<
 /// As you can see, SparseBitMap has fast O(1) per-index access.
 /// Insert and remove - are O(N) operations, because
 /// `dense_array` must keep its element order.
-/// Due to this, and the fact that big `dense_array` would sit somewhere in heap, and will be accessed through
-/// the pointer (which is yet another layer of indirection) -
-/// SparseBitMap used only for small-sized arrays. We aim for 16-element array - 
-/// as with this size, data blocks pointed from level1 block will have the same size
-/// in total, as a full-sized level1 block indirection array.  
+/// 
+/// Why not just use SparseBitMap for everything?
+/// Big-sized `dense_array` should be placed somewhere outside of LevelBlock struct 
+/// to be memory efficient (e.g., in dynamic-sized heap). Hence - it 
+/// will be accessed through the pointer (which is yet another layer of indirection).
+/// Due to this, and the O(N) insert/remove - SparseBitMap is used only for small-sized arrays.
+/// We aim for a 16-element array - as with this size, data blocks pointed 
+/// from level1 block will have the same size in total, as a full-sized level1 block 
+/// indirection array.  
 /// 
 pub struct SmallBitSet<Conf: SmallConfig>(
     RawSmallBitSet<Conf>
