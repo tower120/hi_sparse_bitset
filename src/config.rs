@@ -93,7 +93,8 @@ pub(crate) const fn max_addressable_index<Conf: Config>() -> usize {
 /// Try to keep [Level1MaskU64Populations] + [Level1SmallBlockIndices] size within 
 /// SIMD align.
 pub trait ConfigSmall: Config {
-    type Level1SmallBlockIndices : PrimitiveArray<
+    /// Small buffer (inlined).
+    type Level1SmallBlockIndices: PrimitiveArray<
         Item = <<Self as Config>::Level1BlockIndices as PrimitiveArray>::Item
     >;
     

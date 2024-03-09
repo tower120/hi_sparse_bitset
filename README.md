@@ -62,7 +62,13 @@ second level are always allocated.
 Hierarchy-wise memory overhead, for `config::_128bit`:
 minimal(initial) = 416 bytes, maximum = 35 Kb.
 
-See doc for more info.
+### SmallBitSet
+
+`hi_sparse_bitset::SmallBitSet` instead of full-sized array for block pointers
+use technique we call "SparseBitMap", which allows to store pointers only to 
+non-empty blocks.
+Thou, this tehcnique introduce some additional performance overhead, 
+all operations still have O(1) complexity, like `BitSet`.
 
 ## Performance
 

@@ -2,9 +2,32 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 //! Hierarchical sparse bitset. 
 //! 
-//! Memory consumption does not depends on max index inserted.
+//! Memory consumption does not depend on max index inserted.
 //! 
-//! ![](https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png)
+//! ```text
+//! Level0       128bit SIMD                                             
+//!               [u8;128]                                               
+//!                                     SmallBitSet                      
+//!             ┌           ┐  │  ┌                      ┐               
+//! Level1  Vec │128bit SIMD│  ┃  │      128bit SIMD     │               
+//!             │ [u16;128] │  ┃  │[u16;7]/Box<[u16;128]>│               
+//!             └           ┘  │  └                      ┘               
+//!             ┌           ┐                                            
+//! Data    Vec │128bit SIMD│                                            
+//!             └           ┘                                            
+//! ────────────────────────────────────────────────────                 
+//!                        1 0 1   ...   1  ◀══ bit-mask                 
+//! Level0                 □ Ø □         □  ◀══ index-pointers           
+//!                      ┗━│━━━│━━━━━━━━━│┛                              
+//!                     ╭──╯   ╰──────╮  ╰───────────────────╮           
+//!           1 0 0 1   ▽             ▽   1                  ▽           
+//! Level1    □ Ø Ø □  ...           ...  □  ...                         
+//!         ┗━│━━━━━│━━━━━━━┛     ┗━━━━━━━│━━━━━━┛    ┗━━━━━━━━━━━━━━┛   
+//!           ╰──╮  ╰─────────────────╮   ╰───────────────╮              
+//!              ▽                    ▽                   ▽              
+//! Data     1 0 0 0 1 ...       0 0 1 1 0 ...       0 1 0 1 0 ...    ...
+//!        ┗━━━━━━━━━━━━━━━┛   ┗━━━━━━━━━━━━━━━┛   ┗━━━━━━━━━━━━━━━┛
+//! ```
 //! 
 //! The very structure of [BitSet] acts as acceleration structure for
 //! intersection operation. All operations are incredibly fast - see benchmarks.
@@ -32,6 +55,12 @@
 //! This has observable effect in a merge operation between N non-intersecting
 //! bitsets: without this optimization - the data level bitmask would be OR-ed N times;
 //! with it - only once.
+//! 
+//! # SmallBitset
+//! 
+//! [SmallBitSet] is like [BitSet], but have **significantly** lower memory footprint
+//! on sparse sets. If not some performance overhead - that would be the one and
+//! only container in this lib. 
 //! 
 //! # Config
 //! 
@@ -110,10 +139,16 @@
 //! generative sets (empty, full), specially packed sets (range-fill), 
 //! adapters, etc. See [internals] module. You need `impl` feature for that.
 //! 
-//! # SIMD
+//! # CPU extensions
 //! 
-//! 128 and 256 bit configurations use SIMD powered by [wide]. Make sure you compile with simd support
-//! enabled (`sse2` for _128bit, `avx` for _256bit) to achieve best performance.
+//! Library uses `popcnt`/`count_ones` and `tzcnt`/`trailing_zeros` heavily.
+//! Make sure you compile with hardware support of these 
+//! (on x86: `target-feature=+popcnt,+bmi1`).
+//! 
+//! ## SIMD
+//! 
+//! 128 and 256 bit configurations use SIMD, powered by [wide]. Make sure you compile with simd support
+//! enabled (on x86: `sse2` for _128bit, `avx` for _256bit) to achieve best performance.
 //! _sse2 enabled by default in Rust for most desktop environments_ 
 //!
 //! If you want to use other SIMD types/registers - see [internals] module.
@@ -142,22 +177,20 @@ mod compact_block;
 mod raw;
 mod small_bitset;
 mod primitive_array;
+mod bitset;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
+pub use bitset::BitSet;
 pub use small_bitset::SmallBitSet;
 
 use primitive::Primitive;
 use primitive_array::PrimitiveArray;
 use std::ops::ControlFlow;
-use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::NonNull;
 use config::Config;
 use level::IBlock;
-use block::Block;
-use level::Level;
 use ops::BitSetOp;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
@@ -171,8 +204,6 @@ macro_rules! assume {
     };
 }
 pub(crate) use assume;
-use crate::config::max_addressable_index;
-
 
 #[inline]
 fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*/, usize/*data*/){
@@ -201,337 +232,6 @@ fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*
 
     (level0, level1, data)
 }
-
-type Level0Block<Conf> = Block<
-    <Conf as Config>::Level0BitBlock, 
-    <Conf as Config>::Level0BlockIndices
->;
-/*type Level1Block<Conf> = CompactBlock<
-    <Conf as Config>::Level1BitBlock,
-    [u8;2],
-    <Conf as Config>::Level1BlockIndices,
-    //[MaybeUninit<<<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item>; 6],    
-    [MaybeUninit<u16>; 6],
->;*/
-type Level1Block<Conf> = Block<
-    <Conf as Config>::Level1BitBlock,
-    <Conf as Config>::Level1BlockIndices
->;
-type LevelDataBlock<Conf> = Block<
-    <Conf as Config>::DataBitBlock, [usize;0]
->;
-
-/*type Level1<Conf> = Level<
-    <Conf as Config>::Level1BitBlock,
-    <Conf as Config>::DataBlockIndex,
-    <Conf as Config>::Level1BlockIndices
->;
-type LevelData<Conf> = Level<
-    <Conf as Config>::DataBitBlock, usize, [usize;0]
->;*/
-type Level1<Conf> = Level<Level1Block<Conf>>;
-type LevelData<Conf> = Level<LevelDataBlock<Conf>>;
-
-/// Hierarchical sparse bitset.
-///
-/// Tri-level hierarchy. Highest uint it can hold
-/// is [Level0BitBlock]::size() * [Level1BitBlock]::size() * [DataBitBlock]::size().
-///
-/// Only last level contains blocks of actual data. Empty(skipped) data blocks
-/// are not allocated.
-///
-/// Structure optimized for intersection speed. 
-/// _(Other inter-bitset operations are in fact fast too - but intersection has lowest algorithmic complexity.)_
-/// Insert/remove/contains is fast O(1) too.
-/// 
-/// [Level0BitBlock]: crate::config::Config::Level0BitBlock
-/// [Level1BitBlock]: crate::config::Config::Level1BitBlock
-/// [DataBitBlock]: crate::config::Config::DataBitBlock
-pub struct BitSet<Conf: Config>{
-    level0: Level0Block<Conf>,
-    level1: Level1<Conf>,
-    data  : LevelData<Conf>,
-}
-
-impl<Conf: Config> Default for BitSet<Conf> {
-    #[inline]
-    fn default() -> Self{
-        Self{
-            level0: Default::default(),
-            level1: Default::default(),
-            data: Default::default(),
-        }
-    }
-}
-
-impl<Conf: Config> Clone for BitSet<Conf> {
-    fn clone(&self) -> Self {
-        Self{
-            level0: self.level0.clone(),
-            level1: self.level1.clone(),
-            data: self.data.clone(),
-        }
-    }
-}
-
-impl<Conf> BitSet<Conf> 
-where
-    Conf: Config
-{
-    #[inline]
-    pub fn new() -> Self{
-        Self::default()
-    }
-
-    #[inline]
-    fn is_in_range(index: usize) -> bool{
-        // TODO: this is wrong, use Raw's version
-        index < max_addressable_index::<Conf>()
-    }
-
-    #[inline]
-    fn get_block_indices(&self, level0_index: usize, level1_index: usize)
-        -> Option<(usize, usize)>
-    {
-        let level1_block_index = unsafe{
-            self.level0.get_unchecked(level0_index)
-        }.as_usize();
-
-        // 2. Level1
-        let data_block_index = unsafe{
-            let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-            level1_block.get_or_zero(level1_index)
-        }.as_usize();
-        
-        return if data_block_index == 0 {
-            // Block 0 - is preallocated empty block
-            None
-        } else {
-            Some((level1_block_index, data_block_index))
-        };
-    }
-
-    /// # Safety
-    ///
-    /// Will panic, if `index` is out of range.
-    pub fn insert(&mut self, index: usize){
-        assert!(Self::is_in_range(index), "index out of range!");
-
-        // That's indices to next level
-        let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
-
-        // 1. Level0
-        let level1_block_index = unsafe{
-            self.level0.get_or_insert(level0_index, ||{
-                let block_index = self.level1.insert_block();
-                Conf::Level1BlockIndex::from_usize(block_index)
-            })
-        }.as_usize();
-
-        // 2. Level1
-        let data_block_index = unsafe{
-            let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-            level1_block.get_or_insert(level1_index, ||{
-                let block_index = self.data.insert_block();
-                Primitive::from_usize(block_index)
-            })
-        }.as_usize();
-
-        // 3. Data level
-        unsafe{
-            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
-            data_block.insert_mask_unchecked(data_index);
-        }
-    }
-
-    /// Returns false if index is invalid/not in bitset.
-    pub fn remove(&mut self, index: usize) -> bool {
-        if !Self::is_in_range(index){
-            return false;
-        }
-
-        // 1. Resolve indices
-        let (level0_index, level1_index, data_index) = level_indices::<Conf>(index);
-        let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
-            None => return false,
-            Some(value) => value,
-        };
-
-        unsafe{
-            // 2. Get Data block and set bit
-            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
-            let existed = data_block.remove(data_index);
-            
-            // TODO: fast check of mutated data_block's primitive == 0?
-            use crate::level::IBlock;
-
-            //if existed{
-                // 3. Remove free blocks
-                if data_block.is_empty(){
-                    // remove data block
-                    self.data.remove_empty_block_unchecked(data_block_index);
-
-                    // remove pointer from level1
-                    let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-                    level1_block.remove_unchecked(level1_index);
-
-                    if level1_block.is_empty(){
-                        // remove level1 block
-                        self.level1.remove_empty_block_unchecked(level1_block_index);
-
-                        // remove pointer from level0
-                        self.level0.remove(level0_index);
-                    }
-                }
-            //}
-            existed
-        }
-    }
-
-    /// # Safety
-    ///
-    /// index MUST exists in HiSparseBitset!
-    #[inline]
-    pub unsafe fn remove_unchecked(&mut self, index: usize) {
-        // TODO: make sure compiler actually get rid of unused code.
-        let ok = self.remove(index);
-        unsafe{ assume!(ok); }
-    }
-}
-
-impl<Conf: Config> FromIterator<usize> for BitSet<Conf> {
-    fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
-        let mut this = Self::default();
-        for i in iter{
-            this.insert(i);
-        }
-        this
-    }
-}
-
-impl<Conf: Config, const N: usize> From<[usize; N]> for BitSet<Conf> {
-    fn from(value: [usize; N]) -> Self {
-        Self::from_iter(value.into_iter())
-    }
-}
-
-
-/*fn from_bitset_interface<Conf, B>() -> BitSet<Conf>
-where
-    Conf: Config, 
-    B: BitSetInterface<Conf = Conf>
-{
-    todo!()    
-} */
-
-/*impl<Conf: Config, B: BitSetInterface<Conf = Conf>> From<B> for BitSet<Conf> {
-    fn from(bitset: B) -> Self {
-        todo!()
-        
-        /*if B::TRUSTED_HIERARCHY {
-            // copy as is
-            let level0_mask = bitset.level0_mask();
-            let mut level0_indices: Conf::Level0BlockIndices = unsafe{
-                MaybeUninit::zeroed().assume_init()
-            };
-            
-            level0_mask.traverse_bits(|index|{
-                level0_indices.get_unchec
-            });
-            
-            
-            let mut level0 = Level0Block::default();
-            *level0.mask_mut() = 
-            
-            let this = Self{
-                
-            }
-        }
-        Self::from_iter(value.into_iter())*/
-    }
-}*/
-
-impl<Conf: Config> BitSetBase for BitSet<Conf>{
-    type Conf = Conf;
-    const TRUSTED_HIERARCHY: bool = true;
-}
-
-impl<Conf: Config> LevelMasks for BitSet<Conf>{
-    #[inline]
-    fn level0_mask(&self) -> Conf::Level0BitBlock {
-        *self.level0.mask()
-    }
-
-    #[inline]
-    unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
-        use crate::level::IBlock;
-        let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-        *level1_block.mask()
-    }
-
-    #[inline]
-    unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Conf::DataBitBlock {
-        let level1_block_index = self.level0.get_unchecked(level0_index).as_usize();
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-
-        let data_block_index = level1_block.get_or_zero(level1_index).as_usize();
-        let data_block = self.data.blocks().get_unchecked(data_block_index);
-        *data_block.mask()
-    }
-}
-
-impl<Conf: Config> LevelMasksIterExt for BitSet<Conf>{
-    /// Points to elements in heap. Guaranteed to be stable.
-    /// This is just plain pointers with null in default:
-    /// `(*const LevelDataBlock<Conf>, *const Level1Block<Conf>)`
-    type Level1BlockData = (
-        Option<NonNull<LevelDataBlock<Conf>>>,  /* data array pointer */
-        Option<NonNull<Level1Block<Conf>>>      /* block pointer */
-    );
-
-    type IterState = ();
-    fn make_iter_state(&self) -> Self::IterState { () }
-    unsafe fn drop_iter_state(&self, _: &mut ManuallyDrop<Self::IterState>) {}
-
-    #[inline]
-    unsafe fn init_level1_block_data(
-        &self,
-        _: &mut Self::IterState,
-        level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
-        level0_index: usize
-    ) -> (<Self::Conf as Config>::Level1BitBlock, bool){
-        let level1_block_index = self.level0.get_unchecked(level0_index);
-
-        // TODO: This can point to static empty block, if level1_block_index invalid.
-        //       But looks like this way it is a tiny bit faster.
-
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index.as_usize());
-        level1_block_data.write(
-            (
-                Some(NonNull::new_unchecked(self.data.blocks().as_ptr() as *mut _)),
-                Some(NonNull::from(level1_block))
-            )
-        );
-        use crate::level::IBlock;
-        (*level1_block.mask(), !level1_block_index.is_zero())
-    }
-
-    #[inline]
-    unsafe fn data_mask_from_block_data(
-        level1_blocks: &Self::Level1BlockData, level1_index: usize
-    ) -> Conf::DataBitBlock {
-        let array_ptr = level1_blocks.0.unwrap_unchecked().as_ptr().cast_const();
-        let level1_block = level1_blocks.1.unwrap_unchecked().as_ref();
-
-        let data_block_index = level1_block.get_or_zero(level1_index);
-        let data_block = &*array_ptr.add(data_block_index.as_usize());
-        *data_block.mask()
-    }
-}
-
-internals::impl_bitset!(impl<Conf> for ref BitSet<Conf> where Conf: Config);
-
 
 #[inline]
 fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{
