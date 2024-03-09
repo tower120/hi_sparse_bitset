@@ -29,11 +29,11 @@ pub trait Config: 'static {
 
     /// Contiguous container, used as indirection storage for level 0.
     ///
-    /// Must be big enough to accommodate at least [Level0BitBlock]::size().  
-    /// Must be `[Self::Level1BlockIndex; 1 << Level0BitBlock::SIZE_POT_EXPONENT]`
+    /// * Must be big enough to accommodate at least [Level0BitBlock]::size().
+    /// * Item should be able to store [Level0BitBlock]::size() integer.  
     ///
     /// [Level0BitBlock]: Self::Level0BitBlock
-    type Level0BlockIndices: PrimitiveArray<Item=Self::Level1BlockIndex>;
+    type Level0BlockIndices: PrimitiveArray;
 
 // Level 1
 // There can be maximum [Level0BitBlock]::size() level1 blocks
@@ -41,35 +41,20 @@ pub trait Config: 'static {
     /// BitBlock used as bitmask for level 1 block.
     type Level1BitBlock: BitBlock;
 
-    // TODO: try to remove
-    /// Index type, used for indirection from level0 to level1.
-    ///
-    /// Should be able to store [Level0BitBlock]::size() integer.
-    /// 
-    /// [Level0BitBlock]: Self::Level0BitBlock
-    type Level1BlockIndex: Primitive;
-
     /// Contiguous container, used as indirection storage for level 1 block.
     ///
-    /// Must be big enough to accommodate at least [Level1BitBlock]::size().  
-    /// Must be `[Self::DataBlockIndex; 1 << Level1BitBlock::SIZE_POT_EXPONENT]`
+    /// * Must be big enough to accommodate at least [Level1BitBlock]::size().
+    /// * Item should be able to store [Level0BitBlock]::size() * [Level1BitBlock]::size() integer.  
     ///
+    /// [Level0BitBlock]: Self::Level0BitBlock
     /// [Level1BitBlock]: Self::Level1BitBlock
-    type Level1BlockIndices: PrimitiveArray<Item=Self::DataBlockIndex>;
+    type Level1BlockIndices: PrimitiveArray;
 
 // Level data
 // There can be maximum [Level0BitBlock]::SIZE * [Level1BitBlock]::SIZE data level blocks
 
     /// BitBlock used as bitmask for data level block.
     type DataBitBlock: BitBlock;
-
-    /// Index type, used for indirection from level1 to data level.
-    ///
-    /// Should be able to store [Level0BitBlock]::size() * [Level1BitBlock]::size() integer.
-    ///
-    /// [Level0BitBlock]: Self::Level0BitBlock
-    /// [Level1BitBlock]: Self::Level1BitBlock
-    type DataBlockIndex: Primitive;
 
 // Other
 
@@ -86,22 +71,25 @@ pub(crate) const fn max_addressable_index<Conf: Config>() -> usize {
         * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT)
 }
 
-// TODO: rename to SmallConfig?
 /// [SmallBitSet] configuration.
 /// 
 /// Try to keep level1 block small. Remember that [Level1BitBlock] has huge align.
 /// Try to keep [Level1MaskU64Populations] + [Level1SmallBlockIndices] size within 
 /// SIMD align.
-pub trait ConfigSmall: Config {
+pub trait SmallConfig: Config {
     /// Small buffer (inlined).
     type Level1SmallBlockIndices: PrimitiveArray<
         Item = <<Self as Config>::Level1BlockIndices as PrimitiveArray>::Item
     >;
     
-    /// mask's bit-population at the start of each u64 block.
+    /// Mask's bit-population at the start of each u64 block.
     /// Should be [u8; Self::Mask::size()/64].
     /// 
-    /// P.S. Should be deductible from Mask, but the RUST...  
+    /// P.S. It is OK to use u8 even for bitblocks bigger than 256 bits,
+    /// since this array is used only when "small buffer" in use, which should
+    /// be less than 256 elements anyway.
+    ///  
+    /// P.P.S. Should be deductible from Mask, but THE RUST...  
     type Level1MaskU64Populations: PrimitiveArray<Item=u8>;
 }
 
@@ -113,15 +101,13 @@ impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
     type Level0BlockIndices = [u8; 64];
 
     type Level1BitBlock = u64;
-    type Level1BlockIndex = u8;
     type Level1BlockIndices = [u16; 64];
 
     type DataBitBlock = u64;
-    type DataBlockIndex = u16;
 
     type DefaultCache = DefaultCache;
 }
-impl<DefaultCache: ReduceCache> ConfigSmall for _64bit<DefaultCache> {
+impl<DefaultCache: ReduceCache> SmallConfig for _64bit<DefaultCache> {
     type Level1SmallBlockIndices  = [u16;7];
     type Level1MaskU64Populations = [u8;1];
 }
@@ -138,17 +124,15 @@ impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
     type Level0BlockIndices = [u8; 128];
 
     type Level1BitBlock = wide::u64x2;
-    type Level1BlockIndex = u8;
     type Level1BlockIndices = [u16; 128];
 
     type DataBitBlock = wide::u64x2;
-    type DataBlockIndex = u16;
 
     type DefaultCache = DefaultCache;
 }
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
-impl<DefaultCache: ReduceCache> ConfigSmall for _128bit<DefaultCache> {
+impl<DefaultCache: ReduceCache> SmallConfig for _128bit<DefaultCache> {
     type Level1SmallBlockIndices  = [u16;7];
     type Level1MaskU64Populations = [u8;2];
 }
@@ -165,17 +149,15 @@ impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
     type Level0BlockIndices = [u8; 256];
 
     type Level1BitBlock = wide::u64x4;
-    type Level1BlockIndex = u8;
     type Level1BlockIndices = [u16; 256];
 
     type DataBitBlock = wide::u64x4;
-    type DataBlockIndex = u16;
 
     type DefaultCache = DefaultCache;
 }
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
-impl<DefaultCache: ReduceCache> ConfigSmall for _256bit<DefaultCache> {
+impl<DefaultCache: ReduceCache> SmallConfig for _256bit<DefaultCache> {
     type Level1SmallBlockIndices  = [u16;14];
     type Level1MaskU64Populations = [u8;4];
 }

@@ -3,6 +3,10 @@
 ## 0.6.0
 ### Changed
 - `config::Config::max_value()` moved to `BitSet::max_capacity()`.
+- `config::Config` changed (simplified).
+
+### Added
+- `internals::PrimitiveArray`.
 
 ## 0.5.1
 ### Fix

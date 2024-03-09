@@ -109,6 +109,7 @@ pub use crate::bitset_interface::LevelMasksIterExt;
 pub(crate) use crate::bitset_interface::LevelMasksIterExt;
 
 pub use crate::primitive::Primitive;
+pub use crate::primitive_array::PrimitiveArray;
 
 pub mod bit_queue{
     pub use crate::bit_queue::*;

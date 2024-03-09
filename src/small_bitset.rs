@@ -1,7 +1,7 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::block::Block;
 use crate::compact_block::CompactBlock;
-use crate::config::{Config, ConfigSmall};
+use crate::config::{Config, SmallConfig};
 use crate::{BitSetBase, internals};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::raw::RawBitSet;
@@ -12,9 +12,9 @@ type Level0Block<Conf> = Block<
 >;
 type Level1Block<Conf> = CompactBlock<
     <Conf as Config>::Level1BitBlock,
-    <Conf as ConfigSmall>::Level1MaskU64Populations,
+    <Conf as SmallConfig>::Level1MaskU64Populations,
     <Conf as Config>::Level1BlockIndices,
-    <Conf as ConfigSmall>::Level1SmallBlockIndices,
+    <Conf as SmallConfig>::Level1SmallBlockIndices,
 >;
 type LevelDataBlock<Conf> = Block<
     <Conf as Config>::DataBitBlock, [usize;0]
@@ -78,39 +78,39 @@ type RawSmallBitSet<Conf> = RawBitSet<
 /// as with this size, data blocks pointed from level1 block will have the same size
 /// in total, as a full-sized level1 block indirection array.  
 /// 
-pub struct SmallBitSet<Conf: ConfigSmall>(
+pub struct SmallBitSet<Conf: SmallConfig>(
     RawSmallBitSet<Conf>
 );
 
-impl<Conf: ConfigSmall> Clone for SmallBitSet<Conf> {
+impl<Conf: SmallConfig> Clone for SmallBitSet<Conf> {
     #[inline]
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<Conf: ConfigSmall> Default for SmallBitSet<Conf> {
+impl<Conf: SmallConfig> Default for SmallBitSet<Conf> {
     #[inline]
     fn default() -> Self{
         Self(Default::default())
     }
 }
 
-impl<Conf: ConfigSmall> FromIterator<usize> for SmallBitSet<Conf> {
+impl<Conf: SmallConfig> FromIterator<usize> for SmallBitSet<Conf> {
     #[inline]
     fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
         Self(RawSmallBitSet::<Conf>::from_iter(iter))
     }
 }
 
-impl<Conf: ConfigSmall, const N: usize> From<[usize; N]> for SmallBitSet<Conf> {
+impl<Conf: SmallConfig, const N: usize> From<[usize; N]> for SmallBitSet<Conf> {
     #[inline]
     fn from(value: [usize; N]) -> Self {
         Self(RawSmallBitSet::<Conf>::from(value))
     }
 }
 
-impl<Conf: ConfigSmall> SmallBitSet<Conf> {
+impl<Conf: SmallConfig> SmallBitSet<Conf> {
     #[inline]
     pub fn new() -> Self{
         Default::default()
@@ -127,12 +127,12 @@ impl<Conf: ConfigSmall> SmallBitSet<Conf> {
     }
 }
 
-impl<Conf: ConfigSmall> BitSetBase for SmallBitSet<Conf>{
+impl<Conf: SmallConfig> BitSetBase for SmallBitSet<Conf>{
     type Conf = Conf;
     const TRUSTED_HIERARCHY: bool = RawSmallBitSet::<Conf>::TRUSTED_HIERARCHY;
 }
 
-impl<Conf: ConfigSmall> LevelMasks for SmallBitSet<Conf>{
+impl<Conf: SmallConfig> LevelMasks for SmallBitSet<Conf>{
     #[inline]
     fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock {
         self.0.level0_mask()
@@ -149,7 +149,7 @@ impl<Conf: ConfigSmall> LevelMasks for SmallBitSet<Conf>{
     }
 }
 
-impl<Conf: ConfigSmall> LevelMasksIterExt for SmallBitSet<Conf>{
+impl<Conf: SmallConfig> LevelMasksIterExt for SmallBitSet<Conf>{
     type IterState = <RawSmallBitSet<Conf> as LevelMasksIterExt>::IterState;
     type Level1BlockData = <RawSmallBitSet<Conf> as LevelMasksIterExt>::Level1BlockData;
 
@@ -174,4 +174,4 @@ impl<Conf: ConfigSmall> LevelMasksIterExt for SmallBitSet<Conf>{
     }
 }
 
-internals::impl_bitset!(impl<Conf> for ref SmallBitSet<Conf> where Conf: ConfigSmall);
+internals::impl_bitset!(impl<Conf> for ref SmallBitSet<Conf> where Conf: SmallConfig);
