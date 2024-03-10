@@ -11,8 +11,9 @@
 
 use std::marker::PhantomData;
 use crate::bit_block::BitBlock;
-use crate::{cache, Primitive, PrimitiveArray};
+use crate::cache;
 use crate::cache::ReduceCache;
+use crate::primitive_array::PrimitiveArray;
 use crate::iter::{CachingBlockIter, CachingIndexIter};
 
 type DefaultCache = cache::FixedCache<32>;
@@ -76,8 +77,13 @@ pub(crate) const fn max_addressable_index<Conf: Config>() -> usize {
 /// Try to keep level1 block small. Remember that [Level1BitBlock] has huge align.
 /// Try to keep [Level1MaskU64Populations] + [Level1SmallBlockIndices] size within 
 /// SIMD align.
+/// 
+/// [SmallBitSet]: crate::SmallBitSet
+/// [Level1BitBlock]: Config::Level1BitBlock
+/// [Level1MaskU64Populations]: Self::Level1MaskU64Populations
+/// [Level1SmallBlockIndices]: Self::Level1SmallBlockIndices
 pub trait SmallConfig: Config {
-    /// Small buffer (inlined).
+    /// Small(inlined) buffer for level 1 block indices.
     type Level1SmallBlockIndices: PrimitiveArray<
         Item = <<Self as Config>::Level1BlockIndices as PrimitiveArray>::Item
     >;

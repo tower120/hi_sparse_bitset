@@ -11,7 +11,7 @@ Low memory usage.
 Think of [hibitset](https://crates.io/crates/hibitset), but with lower memory consumption.
 Unlike hibitset - it is actually sparse - it's memory usage does not depend on max index in set.
 Only amount of used bitblocks matters (or elements, to put it simply).
-And like hibitset, it also utilizes hierarchical acceleration structure to reduce
+And like hibitset, it also utilizes hierarchical bitmask acceleration structure to reduce
 algorithmic complexity on operations between bitsets.
 
 <picture>

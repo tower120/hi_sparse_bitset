@@ -190,11 +190,9 @@ use primitive::Primitive;
 use primitive_array::PrimitiveArray;
 use std::ops::ControlFlow;
 use config::Config;
-use level::IBlock;
 use ops::BitSetOp;
 use bit_queue::BitQueue;
 use cache::ReduceCache;
-use bitset_interface::{LevelMasks, LevelMasksIterExt};
 
 macro_rules! assume {
     ($e: expr) => {

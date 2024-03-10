@@ -366,6 +366,8 @@ macro_rules! impl_bitset {
             }
             
             /// See [BitSetInterface::is_empty()]
+            /// 
+            /// [BitSetInterface::is_empty()]: crate::BitSetInterface::is_empty()
             #[inline]
             pub fn is_empty(&self) -> bool {
                 $crate::internals::is_empty(self)

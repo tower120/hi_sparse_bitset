@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 use std::{mem, ptr};
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
-use crate::{assume, BitSetInterface, LevelMasks};
+use crate::{assume, BitSetInterface};
 use crate::internals::impl_bitset;
 use crate::ops::BitSetOp;
 use crate::cache::ReduceCache;
-use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
+use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksIterExt};
 use crate::config::Config;
 
 /// Bitsets iterator reduction, as lazy bitset.

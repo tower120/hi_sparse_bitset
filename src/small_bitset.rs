@@ -40,7 +40,7 @@ type RawSmallBitSet<Conf> = RawBitSet<
 /// 
 /// All operations still have O(1) complexity. But in terms of raw performance,
 /// (due to additional layer of indirection)
-/// this is x1.5 - x2 slower than `BitSet`. Which is still very fast.
+/// this is x1.5 - x2 slower than [BitSet]. Which is still very fast.
 /// 
 /// # Implementation details
 /// 
@@ -82,6 +82,8 @@ type RawSmallBitSet<Conf> = RawBitSet<
 /// from level1 block will have the same size in total, as a full-sized level1 block 
 /// indirection array.  
 /// 
+/// [BitSet]: crate::BitSet
+/// [_128bit]: crate::config::_128bit
 pub struct SmallBitSet<Conf: SmallConfig>(
     RawSmallBitSet<Conf>
 );

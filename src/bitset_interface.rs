@@ -19,9 +19,7 @@ pub trait BitSetBase {
     const TRUSTED_HIERARCHY: bool;
 }
 
-/// Basic interface for accessing block masks. Can work with [SimpleIter].
-/// 
-/// [SimpleIter]: crate::iter::SimpleBlockIter
+/// Basic interface for accessing block masks. Can work with `SimpleIter`.
 pub trait LevelMasks: BitSetBase{
     fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock;
 

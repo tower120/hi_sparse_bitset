@@ -186,8 +186,6 @@ where
             let existed = data_block.mask_mut().set_bit::<false>(data_index);
             
             // TODO: fast check of mutated data_block's primitive == 0?
-            use crate::level::IBlock;
-
             //if existed{
                 // 3. Remove free blocks
                 if data_block.is_empty(){
@@ -241,7 +239,6 @@ where
 
     #[inline]
     unsafe fn level1_mask(&self, level0_index: usize) -> Conf::Level1BitBlock {
-        use crate::level::IBlock;
         let level1_block_index = self.level0.get_or_zero(level0_index).as_usize();
         let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
         *level1_block.mask()
@@ -294,7 +291,6 @@ where
                 Some(NonNull::from(level1_block))
             )
         );
-        use crate::level::IBlock;
         (*level1_block.mask(), !level1_block_index.is_zero())
     }
 

@@ -1,7 +1,4 @@
-mod common;
-
 use criterion::{black_box, Criterion, criterion_group, criterion_main};
-use crate::common::bench;
 
 type HiSparseBitset = hi_sparse_bitset::SmallBitSet<hi_sparse_bitset::config::_128bit>;
 

@@ -6,6 +6,7 @@
 - `config::Config` changed (simplified).
 
 ### Added
+- `SmallBitset` - `BitSet` with minimized memory overhead of hierarchy indirection. 
 - `internals::PrimitiveArray`.
 
 ## 0.5.1

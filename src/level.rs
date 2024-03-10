@@ -38,7 +38,6 @@ pub trait IBlock: Sized + Default{
     ///
     /// * `index` must be set
     /// * `index` is not checked for out-of-bounds.
-    #[inline]
     unsafe fn remove_unchecked(&mut self, index: usize);
     
     #[inline]
