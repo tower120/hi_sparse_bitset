@@ -20,7 +20,7 @@ pub trait IBlock: Sized + Default{
     /// 
     /// # Safety
     /// 
-    /// - index is not checked for out-of-bounds.
+    /// index is not checked for out-of-bounds.
     unsafe fn get_or_zero(&self, index: usize) -> Self::Item;
     
     /// # Safety
