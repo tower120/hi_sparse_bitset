@@ -165,19 +165,20 @@ mod level;
 mod bit_block;
 mod bit_queue;
 mod bit_utils;
-pub mod config;
-pub mod ops;
 mod reduce;
 mod bitset_interface;
 mod apply;
-pub mod iter;
-pub mod cache;
-pub mod internals;
 mod compact_block;
 mod raw;
 mod small_bitset;
 mod primitive_array;
 mod bitset;
+
+pub mod config;
+pub mod ops;
+pub mod iter;
+pub mod cache;
+pub mod internals;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;

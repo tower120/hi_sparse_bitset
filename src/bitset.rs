@@ -1,7 +1,7 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use crate::{assume, BitSetBase, internals};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
-use crate::config::{Config};
+use crate::config::Config;
 use crate::block::Block;
 use crate::raw;
 
@@ -47,7 +47,13 @@ impl<Conf: Config> BitSet<Conf> {
     #[inline]
     pub fn new() -> Self{
         Default::default()
-    }    
+    }
+    
+    /// Max usize, container with this `Conf` can hold.
+    #[inline]
+    pub const fn max_capacity() -> usize {
+        RawBitSet::<Conf>::max_capacity()
+    }
     
     /// # Safety
     ///

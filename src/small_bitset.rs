@@ -61,7 +61,7 @@ type RawSmallBitSet<Conf> = RawBitSet<
 /// SparseBitMap - `bit_block` acts as a sparse array:
 /// ```text
 ///                   0 1       2 3          ◁═ popcnt before element
-///                                                                  
+///                                             (dense_array indices)
 ///  bit_block      0 1 1 0 0 0 1 1 0 0 ...                          
 ///               └───┬─┬───────┬─┬─────────┘                        
 ///                ┌──┘┌┘ ┌─────┘ │                                  
@@ -121,6 +121,12 @@ impl<Conf: SmallConfig> SmallBitSet<Conf> {
     pub fn new() -> Self{
         Default::default()
     }    
+    
+    /// Max usize, container with this `Conf` can hold.
+    #[inline]
+    pub const fn max_capacity() -> usize {
+        RawSmallBitSet::<Conf>::max_capacity()
+    }
     
     #[inline]
     pub fn insert(&mut self, index: usize){
