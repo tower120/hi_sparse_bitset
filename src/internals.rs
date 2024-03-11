@@ -393,7 +393,7 @@ macro_rules! impl_bitset {
         // Eq
         impl<$($generics),*,Rhs> PartialEq<Rhs> for $t
         where
-            Rhs: $crate::internals::LevelMasksIterExt<Conf = <Self as BitSetBase>::Conf>,
+            Rhs: $crate::internals::LevelMasksIterExt<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*
         {
             /// Works faster with [TRUSTED_HIERARCHY].
@@ -427,7 +427,7 @@ macro_rules! impl_bitset {
         // And
         impl<$($generics),*, Rhs> std::ops::BitAnd<Rhs> for &$t
         where
-            Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
+            Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*         
         {
             type Output = $crate::Apply<$crate::ops::And, Self, Rhs>;
@@ -443,7 +443,7 @@ macro_rules! impl_bitset {
         // Or
         impl<$($generics),*, Rhs> std::ops::BitOr<Rhs> for &$t
         where
-            Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
+            Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*         
         {
             type Output = $crate::Apply<$crate::ops::Or, Self, Rhs>;
@@ -459,7 +459,7 @@ macro_rules! impl_bitset {
         // Xor
         impl<$($generics),*, Rhs> std::ops::BitXor<Rhs> for &$t
         where
-            Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
+            Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*         
         {
             type Output = $crate::Apply<$crate::ops::Xor, Self, Rhs>;
@@ -475,7 +475,7 @@ macro_rules! impl_bitset {
         // Sub
         impl<$($generics),*, Rhs> std::ops::Sub<Rhs> for &$t
         where
-            Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
+            Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*         
         {
             type Output = $crate::Apply<$crate::ops::Sub, Self, Rhs>;

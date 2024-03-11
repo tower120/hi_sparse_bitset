@@ -160,7 +160,9 @@
 mod test;
 
 mod primitive;
+mod primitive_array;
 mod block;
+mod compact_block;
 mod level;
 mod bit_block;
 mod bit_queue;
@@ -168,11 +170,10 @@ mod bit_utils;
 mod reduce;
 mod bitset_interface;
 mod apply;
-mod compact_block;
 mod raw;
-mod small_bitset;
-mod primitive_array;
+mod derive_raw;
 mod bitset;
+mod small_bitset;
 
 pub mod config;
 pub mod ops;

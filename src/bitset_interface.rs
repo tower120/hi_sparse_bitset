@@ -76,7 +76,6 @@ pub trait LevelMasks: BitSetBase{
 pub trait LevelMasksIterExt: LevelMasks{
     /// Consists from child states (if any) + Self state.
     /// 
-    /// You may need this, since [Level1BlockData] must be POD.
     /// Use `()` for stateless.
     /// 
     /// [Level1BlockData]: Self::Level1BlockData
@@ -84,7 +83,8 @@ pub trait LevelMasksIterExt: LevelMasks{
 
     /// Level1 block related data, used to speed up data_mask access.
     ///
-    /// Prefer POD, or any kind of drop-less. 
+    /// Prefer POD, or any kind of drop-less, since it will be dropped
+    /// before iteration of each next level1 block.
     /// 
     /// In library, used to cache Level1Block(s) for faster DataBlock access,
     /// without traversing whole hierarchy for getting each block during iteration.

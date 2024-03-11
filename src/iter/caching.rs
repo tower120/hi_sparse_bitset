@@ -57,7 +57,6 @@ where
     level0_index: usize,
 
     state: ManuallyDrop<T::IterState>,
-    /// Never drop - since we're guaranteed to have them POD.
     level1_block_data: MaybeUninit<T::Level1BlockData>,
 }
 
