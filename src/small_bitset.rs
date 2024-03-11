@@ -1,4 +1,4 @@
-use crate::{BitSet, BitSetBase};
+use crate::BitSetBase;
 use crate::block::Block;
 use crate::compact_block::CompactBlock;
 use crate::config::{Config, SmallConfig};
