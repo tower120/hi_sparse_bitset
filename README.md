@@ -181,5 +181,5 @@ See [CHANGELOG.md](CHANGELOG.md) for version differences.
 
 *  [roaring](https://crates.io/crates/roaring) - compressed hybrid bitset. 
    Higher algorithmic complexity of operations, but theoretically unlimited range.
-   It is still super-linearly faster then pure dense bitsets and hashsets in inter-set
+   It is still super-linearly faster than pure dense bitsets and hashsets in inter-set
    operations. See [performance section](#against-roaring) for detais.
