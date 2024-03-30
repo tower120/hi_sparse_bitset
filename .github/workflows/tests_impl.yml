@@ -1,4 +1,4 @@
-name: tests
+name: tests_impl
 
 on:
   workflow_call: 
