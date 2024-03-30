@@ -481,6 +481,13 @@ where
                 indices2.sort();
                 assert_eq!(hashsets_intersection_vec, indices2);
             }
+            
+            // reduce into Bitset test
+            {
+                let reduce = reduce(hiset_op, hi_sets.iter()).unwrap();
+                let bitset = HiSparseBitset::from(reduce.clone());
+                assert_eq!(&bitset, &reduce);
+            }
 
             // op
             {

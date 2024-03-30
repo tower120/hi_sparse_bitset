@@ -88,6 +88,19 @@ macro_rules! derive_raw {
             }
         }
         
+        /// This is fastest possible way of materializing lazy bitsets
+        /// into BitSet.
+        impl<$($generics),* , B> From<B> for $t
+        where
+            B: crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
+            $($where_bounds)*
+        {
+            #[inline]
+            fn from(bitset: B) -> Self {
+                Self(<$raw>::from(bitset))
+            }
+        }
+        
         crate::derive_raw::derive_raw_levelmasks!(
             impl<$($generics),*> $t as $raw where $($where_bounds)*  
         );
@@ -164,3 +177,4 @@ macro_rules! derive_raw_levelmasks {
     }    
 }
 pub(crate) use derive_raw_levelmasks;
+use crate::BitSetInterface;
