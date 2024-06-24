@@ -52,7 +52,7 @@ pub trait LevelMasks: BitSetBase{
 /// 
 /// See [CachingBlockIter::next()] code to see how it used.   
 /// 
-/// ```[ignore]
+/// ```ignore
 /// let mut state = bitset.make_iter_state();
 /// let mut level1_block_data = MaybeUninit::new(Default::default());
 /// 
@@ -288,12 +288,12 @@ pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     
     use ControlFlow::*;
     DefaultBlockIterator::new(bitset).traverse(|block|{
-        if block.is_empty(){
+        if !block.is_empty(){
             Break(())
         } else {
             Continue(())
         }
-    }).is_break()
+    }).is_continue()
 }
 
 /// Optimistic depth-first check.

@@ -1004,3 +1004,27 @@ fn non_trusted_hierarchy_eq_test(){
     ]);
     assert_eq!(&set1 - &set2, set3);
 }
+
+/// Test case for not working `is_empty()` in non-`TRUSTED_HIERARCHY`.
+/// https://github.com/tower120/hi_sparse_bitset/issues/33
+#[test]
+fn is_empty_non_trusted_test(){
+    use crate::config::*;
+    
+    let mut bm0: BitSet<_64bit> = BitSet::new();
+    bm0.insert(0);
+    bm0.insert(1);
+    bm0.insert(512);
+    bm0.insert(800);
+    
+    let mut bm1: BitSet<_64bit> = BitSet::new();
+    bm1.insert(1);
+    bm1.insert(2);
+    bm1.insert(511);
+    bm1.insert(513);
+    bm1.insert(800);
+    
+    let intersection = &bm0 & &bm1;
+    dbg!(&intersection);
+    assert!(!intersection.is_empty());    
+}
