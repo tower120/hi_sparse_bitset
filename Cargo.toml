@@ -34,6 +34,21 @@ cfg-if = "1"
 hibitset = "0.6.4"
 roaring = "0.10.2"
 
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    'cfg(hisparsebitset_test_NoCache)', 
+    'cfg(hisparsebitset_test_FixedCache)',
+    'cfg(hisparsebitset_test_DynamicCache)',
+
+    'cfg(hisparsebitset_test_64)',
+    'cfg(hisparsebitset_test_128)',
+    'cfg(hisparsebitset_test_256)',
+
+    'cfg(hisparsebitset_test_bitset)',
+    'cfg(hisparsebitset_test_smallbitset)',
+]
+
 [package.metadata.docs.rs]
 features = ["impl"]
 rustdoc-args = ["--cfg", "docsrs"]
