@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+### Fix
+- `is_empty()` worked wrong in non-`TRUSTED_HIERARCHY`. 
+
 ## 0.6.0
 ### Changed
 - `config::Config::max_value()` moved to `BitSet::max_capacity()`.
