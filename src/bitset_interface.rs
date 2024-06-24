@@ -52,7 +52,7 @@ pub trait LevelMasks: BitSetBase{
 /// 
 /// See [CachingBlockIter::next()] code to see how it used.   
 /// 
-/// ```[ignore]
+/// ```ignore
 /// let mut state = bitset.make_iter_state();
 /// let mut level1_block_data = MaybeUninit::new(Default::default());
 /// 
