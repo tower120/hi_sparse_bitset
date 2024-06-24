@@ -47,6 +47,11 @@ name = "custom_bitset_simple"
 required-features = ["impl"]
 
 [[bench]]
+name = "iteration_bench"
+path = "benches/iteration.rs"
+harness = false
+
+[[bench]]
 name = "intersection_bench"
 path = "benches/intersection.rs"
 harness = false

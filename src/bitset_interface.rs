@@ -288,12 +288,12 @@ pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     
     use ControlFlow::*;
     DefaultBlockIterator::new(bitset).traverse(|block|{
-        if block.is_empty(){
+        if !block.is_empty(){
             Break(())
         } else {
             Continue(())
         }
-    }).is_break()
+    }).is_continue()
 }
 
 /// Optimistic depth-first check.

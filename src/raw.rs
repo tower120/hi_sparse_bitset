@@ -138,7 +138,7 @@ where
     ///
     /// Will panic, if `index` is out of range.
     pub fn insert(&mut self, index: usize){
-        assert!(Self::is_in_range(index), "index out of range!");
+        assert!(Self::is_in_range(index), "{index} index out of range!");
 
         // That's indices to next level
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
