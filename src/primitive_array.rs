@@ -16,6 +16,7 @@ where
     type UninitArray = [MaybeUninit<Self::Item>; N];
 }
 
+#[allow(dead_code)]
 pub trait UninitPrimitiveArray
     : AsRef<[MaybeUninit<Self::UninitItem>]> 
     + AsMut<[MaybeUninit<Self::UninitItem>]> 
