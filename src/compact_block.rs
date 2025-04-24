@@ -1,6 +1,5 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{Deref, DerefMut};
-use std::ops::ControlFlow::Continue;
 use std::ptr;
 use crate::BitBlock;
 use crate::level::IBlock;
@@ -174,12 +173,10 @@ where
                 let mut big: Box<BlockIndices> = Box::new(unsafe{MaybeUninit::zeroed().assume_init()});
                 let big_array = big.deref_mut().as_mut(); 
                 let mut i = 0;
-                self.mask.traverse_bits(|index|{
+                self.mask.for_each_bit(|index|{
                     let value = array.as_ref().get_unchecked(i).assume_init_read();
                     i += 1;
-                    
                     *big_array.get_unchecked_mut(index) = value;
-                    Continue(()) 
                 });
                 *big_array.get_unchecked_mut(index) = value;
                 self.big_small = BigSmallArray::from(big);

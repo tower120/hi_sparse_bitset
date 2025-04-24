@@ -156,10 +156,9 @@ fn fuzzy_test(){
             }
             
             // block traverse contains
-            hi_set.block_iter().traverse(|block|{ 
-                block.traverse(|index|{
+            hi_set.block_iter().for_each(|block|{ 
+                block.for_each(|index|{
                     assert!(hash_set.contains(&index));
-                    ControlFlow::Continue(())     
                 })
             });
 
@@ -375,7 +374,7 @@ where
                 let mut traversed_blocks = Vec::new();
                 {
                     let mut blocks_to_consume = blocks_to_consume;
-                    intersection.clone().traverse(|block|{
+                    let _ = intersection.clone().traverse(|block|{
                         if blocks_to_consume == 0{
                             traversed_cursor = BlockCursor::from(&block);
                             return ControlFlow::Break(());
@@ -396,14 +395,13 @@ where
                     blocks_to_consume -= 1;
 
                     if let Some(block) = intersection.next(){
-                        block.traverse(
+                        block.for_each(
                             |index|{
                                 assert!(hashsets_intersection.contains(&index));
                                 // We cannot guarantee that index will
                                 // exists in initial intersection, since
                                 // it could be added after initial fill.
                                 initial_hashsets_intersection_for_blocks.remove(&index);
-                                ControlFlow::Continue(())
                             }
                         );
                         
@@ -436,7 +434,7 @@ where
                 let mut traversed_indices = Vec::new();
                 {
                     let mut indices_to_consume = indices_to_consume;
-                    intersection.clone().traverse(|i|{
+                    let _ = intersection.clone().traverse(|i|{
                         if indices_to_consume == 0{
                             traversed_cursor = i.into();
                             return ControlFlow::Break(());
@@ -471,11 +469,8 @@ where
             {
                 let mut indices2 = Vec::new();
                 for block in reduce(hiset_op, hi_sets.iter()).unwrap().block_iter(){
-                    block.traverse(
-                        |index|{
-                            indices2.push(index);
-                            ControlFlow::Continue(())
-                        }
+                    block.for_each(
+                        |index| indices2.push(index)
                     );
                 }
                 indices2.sort();
@@ -492,11 +487,8 @@ where
                 {
                     let mut indices2 = Vec::new();
                     for block in op.block_iter(){
-                        block.traverse(
-                            |index|{
-                                indices2.push(index);
-                                ControlFlow::Continue(())
-                            }
+                        block.for_each(
+                            |index| indices2.push(index)
                         );
                     }
                     indices2.sort();
@@ -541,11 +533,8 @@ where
                 .into_block_iter()
                 .move_to(block_cursor);
             for block in intersection{
-                block.traverse(
-                    |index|{
-                        initial_hashsets_intersection_for_blocks.remove(&index);
-                        ControlFlow::Continue(())
-                    }
+                block.for_each(
+                    |index|{ initial_hashsets_intersection_for_blocks.remove(&index); }
                 );
             }
         }
@@ -611,11 +600,8 @@ fn one_intersection_test(){
 
     let mut intersection = Vec::new();
     for block in iter{
-        block.traverse(
-            |index|{
-                intersection.push(index);
-                ControlFlow::Continue(())
-            }
+        block.for_each(
+            |index| intersection.push(index)
         );
     }
     intersection.sort();
@@ -655,11 +641,8 @@ fn regression_test1() {
             .into_block_iter()
             .move_to(BlockCursor::default());
         for block in iter{
-            block.traverse(
-                |index|{
-                    indices2.push(index);
-                    ControlFlow::Continue(())
-                }
+            block.for_each(
+                |index| indices2.push(index)
             );
         }
         println!("indices: {:?}", indices2);

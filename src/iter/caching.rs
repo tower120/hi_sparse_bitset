@@ -308,7 +308,7 @@ where
     where
         F: FnMut(Self::Item)
     {
-        self.traverse(|block| {
+        let _ = self.traverse(|block| {
             f(block);
             ControlFlow::Continue(())
         });
@@ -507,7 +507,7 @@ where
     where
         F: FnMut(Self::Item)
     {
-        self.traverse(|index| {
+        let _ = self.traverse(|index| {
             f(index);
             ControlFlow::Continue(())
         });

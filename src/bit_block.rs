@@ -61,6 +61,17 @@ pub trait BitBlock
     {
         bit_utils::traverse_array_one_bits(self.as_array(), f)
     }
+    
+    #[inline]
+    fn for_each_bit<F>(&self, mut f: F)
+    where
+        F: FnMut(usize)
+    {
+        let _ = self.traverse_bits(move |i| {
+            f(i);
+            ControlFlow::Continue(())
+        });
+    }
 
     type BitsIter: BitQueue;
     fn into_bits_iter(self) -> Self::BitsIter;

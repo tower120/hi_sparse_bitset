@@ -255,6 +255,17 @@ impl<Block: BitBlock> DataBlock<Block>{
     {
         self.bit_block.traverse_bits(|index| f(self.start_index + index))
     }
+    
+    #[inline]
+    pub fn for_each<F>(&self, mut f: F)
+    where
+        F: FnMut(usize)
+    {
+        let _ = self.traverse(move |index| {
+            f(index);
+            ControlFlow::Continue(())
+        });
+    }
 
     #[inline]
     pub fn iter(&self) -> DataBlockIter<Block>{
@@ -325,7 +336,7 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     where
         F: FnMut(Self::Item)
     {
-        self.traverse(|index| {
+        let _ = self.traverse(|index| {
             f(index);
             ControlFlow::Continue(())
         });
