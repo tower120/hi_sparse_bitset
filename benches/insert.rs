@@ -4,9 +4,10 @@ type HiSparseBitset = hi_sparse_bitset::SmallBitSet<hi_sparse_bitset::config::_1
 
 fn hi_sparse_bitset_insert(in_block: usize) -> HiSparseBitset{
     let mut set: HiSparseBitset = Default::default();
-    for lvl0 in 0..128 {
+    // 127^3 is max range.
+    for lvl0 in 0..127 {
         for lvl1 in 0..6 {
-            let offset = lvl0*128*128 + lvl1*128;
+            let offset = lvl0*127*127 + lvl1*127;
             for i in 0..in_block{
                 set.insert(offset + i);    
             }             
