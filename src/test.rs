@@ -41,7 +41,7 @@ cfg_if::cfg_if! {
     } else if #[cfg(hisparsebitset_test_bitset)] {
         type BitSet<Conf> = super::BitSet<Conf>;
     } else {
-        type BitSet<Conf> = super::SmallBitSet<Conf>;
+        //type BitSet<Conf> = super::SmallBitSet<Conf>;
     }
 }
 type HiSparseBitset = BitSet<Conf>;

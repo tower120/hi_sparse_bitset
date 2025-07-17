@@ -72,7 +72,7 @@ pub trait LevelMasks: BitSetBase{
 /// 
 /// [Reduce]: crate::Reduce
 /// [Apply]: crate::Apply
-/// [CachingBlockIter::next()]: crate::iter::CachingBlockIter::next()
+/// [CachingBlockIter::next()]: crate::iter::BlockIter::next()
 pub trait LevelMasksIterExt: LevelMasks{
     /// Consists from child states (if any) + Self state.
     /// 
@@ -230,8 +230,8 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 /// [LevelMasksIterExt] implementation depends on *Self being stable during iteration.
 /// If that is the case - implement only for &T.
 /// 
-/// [CachingBlockIter]: crate::iter::CachingBlockIter
-/// [CachingIndexIter]: crate::iter::CachingIndexIter
+/// [CachingBlockIter]: crate::iter::BlockIter
+/// [CachingIndexIter]: crate::iter::IndexIter
 /// [LevelMasksIterExt]: crate::internals::LevelMasksIterExt
 /// [impl_bitset!]: crate::impl_bitset!
 /// [apply]: crate::apply()

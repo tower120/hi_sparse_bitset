@@ -5,7 +5,7 @@
 //! Cache for one [BitSet] costs 2 pointers.
 //!
 //! [BitSet]: crate::BitSet
-//! [CachingBlockIter]: crate::iter::CachingBlockIter
+//! [CachingBlockIter]: crate::iter::BlockIter
 //! [reduce]: crate::reduce()
 
 use crate::ops::BitSetOp;

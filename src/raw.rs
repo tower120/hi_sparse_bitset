@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
-use crate::config::{Config, max_addressable_index};
+use crate::config::Config;
 use crate::{BitBlock, BitSetBase, level_indices};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::level::{IBlock, Level};
@@ -101,10 +101,7 @@ where
     /// [BitSet]: crate::BitSet
     #[inline]
     pub const fn max_capacity() -> usize {
-        // We occupy one block for "empty" at each level, except root.
-        max_addressable_index::<Conf>()
-            - (1 << Level1Block::Mask::SIZE_POT_EXPONENT) * (1 << LevelDataBlock::Mask::SIZE_POT_EXPONENT)
-            - (1 << LevelDataBlock::Mask::SIZE_POT_EXPONENT)
+        Conf::MAX_CAPACITY
     }      
     
     #[inline]

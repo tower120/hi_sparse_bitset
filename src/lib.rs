@@ -7,12 +7,12 @@
 //! ```text
 //! Level0       128bit SIMD                                             
 //!               [u8;128]                                               
-//!                                     SmallBitSet                      
-//!             ┌           ┐  │  ┌                      ┐               
-//! Level1  Vec │128bit SIMD│  ┃  │      128bit SIMD     │               
-//!             │ [u16;128] │  ┃  │[u16;7]/Box<[u16;128]>│               
-//!             └           ┘  │  └                      ┘               
-//!             ┌           ┐                                            
+//!                                                  
+//!             ┌           ┐                 
+//! Level1  Vec │128bit SIMD│                 
+//!             │ [u16;128] │                 
+//!             └           ┘                 
+//!             ┌           ┐                                          
 //! Data    Vec │128bit SIMD│                                            
 //!             └           ┘                                            
 //! ────────────────────────────────────────────────────                 
@@ -54,13 +54,7 @@
 //! at the data level.
 //! This has observable effect in a merge operation between N non-intersecting
 //! bitsets: without this optimization - the data level bitmask would be OR-ed N times;
-//! with it - only once.
-//! 
-//! # SmallBitset
-//! 
-//! [SmallBitSet] is like [BitSet], but have **significantly** lower memory footprint
-//! on sparse sets. If not some performance overhead - that would be the one and
-//! only container in this lib. 
+//! with it - only once. 
 //! 
 //! # Config
 //! 
@@ -100,9 +94,9 @@
 //! 
 //! You can also build cursor from index.
 //! 
-//! [cursor()]: crate::iter::CachingIndexIter::cursor
+//! [cursor()]: crate::iter::IndexIter::cursor
 //! [Cursor]: crate::iter::IndexCursor
-//! [move_to]: crate::iter::CachingIndexIter::move_to
+//! [move_to]: crate::iter::IndexIter::move_to
 //! 
 //! # Iterator::for_each
 //! 
@@ -111,7 +105,7 @@
 //! 
 //! [for_each]: std::iter::Iterator::for_each
 //! [try_for_each]: std::iter::Iterator::try_for_each
-//! [traverse]: crate::iter::CachingIndexIter::traverse
+//! [traverse]: crate::iter::IndexIter::traverse
 //! 
 //! # TrustedHierarchy
 //! 
@@ -133,12 +127,6 @@
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
 //! 
-//! # Custom bitsets
-//! 
-//! You can make your own bitsets - like 
-//! generative sets (empty, full), specially packed sets (range-fill), 
-//! adapters, etc. See [internals] module. You need `impl` feature for that.
-//! 
 //! # CPU extensions
 //! 
 //! Library uses `popcnt`/`count_ones` and `tzcnt`/`trailing_zeros` heavily.
@@ -151,7 +139,6 @@
 //! enabled (on x86: `sse2` for _128bit, `avx` for _256bit) to achieve best performance.
 //! _sse2 enabled by default in Rust for most desktop environments_ 
 //!
-//! If you want to use other SIMD types/registers - see [internals] module.
 //! If you don't need "wide" configurations, you may disable default feature `simd`.
 //!
 //! [wide]: https://crates.io/crates/wide
@@ -162,7 +149,6 @@ mod test;
 mod primitive;
 mod primitive_array;
 mod block;
-mod compact_block;
 mod level;
 mod bit_block;
 mod bit_queue;
@@ -173,20 +159,18 @@ mod apply;
 mod raw;
 mod derive_raw;
 mod bitset;
-mod small_bitset;
+mod internals;
 
 pub mod config;
 pub mod ops;
 pub mod iter;
 pub mod cache;
-pub mod internals;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
 pub use bitset::BitSet;
-pub use small_bitset::SmallBitSet;
 
 use primitive::Primitive;
 use primitive_array::PrimitiveArray;

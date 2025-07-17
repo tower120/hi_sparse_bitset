@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+### Changed
+- `CachingBlockIter` renamed to `BlockIter`.
+- `CachingIndexIter` renamed to `IndexIter`.
+
+### Removed
+- `SmallBitSet` removed as unused.
+- `internals` removed as unused.
+- `impl_` macros removed as unused.
+
 ## 0.6.1
 ### Fix
 - `is_empty()` worked wrong in non-`TRUSTED_HIERARCHY`. 

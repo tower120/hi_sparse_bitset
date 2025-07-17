@@ -171,63 +171,7 @@ pub fn is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
 #[inline]
 pub fn contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
     bitset_contains(bitset, index)
-} 
-
-/// Same as [impl_bitset], but for [LevelMasks].  
-/// 
-/// Implements [LevelMasksIterExt] by routing all operations to [LevelMasks].
-/// 
-/// # Safety
-/// 
-/// **DO NOT** implement [BitSetInterface] for `$t`, since `impl_bitset_simple`'s
-/// [LevelMasksIterExt] implementation stores pointer to Self in [Level1BlockData].
-/// If "drain iterator" will move during iteration - that will invalidate 
-/// [Level1BlockData]. 
-/// You have to use [impl_bitset!] if you need `$t` to be [BitSetInterface].
-/// 
-/// [BitSetInterface]: crate::BitSetInterface
-/// [Level1BlockData]: crate::internals::LevelMasksIterExt::Level1BlockData
-#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
-#[cfg(feature = "impl")]
-#[macro_export]
-macro_rules! impl_bitset_simple {
-    (impl <$($generics:tt),*> for ref $t:ty where $($where_bounds:tt)*) => {
-        impl<$($generics),*> $crate::internals::LevelMasksIterExt for $t
-        where
-            $($where_bounds)*
-        {
-            type IterState = ();
-            
-            type Level1BlockData = (Option<std::ptr::NonNull<Self>>, usize);
-        
-            fn make_iter_state(&self) -> Self::IterState { () }
-            unsafe fn drop_iter_state(&self, state: &mut ManuallyDrop<Self::IterState>) {}
-        
-            #[inline]
-            unsafe fn init_level1_block_data(
-                &self, 
-                state: &mut Self::IterState, 
-                level1_block_data: &mut MaybeUninit<Self::Level1BlockData>, 
-                level0_index: usize
-            ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-                level1_block_data.write((Some(self.into()), level0_index));
-                (self.level1_mask(level0_index), true)
-            }
-            
-            #[inline]
-            unsafe fn data_mask_from_block_data(
-                level1_block_data: &Self::Level1BlockData, level1_index: usize
-            ) -> <Self::Conf as Config>::DataBitBlock {
-                let this = unsafe{ level1_block_data.0.unwrap_unchecked() }.as_ref();
-                let level0_index = level1_block_data.1;
-                this.data_mask(level0_index, level1_index)
-            }
-        }
-        
-        $crate::impl_bitset!(impl<$($generics),*> for ref $t where $($where_bounds)*);
-    };
 }
-//pub(crate) use impl_bitset_simple;
 
 /// Makes bitset from [LevelMasksIterExt].
 /// 
@@ -247,8 +191,6 @@ macro_rules! impl_bitset_simple {
 /// [BitSetInterface]: crate::BitSetInterface 
 /// [BitSet]: crate::BitSet
 /// [Level1BlockData]: LevelMasksIterExt::Level1BlockData
-#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
-#[cfg_attr(feature = "impl", macro_export)]
 macro_rules! impl_bitset {
     (impl <$($generics:tt),*> for $t:ty) => {
         impl_bitset!(impl<$($generics),*> for $t where)
@@ -265,7 +207,7 @@ macro_rules! impl_bitset {
             $($where_bounds)*
         {
             type Item = usize;
-            type IntoIter = $crate::iter::CachingIndexIter<Self>;
+            type IntoIter = $crate::iter::IndexIter<Self>;
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
@@ -349,13 +291,13 @@ macro_rules! impl_bitset {
             $($where_bounds)*
         {
             #[inline]
-            pub fn block_iter<'a>(&'a self) -> $crate::iter::CachingBlockIter<&'a Self> 
+            pub fn block_iter<'a>(&'a self) -> $crate::iter::BlockIter<&'a Self> 
             {
                 $crate::internals::block_iter(self)
             }   
             
             #[inline]
-            pub fn iter<'a>(&'a self) -> $crate::iter::CachingIndexIter<&'a Self> 
+            pub fn iter<'a>(&'a self) -> $crate::iter::IndexIter<&'a Self> 
             {
                 $crate::internals::index_iter(self)
             }
@@ -366,7 +308,7 @@ macro_rules! impl_bitset {
             }
             
             /// See [BitSetInterface::is_empty()]
-            /// 
+            ///
             /// [BitSetInterface::is_empty()]: crate::BitSetInterface::is_empty()
             #[inline]
             pub fn is_empty(&self) -> bool {
@@ -381,7 +323,7 @@ macro_rules! impl_bitset {
             $($where_bounds)*
         {
             type Item = usize;
-            type IntoIter = $crate::iter::CachingIndexIter<Self>;
+            type IntoIter = $crate::iter::IndexIter<Self>;
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {

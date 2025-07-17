@@ -46,7 +46,7 @@ use crate::iter::{BlockCursor, IndexCursor};
 /// [binary_op]: crate::ops
 /// [traverse]: Self::traverse
 /// [for_each]: std::iter::Iterator::for_each
-pub struct CachingBlockIter<T>
+pub struct BlockIter<T>
 where
     T: LevelMasksIterExt,
 {
@@ -60,7 +60,7 @@ where
     level1_block_data: MaybeUninit<T::Level1BlockData>,
 }
 
-impl<T> Clone for CachingBlockIter<T>
+impl<T> Clone for BlockIter<T>
 where
     T: LevelMasksIterExt + Clone
 {
@@ -105,7 +105,7 @@ where
     }
 }
 
-impl<T> CachingBlockIter<T>
+impl<T> BlockIter<T>
 where
     T: LevelMasksIterExt,
 {
@@ -152,7 +152,7 @@ where
     /// 
     /// Index iterator will start iteration from next block.
     #[inline]
-    pub fn into_indices(mut self) -> CachingIndexIter<T> {
+    pub fn into_indices(mut self) -> IndexIter<T> {
         let data_block_iter =
             if let Some(data_block) = self.next(){
                 data_block.into_iter()
@@ -163,7 +163,7 @@ where
                 }                
             };
         
-        CachingIndexIter{
+        IndexIter {
             block_iter: self,
             data_block_iter
         }
@@ -255,7 +255,7 @@ where
     }    
 }
 
-impl<T> Iterator for CachingBlockIter<T>
+impl<T> Iterator for BlockIter<T>
 where
     T: LevelMasksIterExt,
 {
@@ -315,7 +315,7 @@ where
     }
 }
 
-impl<T> Drop for CachingBlockIter<T>
+impl<T> Drop for BlockIter<T>
 where
     T: LevelMasksIterExt
 {
@@ -331,9 +331,9 @@ where
 
 /// Caching index iterator.
 /// 
-/// Constructed by [BitSetInterface], or acquired from [CachingBlockIter::into_indices].
+/// Constructed by [BitSetInterface], or acquired from [BlockIter::into_indices].
 /// 
-/// Same as [CachingBlockIter] but for indices.
+/// Same as [BlockIter] but for indices.
 /// 
 /// # traverse / for_each
 /// 
@@ -342,15 +342,15 @@ where
 /// [BitSetInterface]: crate::BitSetInterface
 /// [traverse]: Self::traverse
 /// [for_each]: std::iter::Iterator::for_each
-pub struct CachingIndexIter<T>
+pub struct IndexIter<T>
 where
     T: LevelMasksIterExt,
 {
-    block_iter: CachingBlockIter<T>,
+    block_iter: BlockIter<T>,
     data_block_iter: DataBlockIter<<T::Conf as Config>::DataBitBlock>,
 }
 
-impl<T> Clone for CachingIndexIter<T>
+impl<T> Clone for IndexIter<T>
 where
     T: LevelMasksIterExt + Clone
 {
@@ -363,14 +363,14 @@ where
     }
 }
 
-impl<T> CachingIndexIter<T>
+impl<T> IndexIter<T>
 where
     T: LevelMasksIterExt,
 {
     #[inline]
     pub(crate) fn new(virtual_set: T) -> Self {
         Self{
-            block_iter: CachingBlockIter::new(virtual_set),
+            block_iter: BlockIter::new(virtual_set),
             data_block_iter: DataBlockIter{
                 // do not calc `start_index` now - will be calculated in 
                 // iterator, or in move_to.
@@ -414,7 +414,7 @@ where
         self 
     }    
 
-    /// Same as [CachingBlockIter::cursor], but for index.
+    /// Same as [BlockIter::cursor], but for index.
     #[inline]
     pub fn cursor(&self) -> IndexCursor<T::Conf> {
         if self.block_iter.level0_index == usize::MAX{
@@ -480,7 +480,7 @@ where
     }        
 }
 
-impl<T> Iterator for CachingIndexIter<T>
+impl<T> Iterator for IndexIter<T>
 where
     T: LevelMasksIterExt,
 {

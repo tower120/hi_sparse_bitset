@@ -7,7 +7,6 @@ pub trait IBlock: Sized + Default{
     fn mask(&self) -> &Self::Mask; 
     unsafe fn mask_mut(&mut self) -> &mut Self::Mask;
     
-    // TODO: BlockIndex
     type Item: Primitive;
     
     /*/// # Safety

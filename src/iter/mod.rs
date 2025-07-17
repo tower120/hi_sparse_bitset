@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 use crate::{DataBlock, level_indices};
 use crate::bit_block::BitBlock;
-use crate::config::{Config, max_addressable_index};
+use crate::config::Config;
 
 mod caching;
-pub use caching::{CachingBlockIter, CachingIndexIter};
+pub use caching::{BlockIter, IndexIter};
 
 #[cfg(feature = "simple_iter")]
 mod simple;
@@ -16,7 +16,7 @@ pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
 /// Block iterator cursor, or position of iterable.
 /// 
-/// Created by [CachingBlockIter::cursor()], used by [CachingBlockIter::move_to()].
+/// Created by [BlockIter::cursor()], used by [BlockIter::move_to()].
 /// Also can be built [from] index and DataBlock.
 /// 
 /// [from]: Self::from
@@ -65,7 +65,7 @@ impl<Conf: Config> BlockCursor<Conf>{
     ///
     /// Iterator [moved to] this cursor will always return `None`. 
     /// 
-    /// [moved to]: CachingBlockIter::move_to
+    /// [moved to]: BlockIter::move_to
     #[inline]
     pub fn end() -> Self{
         Self{
@@ -90,7 +90,7 @@ impl<Conf: Config> From<usize> for BlockCursor<Conf>{
     fn from(mut index: usize) -> Self {
         // It is ok to use max_addressable_index instead of max_value,
         // because we point past the actual bitset data anyway.
-        index = std::cmp::min(index, max_addressable_index::<Conf>());
+        index = std::cmp::min(index, Conf::MAX_CAPACITY);
 
         let (level0, level1, _) = level_indices::<Conf>(index);
         Self{
@@ -111,7 +111,7 @@ impl<Conf: Config> From<&DataBlock<Conf::DataBitBlock>> for BlockCursor<Conf>{
 
 /// Index iterator cursor.
 /// 
-/// Created by [CachingIndexIter::cursor()], used by [CachingIndexIter::move_to()].
+/// Created by [IndexIter::cursor()], used by [IndexIter::move_to()].
 /// Also can be built [from] index and DataBlock.
 /// 
 /// [from]: Self::from
@@ -141,7 +141,7 @@ impl<Conf: Config> IndexCursor<Conf>{
     ///
     /// Iterator [moved to] this cursor will always return `None`. 
     /// 
-    /// [moved to]: CachingIndexIter::move_to
+    /// [moved to]: IndexIter::move_to
     #[inline]
     pub fn end() -> Self{
         Self{
@@ -163,7 +163,9 @@ impl<Conf: Config> From<usize> for IndexCursor<Conf>{
     /// Build cursor that points to the `index`.
     #[inline]
     fn from(mut index: usize) -> Self {
-        index = std::cmp::min(index, max_addressable_index::<Conf>());
+        // It is ok to use max_addressable_index instead of max_value,
+        // because we point past the actual bitset data anyway.
+        index = std::cmp::min(index, Conf::MAX_CAPACITY);
 
         let (level0, level1, data) = level_indices::<Conf>(index);
         Self{
