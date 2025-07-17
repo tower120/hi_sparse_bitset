@@ -87,6 +87,11 @@
 //! [`^`]: std::ops::BitXor
 //! [-]: std::ops::Sub
 //! 
+//! # Laziness and materialization
+//! 
+//! Use [BitSet::from(impl BitSetInterface)] instead of collecting iterator for
+//! materialization into BitSet.
+//! 
 //! # Cursor
 //! 
 //! [BitSetInterface] iterators can return [cursor()], pointing to the current iterator position. 

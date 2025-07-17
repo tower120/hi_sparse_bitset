@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
 use crate::config::Config;
-use crate::{BitBlock, BitSetBase, level_indices};
+use crate::{BitBlock, BitSetBase, BitSetInterface, level_indices};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::level::{IBlock, Level};
 use crate::primitive::Primitive;
@@ -81,6 +81,75 @@ where
     #[inline]
     fn from(value: [usize; N]) -> Self {
         Self::from_iter(value.into_iter())
+    }
+}
+
+impl<Conf, Level0Block, Level1Block, LevelDataBlock, B> From<B> for RawBitSet<Conf, Level0Block, Level1Block, LevelDataBlock>
+where
+    B: BitSetInterface<Conf = Conf>,
+    Conf: Config<DataBitBlock = LevelDataBlock::Mask>,
+    Level0Block: IBlock,
+    Level1Block: IBlock,
+    LevelDataBlock: IBlock,
+{
+    #[inline]
+    fn from(bitset: B) -> Self {
+        /*if B::TRUSTED_HIERARCHY{
+            todo!("optimized special case with hierarchies + prealocated space")
+        }*/
+        
+        // number of blocks in each level unknown.
+        // insert block by block.
+        // We only know that blocks come in order.
+        let mut this = Self::default();
+        let mut global_level1_index = usize::MAX;
+        let mut level1_block_ptr: Option<NonNull<Level1Block>> = None;
+        bitset.block_iter().for_each(|block|{
+            // block can be empty
+            if block.is_empty(){
+                return;
+            }
+            
+            // TODO: block_iter could just return these
+            let (inner_level0_index, inner_level1_index, _) = Self::level_indices(block.start_index);
+            
+            // block.start_index / Conf::DataBitBlock::SIZE_POT_EXPONENT
+            let current_level1_block_index = block.start_index >> Conf::DataBitBlock::SIZE_POT_EXPONENT;
+            if current_level1_block_index != global_level1_index {
+                global_level1_index = current_level1_block_index;
+                
+                // 1. Level0
+                let level1_block_index = unsafe{
+                    this.level0.get_or_insert(inner_level0_index, ||{
+                        let block_index = this.level1.insert_block();
+                        Primitive::from_usize(block_index)
+                    })
+                }.as_usize();
+
+                // 2. Level1
+                level1_block_ptr = Some(NonNull::from(
+                    unsafe{
+                        this.level1.blocks_mut().get_unchecked_mut(level1_block_index)
+                    }
+                ));
+            }
+
+            // 3. Data Level
+            unsafe{
+                let data_block_index = 
+                    // TODO: insert_unchecked
+                    level1_block_ptr.unwrap_unchecked().as_mut()
+                    .get_or_insert(inner_level1_index, ||{
+                        // TODO: insert_block_with
+                        let block_index = this.data.insert_block();
+                        Primitive::from_usize(block_index)
+                    }).as_usize();
+                
+                let data_block = this.data.blocks_mut().get_unchecked_mut(data_block_index);
+                *data_block.mask_mut() = block.bit_block;
+            }
+        });
+        this
     }
 }
 
