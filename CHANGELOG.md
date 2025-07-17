@@ -5,6 +5,9 @@
 - `CachingBlockIter` renamed to `BlockIter`.
 - `CachingIndexIter` renamed to `IndexIter`.
 
+### Added
+- `BitSet impl From<impl BitSetInterface>` - now you can materialize lazy bitset fast.
+
 ### Removed
 - `SmallBitSet` removed as unused.
 - `internals` removed as unused.

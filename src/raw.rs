@@ -113,7 +113,7 @@ where
             // TODO: block_iter could just return these
             let (inner_level0_index, inner_level1_index, _) = Self::level_indices(block.start_index);
             
-            // block.start_index / Conf::DataBitBlock::SIZE_POT_EXPONENT
+            // block.start_index / 2^Conf::DataBitBlock::SIZE_POT_EXPONENT
             let current_level1_block_index = block.start_index >> Conf::DataBitBlock::SIZE_POT_EXPONENT;
             if current_level1_block_index != global_level1_index {
                 global_level1_index = current_level1_block_index;
@@ -136,17 +136,16 @@ where
 
             // 3. Data Level
             unsafe{
-                let data_block_index = 
-                    // TODO: insert_unchecked
-                    level1_block_ptr.unwrap_unchecked().as_mut()
-                    .get_or_insert(inner_level1_index, ||{
-                        // TODO: insert_block_with
-                        let block_index = this.data.insert_block();
-                        Primitive::from_usize(block_index)
-                    }).as_usize();
-                
-                let data_block = this.data.blocks_mut().get_unchecked_mut(data_block_index);
+                // Make data block.
+                let mut data_block = LevelDataBlock::default();
                 *data_block.mask_mut() = block.bit_block;
+                
+                // Push block to data level. 
+                let data_block_index = this.data.push_block(data_block);
+
+                // Register block's index in level1.
+                level1_block_ptr.unwrap_unchecked().as_mut()
+                    .insert_unchecked(inner_level1_index, Primitive::from_usize(data_block_index));
             }
         });
         this

@@ -68,6 +68,17 @@ where
     }
 
     #[inline]
+    unsafe fn insert_unchecked(&mut self, index: usize, item: Self::Item) {
+        // mask
+        let exists = self.mask.set_bit::<true>(index);
+        debug_assert!(!exists);
+
+        // indices
+        let block_indices = self.block_indices.as_mut();
+        *block_indices.get_unchecked_mut(index) = item;
+    }
+
+    #[inline]
     unsafe fn remove_unchecked(&mut self, index: usize) {
         // mask
         self.mask.set_bit::<false>(index);

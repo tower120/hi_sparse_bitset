@@ -30,6 +30,16 @@ pub trait IBlock: Sized + Default{
         index: usize,
         f: impl FnMut() -> Self::Item
     ) -> Self::Item;
+
+    /// # Safety
+    ///
+    /// * index is not checked.
+    /// * item at index must NOT exist in level.
+    unsafe fn insert_unchecked(
+        &mut self,
+        index: usize,
+        item : Self::Item
+    );
     
     /// Return previous mask bit.
     /// 
@@ -117,6 +127,7 @@ impl<Block: IBlock> Level<Block> {
         self.root_empty_block = block_index as u64;
     }
 
+    /// Inserts empty block and return its index.
     #[inline]
     pub fn insert_block(&mut self) -> usize {
         if let Some(index) = self.pop_empty_block(){
@@ -127,6 +138,14 @@ impl<Block: IBlock> Level<Block> {
             index
         }
     }
+    
+    /// Unlike [insert_block] - never re-use block. 
+    #[inline]
+    pub fn push_block(&mut self, block: Block) -> usize {
+        let index = self.blocks.len();
+        self.blocks.push(block);
+        index
+    }    
 
     /// # Safety
     ///
