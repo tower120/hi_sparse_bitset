@@ -2,7 +2,8 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
 use crate::{assume, level_indices};
 use crate::bit_block::BitBlock;
-use crate::config::{DefaultBlockIterator, Config, DefaultIndexIterator};
+use crate::config::Config;
+use crate::iter::{BlockIter, IndexIter};
 
 // We have this separate trait with Config, to avoid making LevelMasks public.
 pub trait BitSetBase {
@@ -239,22 +240,22 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 pub unsafe trait BitSetInterface
     : BitSetBase 
     + LevelMasksIterExt 
-    + IntoIterator<IntoIter = DefaultIndexIterator<Self>>
+    + IntoIterator<IntoIter = IndexIter<Self>>
     + Sized
 {
     #[inline]
-    fn block_iter(&self) -> DefaultBlockIterator<&'_ Self> {
-        DefaultBlockIterator::new(self)
+    fn block_iter(&self) -> BlockIter<&'_ Self> {
+        BlockIter::new(self)
     }
 
     #[inline]
-    fn iter(&self) -> DefaultIndexIterator<&'_ Self> {
-        DefaultIndexIterator::new(self)
+    fn iter(&self) -> IndexIter<&'_ Self> {
+        IndexIter::new(self)
     }
     
     #[inline]
-    fn into_block_iter(self) -> DefaultBlockIterator<Self> {
-        DefaultBlockIterator::new(self)
+    fn into_block_iter(self) -> BlockIter<Self> {
+        BlockIter::new(self)
     }
     
     #[inline]
@@ -287,7 +288,7 @@ pub(crate) fn bitset_is_empty<S: LevelMasksIterExt>(bitset: S) -> bool {
     }
     
     use ControlFlow::*;
-    DefaultBlockIterator::new(bitset).traverse(|block|{
+    BlockIter::new(bitset).traverse(|block|{
         if !block.is_empty(){
             Break(())
         } else {

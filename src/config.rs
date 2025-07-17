@@ -17,8 +17,6 @@ use crate::primitive_array::PrimitiveArray;
 use crate::iter::{BlockIter, IndexIter};
 
 type DefaultCache = cache::FixedCache<32>;
-pub(crate) type DefaultBlockIterator<T> = BlockIter<T>;
-pub(crate) type DefaultIndexIterator<T> = IndexIter<T>;
 
 /// [BitSet] configuration
 /// 

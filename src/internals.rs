@@ -93,7 +93,6 @@
 //! * examples/custom_bitset.rs
 
 use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
-use crate::config::{DefaultBlockIterator, DefaultIndexIterator};
 use crate::bitset_interface::BitSetInterface;
 
 #[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
@@ -114,39 +113,6 @@ pub use crate::primitive_array::PrimitiveArray;
 pub mod bit_queue{
     pub use crate::bit_queue::*;
 }
-
-#[inline]
-pub fn into_index_iter<T>(set: T) -> DefaultIndexIterator<T>
-where
-    T: BitSetInterface
-{
-    DefaultIndexIterator::new(set)
-}
-
-#[inline]
-pub fn index_iter<'a, T>(set: &'a T) -> DefaultIndexIterator<&'a T>
-where
-    &'a T: BitSetInterface
-{
-    DefaultIndexIterator::new(set)
-} 
-
-#[allow(dead_code)]
-#[inline]
-pub fn into_block_iter<T>(set: T) -> DefaultBlockIterator<T>
-where
-    T: BitSetInterface
-{
-    DefaultBlockIterator::new(set)
-}
-
-#[inline]
-pub fn block_iter<'a, T>(set: &'a T) -> DefaultBlockIterator<&'a T>
-where
-    &'a T: BitSetInterface
-{
-    DefaultBlockIterator::new(set)
-} 
 
 /// Can detect inequality earlier with [TRUSTED_HIERARCHY].
 /// 
@@ -211,7 +177,7 @@ macro_rules! impl_bitset {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                $crate::internals::into_index_iter(self)
+                $crate::iter::IndexIter::new(self)
             }
         }        
         
@@ -293,13 +259,13 @@ macro_rules! impl_bitset {
             #[inline]
             pub fn block_iter<'a>(&'a self) -> $crate::iter::BlockIter<&'a Self> 
             {
-                $crate::internals::block_iter(self)
+                $crate::iter::BlockIter::new(self)
             }   
             
             #[inline]
             pub fn iter<'a>(&'a self) -> $crate::iter::IndexIter<&'a Self> 
             {
-                $crate::internals::index_iter(self)
+                $crate::iter::IndexIter::new(self)
             }
             
             #[inline]
@@ -327,7 +293,7 @@ macro_rules! impl_bitset {
 
             #[inline]
             fn into_iter(self) -> Self::IntoIter {
-                $crate::internals::into_index_iter(self)
+                $crate::iter::IndexIter::new(self)
             }
         }
         
@@ -433,3 +399,4 @@ macro_rules! impl_bitset {
     };
 }
 pub(crate) use impl_bitset;
+use crate::iter::BlockIter;
