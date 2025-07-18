@@ -6,8 +6,9 @@ use std::ops::ControlFlow;
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
 use crate::bitset_interface::{BitSetBase, LevelMasksIterExt};
-use crate::{data_block_start_index, DataBlock, DataBlockIter, level_indices};
+use crate::level_indices;
 use crate::config::Config;
+use crate::data_block::{data_block_start_index, DataBlock, DataBlockIter};
 use crate::iter::{BlockCursor, IndexCursor};
 
 /// Caching block iterator.
@@ -531,7 +532,7 @@ where
     };
     
     let block_start_index =
-        crate::data_block_start_index::<<S as BitSetBase>::Conf>(
+        data_block_start_index::<<S as BitSetBase>::Conf>(
             level0_index, level1_index
         );
 

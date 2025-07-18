@@ -12,11 +12,7 @@ pub trait BitSetBase {
     /// Does each raised bit in hierarchy bitblock
     /// correspond to non-empty data block?
     /// 
-    /// Currently has effect for [Eq]/[internals::is_eq()] and 
-    /// [BitSetInterface::is_empty()]/[internals::is_empty()].
-    /// 
-    /// [internals::is_eq()]: crate::internals::is_eq
-    /// [internals::is_empty()]: crate::internals::is_empty
+    /// Currently has effect for [Eq] and [BitSetInterface::is_empty()].
     const TRUSTED_HIERARCHY: bool;
 }
 
@@ -212,7 +208,7 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 /// 
 /// # Traversing
 /// 
-/// [CachingBlockIter] and [CachingIndexIter] have specialized `for_each()` implementation and `traverse()`.
+/// [BlockIter] and [IndexIter] have specialized `for_each()` implementation and `traverse()`.
 /// 
 /// Like with most Rust iterators, traversing[^traverse_def] is somewhat faster
 /// then iteration. In this particular case, it has noticeable difference in micro-benchmarks.
@@ -222,19 +218,8 @@ impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {
 /// [^traverse_def]: Under "traverse" we understand function application for 
 /// each element of bitset.
 /// 
-/// # Implementation
-/// 
-/// Consider using [impl_bitset!] instead of implementing it manually.
-///
-/// Implementing BitSetInterface for T will make it passable by value to [apply], [reduce].
-/// That may be not what you want, if your type contains heavy data, or your
-/// [LevelMasksIterExt] implementation depends on *Self being stable during iteration.
-/// If that is the case - implement only for &T.
-/// 
-/// [CachingBlockIter]: crate::iter::BlockIter
-/// [CachingIndexIter]: crate::iter::IndexIter
-/// [LevelMasksIterExt]: crate::internals::LevelMasksIterExt
-/// [impl_bitset!]: crate::impl_bitset!
+/// [BlockIter]: crate::iter::BlockIter
+/// [IndexIter]: crate::iter::IndexIter
 /// [apply]: crate::apply()
 /// [reduce]: crate::reduce()
 pub unsafe trait BitSetInterface

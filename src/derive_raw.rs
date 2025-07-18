@@ -177,4 +177,3 @@ macro_rules! derive_raw_levelmasks {
     }    
 }
 pub(crate) use derive_raw_levelmasks;
-use crate::BitSetInterface;

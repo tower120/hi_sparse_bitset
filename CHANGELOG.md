@@ -1,12 +1,20 @@
 # Changelog
 
 ## 0.7.0
+
+This release introduces `serde` support. 
+Adds means of "collecting" virtual bitest.
+Simplifies API by removing unused parts.
+
 ### Changed
 - `CachingBlockIter` renamed to `BlockIter`.
 - `CachingIndexIter` renamed to `IndexIter`.
 
 ### Added
 - `BitSet impl From<impl BitSetInterface>` - now you can materialize lazy bitset fast.
+- `DataBlock::new()` and `DataBlock::new_unchecked()` constructors.
+- `DataBlock::into_parts()` for destructuring.
+- `DataBlock` now support `serde` .
 
 ### Removed
 - `SmallBitSet` removed as unused.

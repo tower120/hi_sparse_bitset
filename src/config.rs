@@ -14,7 +14,6 @@ use crate::bit_block::BitBlock;
 use crate::cache;
 use crate::cache::ReduceCache;
 use crate::primitive_array::PrimitiveArray;
-use crate::iter::{BlockIter, IndexIter};
 
 type DefaultCache = cache::FixedCache<32>;
 

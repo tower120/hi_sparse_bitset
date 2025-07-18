@@ -1,18 +1,17 @@
+// TODO refactor module structure
+
 //! Iteration always return ordered (or sorted) index sequences.
 
 use std::marker::PhantomData;
 
-use crate::{DataBlock, level_indices};
+use crate::level_indices;
+use crate::data_block::DataBlock;
 use crate::bit_block::BitBlock;
 use crate::config::Config;
 
 mod caching;
 pub use caching::{BlockIter, IndexIter};
 
-#[cfg(feature = "simple_iter")]
-mod simple;
-#[cfg(feature = "simple_iter")]
-pub use simple::{SimpleBlockIter, SimpleIndexIter};
 
 /// Block iterator cursor, or position of iterable.
 /// 

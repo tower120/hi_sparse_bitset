@@ -93,26 +93,11 @@
 //! * examples/custom_bitset.rs
 
 use crate::bitset_interface::{bitset_is_empty, bitsets_eq, bitset_contains};
-use crate::bitset_interface::BitSetInterface;
 
-#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
-#[cfg(feature = "impl")]
-pub use crate::bitset_interface::LevelMasks;
-#[cfg(not(feature = "impl"))]
 pub(crate) use crate::bitset_interface::LevelMasks;
-
-#[cfg_attr(docsrs, doc(cfg(feature = "impl")))]
-#[cfg(feature = "impl")]
-pub use crate::bitset_interface::LevelMasksIterExt;
-#[cfg(not(feature = "impl"))]
 pub(crate) use crate::bitset_interface::LevelMasksIterExt;
 
 pub use crate::primitive::Primitive;
-pub use crate::primitive_array::PrimitiveArray;
-
-pub mod bit_queue{
-    pub use crate::bit_queue::*;
-}
 
 /// Can detect inequality earlier with [TRUSTED_HIERARCHY].
 /// 
@@ -399,4 +384,3 @@ macro_rules! impl_bitset {
     };
 }
 pub(crate) use impl_bitset;
-use crate::iter::BlockIter;

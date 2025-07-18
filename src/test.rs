@@ -1,13 +1,14 @@
 use std::collections::HashSet;
 use std::iter::zip;
-
+use std::ops::ControlFlow;
 use itertools::assert_equal;
 use rand::Rng;
-use crate::ops::{And, Or, Sub, Xor};
-use crate::cache::{DynamicCache, FixedCache};
+use crate::ops::{And, BitSetOp, Or, Sub, Xor};
+use crate::{level_indices, reduce, reduce_w_cache, Apply, BitSetInterface};
+use crate::BitSet;
+use crate::config;
+use crate::cache;
 use crate::iter::{BlockCursor, IndexCursor};
-
-use super::*;
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_NoCache)] {
@@ -659,6 +660,7 @@ fn regression_test1() {
 
 #[test]
 fn resume_valid_level1_index_miri_test(){
+    use cache::*;
     let s1: HiSparseBitset = [1000, 2000, 3000].into();
     let s2 = s1.clone();
 
@@ -874,6 +876,7 @@ fn op_or_test(){
 
 #[test]
 fn multilayer_fixed_dynamic_cache(){
+    use cache::*;
     let seq1: HiSparseBitset = [1,2,3].into();
     let seq2: HiSparseBitset = [3,4,5].into();
     let seq3: HiSparseBitset = [5,6,7].into();

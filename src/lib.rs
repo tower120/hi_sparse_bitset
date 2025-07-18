@@ -132,6 +132,12 @@
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
 //! 
+//! # Serialization/Serde
+//! 
+//! Enable feature `serde` - for [serde] serialization support.
+//! 
+//! [serde]: https://crates.io/crates/serde
+//! 
 //! # CPU extensions
 //! 
 //! Library uses `popcnt`/`count_ones` and `tzcnt`/`trailing_zeros` heavily.
@@ -165,6 +171,7 @@ mod raw;
 mod derive_raw;
 mod bitset;
 mod internals;
+mod data_block;
 
 pub mod config;
 pub mod ops;
@@ -176,13 +183,12 @@ pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
 pub use bitset::BitSet;
+pub use data_block::{DataBlock, DataBlockIter};
 
 use primitive::Primitive;
 use primitive_array::PrimitiveArray;
-use std::ops::ControlFlow;
 use config::Config;
 use ops::BitSetOp;
-use bit_queue::BitQueue;
 use cache::ReduceCache;
 
 macro_rules! assume {
@@ -220,116 +226,6 @@ fn level_indices<Conf: Config>(index: usize) -> (usize/*level0*/, usize/*level1*
     let data = level1_remainder;
 
     (level0, level1, data)
-}
-
-#[inline]
-fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: usize) -> usize{
-    let level0_offset = level0_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT + Conf::Level1BitBlock::SIZE_POT_EXPONENT);
-    let level1_offset = level1_index << (Conf::DataBitBlock::SIZE_POT_EXPONENT);
-    level0_offset + level1_offset
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DataBlock<Block>{
-    pub start_index: usize,
-    pub bit_block: Block
-}
-impl<Block: BitBlock> DataBlock<Block>{
-    // TODO: remove
-    /// traverse approx. 15% faster then iterator
-    #[inline]
-    pub fn traverse<F>(&self, mut f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>
-    {
-        self.bit_block.traverse_bits(|index| f(self.start_index + index))
-    }
-    
-    #[inline]
-    pub fn for_each<F>(&self, mut f: F)
-    where
-        F: FnMut(usize)
-    {
-        let _ = self.traverse(move |index| {
-            f(index);
-            ControlFlow::Continue(())
-        });
-    }
-
-    #[inline]
-    pub fn iter(&self) -> DataBlockIter<Block>{
-        DataBlockIter{
-            start_index: self.start_index,
-            bit_block_iter: self.bit_block.clone().into_bits_iter()
-        }
-    }
-    
-    /// Calculate elements count in DataBlock.
-    /// 
-    /// On most platforms, this should be faster then manually traversing DataBlock
-    /// and counting elements. It use hardware accelerated "popcnt",
-    /// whenever possible. 
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.bit_block.count_ones()
-    }
-    
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.bit_block.is_zero()
-    }
-}
-impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
-    type Item = usize;
-    type IntoIter = DataBlockIter<Block>;
-
-    /// This is actually no-op fast.
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        DataBlockIter{
-            start_index: self.start_index,
-            bit_block_iter: self.bit_block.into_bits_iter()
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct DataBlockIter<Block: BitBlock>{
-    start_index: usize,
-    bit_block_iter: Block::BitsIter
-}
-impl<Block: BitBlock> DataBlockIter<Block>{
-    /// Stable version of [try_for_each].
-    /// 
-    /// traverse approx. 15% faster then iterator
-    /// 
-    /// [try_for_each]: std::iter::Iterator::try_for_each
-    #[inline]
-    pub fn traverse<F>(self, mut f: F) -> ControlFlow<()>
-    where
-        F: FnMut(usize) -> ControlFlow<()>
-    {
-        self.bit_block_iter.traverse(|index| f(self.start_index + index))
-    }    
-}
-impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
-    type Item = usize;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.bit_block_iter.next().map(|index|self.start_index + index)
-    }
-
-    #[inline]
-    fn for_each<F>(self, mut f: F)
-    where
-        F: FnMut(Self::Item)
-    {
-        let _ = self.traverse(|index| {
-            f(index);
-            ControlFlow::Continue(())
-        });
-    }
 }
 
 /// Creates a lazy bitset, as [BitSetOp] application between two bitsets.
