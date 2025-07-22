@@ -57,9 +57,9 @@ pub trait BitQueue: Iterator<Item = usize> + Clone{
     /// Current index. Equals len - if iteration finished.
     fn current(&self) -> usize;
 
-    fn traverse<F>(self, f: F) -> ControlFlow<()>
+    fn traverse<F, B>(self, f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>;        
+        F: FnMut(usize) -> ControlFlow<B>;
     
 /*    // TODO: remove ?
     fn is_empty(&self) -> bool;*/
@@ -114,7 +114,10 @@ where
     }
 
     #[inline]
-    fn traverse<F>(self, f: F) -> ControlFlow<()> where F: FnMut(usize) -> ControlFlow<()> {
+    fn traverse<F, B>(self, f: F) -> ControlFlow<B> 
+    where
+        F: FnMut(usize) -> ControlFlow<B> 
+    {
         let block: P = unsafe{
             mem::transmute_copy(&self.bit_block_iter)
         };
@@ -261,9 +264,9 @@ where
     }
 
     #[inline]
-    fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    fn traverse<F, B>(mut self, mut f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>        
+        F: FnMut(usize) -> ControlFlow<B>
     {
         // This is faster, then iterating active value, then the rest ones
         unsafe{
@@ -318,7 +321,7 @@ where
     where
         F: FnMut(usize)
     {
-        let _  = self.traverse(|i|{
+        let _  = self.traverse(|i| -> ControlFlow<()> {
             f(i);
             ControlFlow::Continue(())
         });

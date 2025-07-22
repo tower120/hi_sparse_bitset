@@ -79,10 +79,10 @@ pub unsafe fn get_bit_unchecked<T: Primitive>(block: T, bit_index: usize) -> boo
 
 /// Blocks traversed in the same order as [set_array_bit], [get_array_bit].
 #[inline]
-pub fn traverse_array_one_bits<P, F>(array: &[P], mut f: F) -> ControlFlow<()>
+pub fn traverse_array_one_bits<P, F, B>(array: &[P], mut f: F) -> ControlFlow<B>
 where
     P: Primitive,
-    F: FnMut(usize) -> ControlFlow<()>
+    F: FnMut(usize) -> ControlFlow<B>
 {
     let len = array.len();
     for i in 0..len{
@@ -94,18 +94,18 @@ where
                 f(index)
             }
         );
-        if control.is_break(){
-            return ControlFlow::Break(());
+        if let Some(e) = control.break_value() {
+            return ControlFlow::Break(e);
         }
     }
     ControlFlow::Continue(())
 }
 
 #[inline]
-pub fn traverse_one_bits<P, F>(mut element: P, mut f: F) -> ControlFlow<()>
+pub fn traverse_one_bits<P, F, B>(mut element: P, mut f: F) -> ControlFlow<B>
 where
     P: Primitive,
-    F: FnMut(usize) -> ControlFlow<()>
+    F: FnMut(usize) -> ControlFlow<B>
 {
     // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
     // https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2018/03/07/simdbitmapdecode.c#L45
@@ -113,8 +113,8 @@ where
         let index = element.trailing_zeros() as usize;
 
         let control = f(index);
-        if control.is_break(){
-            return ControlFlow::Break(());
+        if let Some(e) = control.break_value() {
+            return ControlFlow::Break(e);
         }
 
         // Returns an integer having just the least significant bit of

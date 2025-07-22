@@ -218,9 +218,9 @@ where
     /// 
     /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
-    pub fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    pub fn traverse<F, B>(mut self, mut f: F) -> ControlFlow<B>
     where
-        F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<()>    
+        F: FnMut(DataBlock<<T::Conf as Config>::DataBitBlock>) -> ControlFlow<B>    
     {
         // Self have Drop - hence we can't move out values from it.
         // We need level0_iter and level1_iter - we'll ptr::read them instead.
@@ -234,12 +234,12 @@ where
             
             let level1_iter = unsafe{ std::ptr::read(&self.level1_iter) };
             let ctrl = level1_iter.traverse(
-                |level1_index| level1_mask_traverse_fn::<T, _>(
+                |level1_index| level1_mask_traverse_fn::<T, _, _>(
                     level0_index, level1_index, &self.level1_block_data, |b| f(b)
                 )
             );
-            if ctrl.is_break(){
-                return ControlFlow::Break(());
+            if let Some(e) = ctrl.break_value() {
+                return ControlFlow::Break(e);
             }
         }
 
@@ -309,7 +309,7 @@ where
     where
         F: FnMut(Self::Item)
     {
-        let _ = self.traverse(|block| {
+        let _ = self.traverse(|block| -> ControlFlow<()> {
             f(block);
             ControlFlow::Continue(())
         });
@@ -438,33 +438,36 @@ where
 
     /// Stable [try_for_each] version.
     /// 
+    /// Return `Break<B>` if `f` returns `Break`.
+    /// `Continue<()>` - otherwise. 
+    /// 
     /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
-    pub fn traverse<F>(mut self, mut f: F) -> ControlFlow<()>
+    pub fn traverse<F, B>(mut self, mut f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>    
+        F: FnMut(usize) -> ControlFlow<B>
     {
-        // See CachingBlockIter::traverse comments.
+        // See BlockIter::traverse comments.
 
         if self.block_iter.level0_index != usize::MAX{
             let level0_index = self.block_iter.level0_index;
 
             // 1. traverse data block
             let ctrl = self.data_block_iter.traverse(|i| f(i));
-            if ctrl.is_break(){
-                return ControlFlow::Break(());
+            if let Some(e) = ctrl.break_value() {
+                return ControlFlow::Break(e);
             }
 
             // 2. traverse rest of the level1 block
             let level1_iter = unsafe{ std::ptr::read(&self.block_iter.level1_iter) };
             let ctrl = level1_iter.traverse(
-                |level1_index| level1_mask_traverse_fn::<T, _>(
+                |level1_index| level1_mask_traverse_fn::<T, _, _>(
                     level0_index, level1_index, &self.block_iter.level1_block_data,
                     |b| b.traverse(|i| f(i))
                 )
             );
-            if ctrl.is_break(){
-                return ControlFlow::Break(());
+            if let Some(e) = ctrl.break_value() {
+                return ControlFlow::Break(e);
             }
         }
 
@@ -477,7 +480,7 @@ where
                 &mut self.block_iter.level1_block_data,
                 |b| b.traverse(|i| f(i))
             )    
-        )        
+        )
     }        
 }
 
@@ -508,7 +511,7 @@ where
     where
         F: FnMut(Self::Item)
     {
-        let _ = self.traverse(|index| {
+        let _ = self.traverse(|index| -> ControlFlow<()> {
             f(index);
             ControlFlow::Continue(())
         });
@@ -517,15 +520,15 @@ where
 
 
 #[inline]
-fn level1_mask_traverse_fn<S, F>(
+fn level1_mask_traverse_fn<S, F, B>(
     level0_index: usize,
     level1_index: usize,
     level1_block_data: &MaybeUninit<S::Level1BlockData>,
     mut f: F
-) -> ControlFlow<()>
+) -> ControlFlow<B>
 where
     S: LevelMasksIterExt, 
-    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<B>
 {
     let data_mask = unsafe {
         S::data_mask_from_block_data(level1_block_data.assume_init_ref(), level1_index)
@@ -540,16 +543,16 @@ where
 }
 
 #[inline]
-fn level0_mask_traverse_fn<S, F>(
+fn level0_mask_traverse_fn<S, F, B>(
     set: &S,
     level0_index: usize,
     state: &mut S::IterState,
     level1_blocks: &mut MaybeUninit<S::Level1BlockData>,
     mut f: F
-) -> ControlFlow<()>
+) -> ControlFlow<B>
 where
     S: LevelMasksIterExt, 
-    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<()>
+    F: FnMut(DataBlock<<S::Conf as Config>::DataBitBlock>) -> ControlFlow<B>
 {
     let level1_mask = unsafe{
         level1_blocks.assume_init_drop();
@@ -559,6 +562,6 @@ where
     };
     
     level1_mask.traverse_bits(|level1_index|{
-        level1_mask_traverse_fn::<S, _>(level0_index, level1_index, level1_blocks, |b| f(b))
+        level1_mask_traverse_fn::<S, _, B>(level0_index, level1_index, level1_blocks, |b| f(b))
     })
 }

@@ -44,9 +44,9 @@ impl<Block: BitBlock> DataBlock<Block>{
     // TODO: remove
     /// traverse approx. 15% faster then iterator
     #[inline]
-    pub fn traverse<F>(&self, mut f: F) -> ControlFlow<()>
+    pub fn traverse<F, B>(&self, mut f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>
+        F: FnMut(usize) -> ControlFlow<B>
     {
         self.bit_block.traverse_bits(|index| f(self.start_index + index))
     }
@@ -56,7 +56,7 @@ impl<Block: BitBlock> DataBlock<Block>{
     where
         F: FnMut(usize)
     {
-        let _ = self.traverse(move |index| {
+        let _ = self.traverse(move |index| -> ControlFlow<()> {
             f(index);
             ControlFlow::Continue(())
         });
@@ -113,9 +113,9 @@ impl<Block: BitBlock> DataBlockIter<Block>{
     /// 
     /// [try_for_each]: std::iter::Iterator::try_for_each
     #[inline]
-    pub fn traverse<F>(self, mut f: F) -> ControlFlow<()>
+    pub fn traverse<F, B>(self, mut f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>
+        F: FnMut(usize) -> ControlFlow<B>
     {
         self.bit_block_iter.traverse(|index| f(self.start_index + index))
     }    
@@ -134,7 +134,7 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     where
         F: FnMut(Self::Item)
     {
-        let _ = self.traverse(|index| {
+        let _ = self.traverse(|index| -> ControlFlow<()> {
             f(index);
             ControlFlow::Continue(())
         });

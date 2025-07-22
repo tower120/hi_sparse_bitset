@@ -55,9 +55,9 @@ pub trait BitBlock
     /// 
     /// [Break]: ControlFlow::Break
     #[inline]
-    fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
+    fn traverse_bits<F, B>(&self, f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>
+        F: FnMut(usize) -> ControlFlow<B>
     {
         bit_utils::traverse_array_one_bits(self.as_array(), f)
     }
@@ -67,7 +67,7 @@ pub trait BitBlock
     where
         F: FnMut(usize)
     {
-        let _ = self.traverse_bits(move |i| {
+        let _ = self.traverse_bits(move |i| -> ControlFlow<()> {
             f(i);
             ControlFlow::Continue(())
         });
@@ -113,9 +113,9 @@ impl BitBlock for u64{
     }
 
     #[inline]
-    fn traverse_bits<F>(&self, f: F) -> ControlFlow<()>
+    fn traverse_bits<F, B>(&self, f: F) -> ControlFlow<B>
     where
-        F: FnMut(usize) -> ControlFlow<()>
+        F: FnMut(usize) -> ControlFlow<B>
     {
         bit_utils::traverse_one_bits(*self, f)
     }
