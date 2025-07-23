@@ -89,7 +89,7 @@
 //! 
 //! # Laziness and materialization
 //! 
-//! Use [BitSet::from(impl BitSetInterface)] instead of collecting iterator for
+//! Use `BitSet::from(impl BitSetInterface)` instead of collecting iterator for
 //! materialization into BitSet.
 //! 
 //! # Cursor
@@ -132,7 +132,11 @@
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
 //! 
-//! # Serialization/Serde
+//! # Serialization
+//! 
+//! BitSet have fast and compact [serialization](BitSet::serialize).
+//! 
+//! ## Serde
 //! 
 //! Enable feature `serde` - for [serde] serialization support.
 //! 

@@ -79,6 +79,7 @@ impl<Conf: Config> BitSet<Conf> {
         Ok(())
     }
     
+    /// Deserialize from [serialized](Self::serialize) BitSet. 
     // TODO: try to use &[u8] instead of Read? For performance. 
     pub fn deserialize(r: &mut impl Read) -> std::io::Result<Self> {
         // Level 0
