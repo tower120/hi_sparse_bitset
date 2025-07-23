@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::mem;
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use crate::bit_utils;
-use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
+use crate::bit_queue::*;
 use crate::primitive_array::PrimitiveArray;
 
 #[cfg(feature = "serde")]
