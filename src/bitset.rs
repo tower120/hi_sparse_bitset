@@ -1,9 +1,13 @@
 mod serialization;
+mod block;
+mod level;
+mod raw;
+mod derive_raw;
 
 use crate::config::Config;
-use crate::block::Block;
-use crate::derive_raw::derive_raw;
-use crate::{BitSetBase, raw};
+use block::Block;
+use derive_raw::derive_raw;
+use crate::BitSetBase;
 
 type Level0Block<Conf> = Block<
     <Conf as Config>::Level0BitBlock, 

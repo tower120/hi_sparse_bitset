@@ -159,16 +159,12 @@ mod test;
 
 mod primitive;
 mod primitive_array;
-mod block;
-mod level;
 mod bit_block;
 mod bit_queue;
 mod bit_utils;
 mod reduce;
 mod bitset_interface;
 mod apply;
-mod raw;
-mod derive_raw;
 mod bitset;
 mod internals;
 mod data_block;

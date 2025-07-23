@@ -3,11 +3,11 @@ use std::mem::MaybeUninit;
 use std::ops::ControlFlow;
 use crate::{BitBlock, BitSet};
 use crate::bitset::{Level0Block, Level1Block, LevelDataBlock, RawBitSet};
-use crate::block::Block;
+use crate::bitset::block::Block;
 use crate::config::Config;
 use crate::internals::Primitive;
 use crate::iter::BlockIter;
-use crate::level::{IBlock, Level};
+use crate::bitset::level::{IBlock, Level};
 use crate::primitive_array::PrimitiveArray;
 
 #[inline]

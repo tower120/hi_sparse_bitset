@@ -1,7 +1,7 @@
 use std::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 use crate::{Primitive, PrimitiveArray};
-use crate::level::IBlock;
+use crate::bitset::level::IBlock;
 
 #[derive(Clone)]
 pub struct Block<Mask, BlockIndices> {

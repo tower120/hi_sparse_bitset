@@ -1,11 +1,11 @@
 use std::collections::HashSet;
+use std::io::Cursor;
 use std::iter::zip;
 use std::ops::ControlFlow;
 use itertools::assert_equal;
 use rand::Rng;
 use crate::ops::{And, BitSetOp, Or, Sub, Xor};
 use crate::{level_indices, reduce, reduce_w_cache, Apply, BitSetInterface};
-use crate::BitSet;
 use crate::config;
 use crate::cache;
 use crate::iter::{BlockCursor, IndexCursor};
@@ -42,7 +42,7 @@ cfg_if::cfg_if! {
     } else if #[cfg(hisparsebitset_test_bitset)] {
         type BitSet<Conf> = super::BitSet<Conf>;
     } else {
-        //type BitSet<Conf> = super::SmallBitSet<Conf>;
+        type BitSet<Conf> = super::BitSet<Conf>;
     }
 }
 type HiSparseBitset = BitSet<Conf>;
@@ -179,6 +179,20 @@ fn fuzzy_test(){
             {
                 let other: HiSparseBitset = hi_set.iter().collect();
                 assert!(hi_set == other);
+            }
+
+            // serialization
+            {
+                let mut serialized: Vec<u8> = Vec::new();
+                hi_set.serialize(&mut serialized).unwrap();
+                
+                let deserialized = HiSparseBitset::deserialize(
+                    &mut Cursor::new(serialized)
+                ).unwrap();
+                
+                assert_eq!(hi_set, deserialized);
+                assert_equal(hi_set.block_iter(), deserialized.block_iter());
+                assert_equal(hi_set.iter(), deserialized.iter());
             }
 
             let mut hash_set_vec: Vec<usize> = hash_set.iter().copied().collect();

@@ -101,7 +101,7 @@ macro_rules! derive_raw {
             }
         }
         
-        crate::derive_raw::derive_raw_levelmasks!(
+        crate::bitset::derive_raw::derive_raw_levelmasks!(
             impl<$($generics),*> $t as $raw where $($where_bounds)*  
         );
         

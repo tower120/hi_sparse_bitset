@@ -10,6 +10,7 @@ pub fn data_block_start_index<Conf: Config>(level0_index: usize, level1_index: u
     level0_offset + level1_offset
 }
 
+/// Traversable bit block with offset. 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DataBlock<Block>{
@@ -35,7 +36,7 @@ impl<Block: BitBlock> DataBlock<Block>{
         DataBlock{start_index, bit_block}
     }
     
-    /// Destruct `DataBlock` into parts.
+    /// Destruct `DataBlock` into `(start_index, bit_block)`.
     #[inline]
     pub fn into_parts(self) -> (usize, Block) {
         (self.start_index, self.bit_block)
@@ -100,6 +101,7 @@ impl<Block: BitBlock> IntoIterator for DataBlock<Block>{
     }
 }
 
+/// [DataBlock] iterator.
 #[derive(Clone)]
 pub struct DataBlockIter<Block: BitBlock>{
     pub(crate) start_index: usize,

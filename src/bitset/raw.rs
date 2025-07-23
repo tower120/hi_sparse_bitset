@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 use crate::config::Config;
 use crate::{BitBlock, BitSetBase, BitSetInterface, level_indices};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
-use crate::level::{IBlock, Level};
+use crate::bitset::level::{IBlock, Level};
 use crate::primitive::Primitive;
 
 pub struct RawBitSet<Conf, Level0Block, Level1Block, LevelDataBlock>
