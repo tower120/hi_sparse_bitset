@@ -13,10 +13,10 @@ where
     Level1Block: IBlock,
     LevelDataBlock: IBlock,
 {
-    level0: Level0Block,
-    level1: Level<Level1Block>,
-    data  : Level<LevelDataBlock>,
-    phantom: PhantomData<Conf>
+    pub(crate) level0: Level0Block,
+    pub(crate) level1: Level<Level1Block>,
+    pub(crate) data  : Level<LevelDataBlock>,
+    pub(crate) phantom: PhantomData<Conf>
 }
 
 impl<Conf, Level0Block, Level1Block, LevelDataBlock> Clone for RawBitSet<Conf, Level0Block, Level1Block, LevelDataBlock>

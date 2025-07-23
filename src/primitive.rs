@@ -1,10 +1,12 @@
 use std::fmt::Debug;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign/*, Shr, ShrAssign*/};
+use std::ops::*;
 
 // num_traits was just **TOO** hard to use with primitives...
 // Cast from/to concrete primitive was a final nail into num_trait's coffin.
 pub trait Primitive: 
-    Default 
+    Default
+    + Add<Output = Self>
+    + AddAssign
     + BitAnd<Output = Self>
     + BitAndAssign
     + BitOr<Output = Self>
@@ -14,9 +16,9 @@ pub trait Primitive:
     + Shl<Output = Self>
     + Shl<usize, Output = Self>
     + ShlAssign
-/*    + Shr<Output = Self>
+    + Shr<Output = Self>
     + Shr<usize, Output = Self>
-    + ShrAssign */
+    + ShrAssign
     + Not<Output = Self>
     + Copy 
     + Ord 

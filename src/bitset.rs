@@ -1,3 +1,5 @@
+mod serialization;
+
 use crate::config::Config;
 use crate::block::Block;
 use crate::derive_raw::derive_raw;
@@ -47,3 +49,85 @@ impl<Conf: Config> BitSetBase for BitSet<Conf> {
 derive_raw!(
     impl<Conf> BitSet<Conf> as RawBitSet<Conf> where Conf: Config  
 );
+
+/*#[cfg(feature = "serde")]
+impl<'de, Conf> Deserialize<'de> for BitSet<Conf>
+where
+    Conf: Config,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        
+        struct Visitor<Conf>(PhantomData<Conf>);
+        impl<'de, Conf: Config> serde::de::Visitor<'de> for Visitor<Conf> {
+            type Value = ();
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a tuple of (u8, String, Vec<u8>)")
+            }
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let lvl0: Conf::Level0BitBlock = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                
+                seq.
+                
+                for _ in 0..lvl0.count_ones() {
+                    if let Some(bitblock) = seq.next_element::<Conf::Level1BitBlock>()? {
+                        println!("lvl1: {:?}", bitblock);
+                        // ..
+                    }
+                }                
+                
+                //let lvl1: Vec<Conf::Level1BitBlock> = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+                let data: Vec<Conf::DataBitBlock> = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+                
+                println!("lvl0: {:?}", lvl0);
+                
+                Ok(())
+            }
+        }
+        deserializer.deserialize_seq(Visitor::<Conf>(PhantomData));
+        
+        #[repr(transparent)]
+        struct BlockWrapper<Mask, BlockIndices>(Block<Mask, BlockIndices>);
+        impl<'de, Mask, BlockIndices> Deserialize<'de> for BlockWrapper<Mask, BlockIndices>
+        where
+            Mask: BitBlock,
+            BlockIndices: PrimitiveArray
+        {
+            #[inline]
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>
+            {
+                let mask = Mask::deserialize(deserializer)?;
+                
+                let mut block_indices: BlockIndices = unsafe{MaybeUninit::zeroed().assume_init()};
+                
+                // Fill bloc indices skipping 0.
+                // We know that blocks 
+                {
+                    let len = mask.count_ones();
+                    for i in 0..len {
+                        // block_indices.as_mut()[i] = (i+1).into();
+                    }
+                }
+                
+                
+                let block = unsafe { Block::from_parts(mask, block_indices) };
+                
+                Ok(BlockWrapper(block))
+            }
+        }
+
+        /*let (lvl0, lvl1, data): (Conf::Level0BitBlock, Vec<BlockWrapper<Conf::Level1BitBlock, Conf::Level1BlockIndices>>, Vec<Conf::DataBitBlock>) = Deserialize::deserialize(deserializer)?;
+        
+        println!("lvl0: {:?}", lvl0);
+        //println!("lvl1: {:?}", lvl1);
+        println!("data: {:?}", data);*/
+        Ok(Self::default())
+    }
+}*/

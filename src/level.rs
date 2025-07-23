@@ -68,15 +68,19 @@ pub struct Level<Block: IBlock>{
 impl<Block: IBlock> Default for Level<Block> {
     #[inline]
     fn default() -> Self {
-        Self{
-            //Always have empty block at index 0.
-            blocks:vec![Default::default()],
-            root_empty_block: u64::MAX,
-        }
+        unsafe{ Self::from_blocks_unchecked(vec![Default::default()]) }
     }
 }
 
 impl<Block: IBlock> Level<Block> {
+    /// # Safety
+    /// 
+    /// Always have empty block at index 0.
+    #[inline]
+    pub unsafe fn from_blocks_unchecked(blocks: Vec<Block>) -> Self {
+        Self{blocks, root_empty_block: u64::MAX}
+    }
+    
     #[inline]
     pub fn blocks(&self) -> &[Block] {
         self.blocks.as_slice()

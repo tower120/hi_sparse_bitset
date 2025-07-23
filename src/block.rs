@@ -25,6 +25,17 @@ where
     }
 }
 
+impl<Mask, BlockIndices> Block<Mask, BlockIndices>
+where
+    Mask: BitBlock,
+    BlockIndices: PrimitiveArray
+{
+    #[inline]
+    pub unsafe fn from_parts(mask: Mask, block_indices: BlockIndices) -> Self {
+        Self { mask,block_indices }
+    }
+}
+
 impl<Mask, BlockIndices> IBlock for Block<Mask, BlockIndices>
 where
     Mask: BitBlock,

@@ -1,7 +1,26 @@
+use std::fmt::Debug;
 use std::mem;
 use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
 use crate::bit_utils;
 use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
+use crate::primitive_array::PrimitiveArray;
+
+#[cfg(feature = "serde")]
+mod maybe_serde{
+    pub use serde::Serialize as MaybeSerialize;
+    pub use serde::Deserialize as MaybeDeserialize;
+}
+
+#[cfg(not(feature = "serde"))]
+mod maybe_serde{
+    pub trait MaybeSerialize {}
+    impl<T> MaybeSerialize for T {}
+    
+    pub trait MaybeDeserialize<'de> {}
+    impl<'de, T> MaybeDeserialize<'de> for T {}
+}
+
+use maybe_serde::*;
 
 // TODO: consider removing copy
 /// Bit block.
@@ -13,6 +32,8 @@ use crate::bit_queue::{ArrayBitQueue, BitQueue, PrimitiveBitQueue};
 pub trait BitBlock
     : BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self>
     + Eq + PartialEq
+    + MaybeSerialize + for<'de> MaybeDeserialize<'de>
+    + Debug
     + Sized + Copy + Clone
 {
     /// 2^N bits
@@ -79,6 +100,12 @@ pub trait BitBlock
     fn as_array(&self) -> &[u64];
     fn as_array_mut(&mut self) -> &mut [u64];
     
+    type BytesArray: PrimitiveArray<Item=u8>;
+    fn to_ne_bytes(self) -> Self::BytesArray;
+    fn to_le_bytes(self) -> Self::BytesArray;
+    fn from_ne_bytes(bytes: Self::BytesArray) -> Self;
+    fn from_le_bytes(bytes: Self::BytesArray) -> Self;
+    
     #[inline]
     fn count_ones(&self) -> usize {
         let mut sum = 0;
@@ -139,6 +166,24 @@ impl BitBlock for u64{
             mem::transmute::<&mut u64, &mut [u64; 1]>(self)
         }        
     }
+
+    type BytesArray = [u8;8];
+    #[inline]
+    fn to_ne_bytes(self) -> Self::BytesArray {
+        u64::to_ne_bytes(self)
+    }    
+    #[inline]
+    fn to_le_bytes(self) -> Self::BytesArray {
+        u64::to_le_bytes(self)
+    }
+    #[inline]
+    fn from_ne_bytes(bytes: Self::BytesArray) -> Self {
+        u64::from_ne_bytes(bytes)
+    }
+    #[inline]
+    fn from_le_bytes(bytes: Self::BytesArray) -> Self {
+        u64::from_le_bytes(bytes)
+    }
 }
 
 #[cfg(feature = "simd")]
@@ -174,6 +219,32 @@ impl BitBlock for wide::u64x2{
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
     }
+    
+    type BytesArray = [u8;16];
+    #[inline]
+    fn to_ne_bytes(self) -> Self::BytesArray {
+        // From rust doc:
+        // "Because transmute is a by-value operation, alignment of the transmuted values themselves is not a concern".
+        unsafe{ mem::transmute(self) }
+    }
+    #[inline]
+    fn to_le_bytes(self) -> Self::BytesArray {
+        #[cfg(target_endian = "little")]
+        { self.to_ne_bytes() }
+        #[cfg(target_endian = "big")]
+        { unimplemented!() }
+    }
+    #[inline]
+    fn from_ne_bytes(bytes: Self::BytesArray) -> Self {
+        unsafe{ mem::transmute(bytes) }
+    }
+    #[inline]
+    fn from_le_bytes(bytes: Self::BytesArray) -> Self {
+        #[cfg(target_endian = "little")]
+        { Self::from_ne_bytes(bytes) }
+        #[cfg(target_endian = "big")]
+        { unimplemented!() }
+    }
 }
 
 #[cfg(feature = "simd")]
@@ -201,4 +272,30 @@ impl BitBlock for wide::u64x4{
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
     }
+    
+    type BytesArray = [u8;32];
+    #[inline]
+    fn to_ne_bytes(self) -> Self::BytesArray {
+        // From rust doc:
+        // "Because transmute is a by-value operation, alignment of the transmuted values themselves is not a concern".
+        unsafe{ mem::transmute(self) }
+    }
+    #[inline]
+    fn to_le_bytes(self) -> Self::BytesArray {
+        #[cfg(target_endian = "little")]
+        { self.to_ne_bytes() }
+        #[cfg(target_endian = "big")]
+        { unimplemented!() }
+    }
+    #[inline]
+    fn from_ne_bytes(bytes: Self::BytesArray) -> Self {
+        unsafe{ mem::transmute(bytes) }
+    }
+    #[inline]
+    fn from_le_bytes(bytes: Self::BytesArray) -> Self {
+        #[cfg(target_endian = "little")]
+        { Self::from_ne_bytes(bytes) }
+        #[cfg(target_endian = "big")]
+        { unimplemented!() }
+    }  
 }
