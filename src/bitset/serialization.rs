@@ -85,15 +85,16 @@ impl<Conf: Config> BitSet<Conf> {
         // Level 0
         let level0: Level0Block<Conf> = {
             let mask = read_mask(r)?;
-            make_hierarchy_block(mask, &mut Primitive::ONE)
+            let mut index_offset = Primitive::ONE;  // skip one for empty lvl1 block
+            make_hierarchy_block(mask, &mut index_offset)
         };
         
         // Level 1
         let (level1, data_blocks_len) = {
             let len = level0.mask().count_ones();
             let mut blocks = Vec::with_capacity(len+1);
-            blocks.push(Default::default());    // Insert empty lvl block
-            let mut index_offset = Primitive::ONE;  // one for empty data block
+            blocks.push(Default::default());        // Insert empty lvl1 block
+            let mut index_offset = Primitive::ONE;  // skip one for empty data block
             for _ in 0..len {
                 let mask = read_mask(r)?;
                 let block: Level1Block<Conf> = make_hierarchy_block(mask, &mut index_offset);

@@ -143,11 +143,11 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
     }
 }
 
+#[cfg(feature = "serde")]
 #[cfg(test)]
-mod test{
+mod serde_test{
     use super::*;
 
-    #[cfg(feature = "serde")]
     #[test]
     pub fn test_serde(){
         let bitblock = 14965686686284719936u64;
@@ -164,7 +164,7 @@ mod test{
         assert_eq!(block, deserialized_block);
     }
     
-    #[cfg(all(feature = "serde", feature = "simd"))]
+    #[cfg(feature = "simd")]
     #[test]
     pub fn test_serde_simd(){
         use wide::u64x4;

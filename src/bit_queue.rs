@@ -35,6 +35,7 @@ fn is_empty<P: Primitive>(bit_block_iter: &OneBitsIter<P>) -> bool{
 /// Queue of 1 bits.
 /// 
 /// Pop first set bit on iteration. "Consumed" bit replaced with zero.
+#[allow(dead_code)]     // not a public interface, not everything in use.
 pub trait BitQueue: Iterator<Item = usize> + Clone{
     /// All bits 0. Iterator returns None.
     fn empty() -> Self;
