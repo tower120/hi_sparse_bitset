@@ -5,7 +5,7 @@ type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_64bit>
 fn iteration(set: &HiSparseBitset) -> u64{
     let mut s = 0;
     for data in set.block_iter(){
-        s += data.bit_block;
+        s += data.len() as u64;
     }
     s
 }

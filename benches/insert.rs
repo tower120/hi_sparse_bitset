@@ -1,6 +1,6 @@
 use criterion::{black_box, Criterion, criterion_group, criterion_main};
 
-type HiSparseBitset = hi_sparse_bitset::SmallBitSet<hi_sparse_bitset::config::_128bit>;
+type HiSparseBitset = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 
 fn hi_sparse_bitset_insert(in_block: usize) -> HiSparseBitset{
     let mut set: HiSparseBitset = Default::default();

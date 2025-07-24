@@ -7,23 +7,12 @@ use criterion::measurement::Measurement;
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
 use hi_sparse_bitset::ops::*;
 use hi_sparse_bitset::config::Config;
-use hi_sparse_bitset::iter::{SimpleBlockIter, SimpleIndexIter};
 use crate::common::bench;
 
 // ---- REDUCE ----
-fn hi_sparse_bitset_reduce_or_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = reduce(Or, sets.iter()).unwrap();
-    SimpleBlockIter::new(union).count()
-}
-
 fn hi_sparse_bitset_reduce_or_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = reduce(Or, sets.iter()).unwrap();
     union.into_block_iter().count()
-}
-
-fn hi_sparse_bitset_reduce_or_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = reduce(Or, sets.iter()).unwrap();
-    SimpleIndexIter::new(SimpleBlockIter::new(union)).count()
 }
 
 fn hi_sparse_bitset_reduce_or_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
@@ -33,19 +22,9 @@ fn hi_sparse_bitset_reduce_or_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) 
 
 
 // ---- OP ----
-fn hi_sparse_bitset_op_or_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = &sets[0] | &sets[1] | &sets[2];
-    SimpleBlockIter::new(union).count()
-}
-
 fn hi_sparse_bitset_op_or_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let union = &sets[0] | &sets[1] | &sets[2];
     union.into_block_iter().count()
-}
-
-fn hi_sparse_bitset_op_or_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let union = &sets[0] | &sets[1] | &sets[2];
-    SimpleIndexIter::new(SimpleBlockIter::new(union)).count()
 }
 
 fn hi_sparse_bitset_op_or_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
@@ -116,15 +95,11 @@ pub fn bench_iter(c: &mut Criterion) {
             let hibitsets = hibitsets.as_slice();
             
             // ---- REDUCE ----
-            bench(group, "hi_sparse_bitset_reduce_or_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_or_simple_block_iter);
             bench(group, "hi_sparse_bitset_reduce_or_caching_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_or_caching_block_iter);
-            bench(group, "hi_sparse_bitset_reduce_or_simple_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_or_simple_iter);
             bench(group, "hi_sparse_bitset_reduce_or_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_or_caching_iter);
 
             // ---- OP ----
-            bench(group, "hi_sparse_bitset_op_or_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_op_or_simple_block_iter);
             bench(group, "hi_sparse_bitset_op_or_caching_block_iter", name, hi_sparse_sets, hi_sparse_bitset_op_or_caching_block_iter);
-            bench(group, "hi_sparse_bitset_op_or_simple_iter", name, hi_sparse_sets, hi_sparse_bitset_op_or_simple_iter);
             bench(group, "hi_sparse_bitset_op_or_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_op_or_caching_iter);
 
             // ---- Third party ----

@@ -7,58 +7,32 @@ use std::collections::HashSet;
 use criterion::{AxisScale, Criterion, criterion_group, criterion_main, PlotConfiguration};
 use hi_sparse_bitset::{BitSet, BitSetInterface, reduce};
 use hi_sparse_bitset::ops::And;
-use hi_sparse_bitset::iter::{BlockCursor, IndexCursor, SimpleBlockIter, SimpleIndexIter};
+use hi_sparse_bitset::iter::{BlockCursor, IndexCursor};
 use ControlFlow::*;
 use criterion::measurement::Measurement;
 use roaring::RoaringBitmap;
 use hi_sparse_bitset::config::Config;
 use crate::common::bench;
 
-// TODO: consider bench different Cache modes instead.
-
 // ---- REDUCE -----
 // === Block iter ===
-fn hi_sparse_bitset_reduce_and_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(And, sets.iter()).unwrap();
-    SimpleBlockIter::new(reduce).count()
-}
-
 fn hi_sparse_bitset_reduce_and_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(And, sets.iter()).unwrap();
     reduce.into_block_iter().count()
 }
 
 // === Traverse ===
-fn hi_sparse_bitset_reduce_and_simple_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(And, sets.iter()).unwrap();
-
-    let mut counter = 0;
-    for block in SimpleBlockIter::new(reduce) {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
-    counter
-}
-
 fn hi_sparse_bitset_reduce_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(And, sets.iter()).unwrap();
 
     let mut counter = 0;
-    reduce.iter().traverse(|_|{
+    reduce.iter().for_each(|_|{
         counter += 1;
-        Continue(())
     });
     counter
 }
 
 // === Iter ===
-fn hi_sparse_bitset_reduce_and_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let reduce = reduce(And, sets.iter()).unwrap();
-    SimpleIndexIter::new(SimpleBlockIter::new(reduce)).count()
-}
-
 fn hi_sparse_bitset_reduce_and_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let reduce = reduce(And, sets.iter()).unwrap();
     reduce.into_iter().count()
@@ -67,47 +41,23 @@ fn hi_sparse_bitset_reduce_and_caching_iter<Conf: Config>(sets: &[BitSet<Conf>])
 
 // ---- OP -----
 // === Block iter ===
-fn hi_sparse_bitset_op_and_simple_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize{
-    let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
-    SimpleBlockIter::new(intersection).count()
-}
-
 fn hi_sparse_bitset_op_and_caching_block_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize{
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
     intersection.into_block_iter().count()
 }
 
 // === Traverse ===
-fn hi_sparse_bitset_op_and_simple_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
-
-    let mut counter = 0;
-    for block in SimpleBlockIter::new(intersection) {
-        block.traverse(|_|{
-            counter += 1;
-            Continue(())
-        });
-    }
-    counter
-}
-
 fn hi_sparse_bitset_op_and_caching_traverse<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
 
     let mut counter = 0;
-    intersection.iter().traverse(|_|{
+    intersection.iter().for_each(|_| {
         counter += 1;
-        Continue(())
     });
     counter
 }
 
 // === Iter ===
-fn hi_sparse_bitset_op_and_simple_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
-    let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
-    SimpleIndexIter::new(SimpleBlockIter::new(intersection)).count()
-}
-
 fn hi_sparse_bitset_op_and_caching_iter<Conf: Config>(sets: &[BitSet<Conf>]) -> usize {
     let intersection = &sets[0] & &sets[1] & &sets[2] & &sets[3] & &sets[4];
     intersection.into_iter().count()
@@ -226,24 +176,18 @@ pub fn bench_iter(c: &mut Criterion) {
 
             // ---- REDUCE ----
             // === Block iter ===
-            bench(group, "hi_sparse_bitset_reduce_and_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_simple_block_iter);
             bench(group, "hi_sparse_bitset_reduce_and_caching_block_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_caching_block_iter);
             // === Traverse ===
-            bench(group, "hi_sparse_bitset_reduce_and_simple_traverse", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_simple_traverse);
             bench(group, "hi_sparse_bitset_reduce_and_caching_traverse", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_caching_traverse);
             // === Iter ===
-            bench(group, "hi_sparse_bitset_reduce_and_simple_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_simple_iter);
             bench(group, "hi_sparse_bitset_reduce_and_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_reduce_and_caching_iter);
 
             // ---- OP ----
             // === Block iter ===
-            bench(group, "hi_sparse_bitset_op_and_simple_block_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_simple_block_iter);
             bench(group, "hi_sparse_bitset_op_and_caching_block_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_block_iter);
             // === Traverse ===
-            bench(group, "hi_sparse_bitset_op_and_simple_traverse", name, hi_sparse_sets, hi_sparse_bitset_op_and_simple_traverse);
             bench(group, "hi_sparse_bitset_op_and_caching_traverse", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_traverse);
             // === Iter ===
-            bench(group, "hi_sparse_bitset_op_and_simple_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_simple_iter);
             bench(group, "hi_sparse_bitset_op_and_caching_iter", name, hi_sparse_sets, hi_sparse_bitset_op_and_caching_iter);
 
             // ---- Third party ----
