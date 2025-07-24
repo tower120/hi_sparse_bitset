@@ -14,7 +14,9 @@ Simplifies API by removing unused parts.
 - `BitSet impl From<impl BitSetInterface>` - now you can materialize lazy bitset fast.
 - `DataBlock::new()` and `DataBlock::new_unchecked()` constructors.
 - `DataBlock::into_parts()` for destructuring.
-- `DataBlock` now support `serde` .
+- `DataBlock` now support `serde`.
+- `BitSet` now support `serde`.
+- `BitSet::serialize()` / `BitSet::deserialize()` for manual serialization.
 
 ### Removed
 - `SmallBitSet` removed as unused.

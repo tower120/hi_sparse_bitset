@@ -1,8 +1,10 @@
-mod serialization;
 mod block;
 mod level;
 mod raw;
 mod derive_raw;
+mod serialization;
+#[cfg(feature="serde")]
+mod serde;
 
 use crate::config::Config;
 use block::Block;

@@ -194,6 +194,27 @@ fn fuzzy_test(){
                 assert_equal(hi_set.block_iter(), deserialized.block_iter());
                 assert_equal(hi_set.iter(), deserialized.iter());
             }
+            
+            // serde_json
+            {
+                let serialized = serde_json::to_string(&hi_set).unwrap();
+                let deserialized: HiSparseBitset = serde_json::from_str(&serialized).unwrap();
+                
+                assert_eq!(hi_set, deserialized);
+                assert_equal(hi_set.block_iter(), deserialized.block_iter());
+                assert_equal(hi_set.iter(), deserialized.iter());
+            }
+            
+            // bincode::serde
+            {
+                let config = bincode::config::standard();
+                let serialized = bincode::serde::encode_to_vec(&hi_set, config).unwrap();
+                let deserialized: HiSparseBitset = bincode::serde::decode_from_slice(&serialized, config).unwrap().0;
+                
+                assert_eq!(hi_set, deserialized);
+                assert_equal(hi_set.block_iter(), deserialized.block_iter());
+                assert_equal(hi_set.iter(), deserialized.iter());
+            }
 
             let mut hash_set_vec: Vec<usize> = hash_set.iter().copied().collect();
             hash_set_vec.sort();

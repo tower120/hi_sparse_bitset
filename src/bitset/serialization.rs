@@ -131,12 +131,11 @@ impl<Conf: Config> BitSet<Conf> {
 mod tests {
     use std::io::Cursor;
     use itertools::assert_equal;
+    use crate::config;
     use super::*;
     
     #[test]
     fn simple_serialize_test(){
-        use crate::config;
-        
         let mut bitset: BitSet<config::_64bit> = Default::default();
         bitset.insert(100);
         bitset.insert(5720);
