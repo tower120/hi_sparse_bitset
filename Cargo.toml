@@ -72,3 +72,8 @@ harness = false
 name = "insert_bench"
 path = "benches/insert.rs"
 harness = false
+
+[[bench]]
+name = "deserialize"
+path = "benches/deserialize.rs"
+harness = false

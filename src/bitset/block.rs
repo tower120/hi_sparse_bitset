@@ -4,6 +4,7 @@ use crate::{Primitive, PrimitiveArray};
 use crate::bitset::level::IBlock;
 
 #[derive(Clone)]
+#[repr(C)]          // repr(C) for BitSet::deserialization Data level 
 pub struct Block<Mask, BlockIndices> {
     mask: Mask,
     /// Next level block indices

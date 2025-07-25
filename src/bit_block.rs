@@ -107,6 +107,11 @@ pub trait BitBlock
     fn from_le_bytes(bytes: Self::BytesArray) -> Self;
     
     #[inline]
+    fn to_le(self) -> Self {
+        Self::from_le_bytes(self.to_le_bytes())
+    }
+    
+    #[inline]
     fn count_ones(&self) -> usize {
         let mut sum = 0;
         // will be unrolled at compile time
