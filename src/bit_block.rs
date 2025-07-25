@@ -22,7 +22,6 @@ mod maybe_serde{
 
 use maybe_serde::*;
 
-// TODO: consider removing copy
 /// Bit block.
 ///
 /// Used in [Config], to define bit blocks [BitSet] is built from. 
@@ -57,16 +56,26 @@ pub trait BitBlock
     /// `bit_index` is guaranteed to be valid
     #[inline]
     fn set_bit<const BIT: bool>(&mut self, bit_index: usize) -> bool {
+        let array = self.as_array_mut().as_mut();
         unsafe{
-            bit_utils::set_array_bit_unchecked::<BIT, _>(self.as_array_mut(), bit_index)
+            if Self::size() == 64 {
+                bit_utils::set_bit_unchecked::<BIT, _>(array.get_unchecked_mut(0), bit_index)
+            } else {
+                bit_utils::set_array_bit_unchecked::<BIT, _>(array, bit_index)
+            }
         }
     }
 
     /// `bit_index` is guaranteed to be valid
     #[inline]
     fn get_bit(&self, bit_index: usize) -> bool{
+        let array = self.as_array().as_ref();
         unsafe{
-            bit_utils::get_array_bit_unchecked(self.as_array(), bit_index)
+            if Self::size() == 64 {
+                bit_utils::get_bit_unchecked(*array.get_unchecked(0), bit_index)
+            } else {
+                bit_utils::get_array_bit_unchecked(array, bit_index)    
+            }
         }
     }
 
@@ -80,7 +89,13 @@ pub trait BitBlock
     where
         F: FnMut(usize) -> ControlFlow<B>
     {
-        bit_utils::traverse_array_one_bits(self.as_array(), f)
+        let array = self.as_array().as_ref();
+        if Self::size() == 64 {
+            let primitive = unsafe{ *array.get_unchecked(0) };
+            bit_utils::traverse_one_bits(primitive, f)
+        } else {
+            bit_utils::traverse_array_one_bits(array, f)
+        }
     }
     
     #[inline]
