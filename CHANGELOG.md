@@ -2,7 +2,7 @@
 
 ## 0.7.0
 
-This release introduces `serde` support. 
+This release introduces serialization and `serde` support. 
 Adds means of "collecting" virtual bitest.
 Simplifies API by removing unused parts.
 
@@ -12,6 +12,7 @@ Simplifies API by removing unused parts.
 
 ### Added
 - `BitSet impl From<impl BitSetInterface>` - now you can materialize lazy bitset fast.
+- `BitSet::insert_block`.
 - `DataBlock::new()` and `DataBlock::new_unchecked()` constructors.
 - `DataBlock::into_parts()` for destructuring.
 - `DataBlock` now support `serde`.

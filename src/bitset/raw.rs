@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
 use crate::config::Config;
-use crate::{BitBlock, BitSetBase, BitSetInterface, level_indices};
+use crate::{BitBlock, BitSetBase, BitSetInterface, level_indices, DataBlock};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::bitset::level::{IBlock, Level};
 use crate::primitive::Primitive;
@@ -176,61 +176,85 @@ where
     fn is_in_range(index: usize) -> bool{
         index < Self::max_capacity()
     }
-    
+
+    /// # Safety
+    /// 
+    /// indices are not checked
     #[inline]
-    fn get_block_indices(&self, level0_index: usize, level1_index: usize)
-        -> Option<(usize, usize)>
+    unsafe fn get_block_indices(&self, level0_index: usize, level1_index: usize)
+        -> (usize/*level1_block_index*/, usize/*data_block_index*/)
     {
-        let level1_block_index = unsafe{
-            self.level0.get_or_zero(level0_index)
-        }.as_usize();
+        let level1_block_index = self.level0.get_or_zero(level0_index).as_usize();
+        let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
+        let data_block_index = level1_block.get_or_zero(level1_index).as_usize();
+        (level1_block_index, data_block_index)
+    }
+    
+    /// # Safety
+    /// 
+    /// indices are not checked
+    #[inline]
+    unsafe fn get_or_insert_data_block(&mut self, level0_index: usize, level1_index: usize) 
+        -> &mut LevelDataBlock 
+    {
+        // 1. Level0
+        let level1_block_index = 
+            self.level0.get_or_insert(level0_index, ||{
+                let block_index = self.level1.insert_block();
+                Primitive::from_usize(block_index)
+            }).as_usize();
 
         // 2. Level1
-        let data_block_index = unsafe{
-            let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-            level1_block.get_or_zero(level1_index)
-        }.as_usize();
-        
-        return if data_block_index == 0 {
-            // Block 0 - is preallocated empty block
-            None
-        } else {
-            Some((level1_block_index, data_block_index))
+        let data_block_index = { 
+            let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
+            level1_block.get_or_insert(level1_index, ||{
+                let block_index = self.data.insert_block();
+                Primitive::from_usize(block_index)
+            }).as_usize()
         };
+
+        // 3. Data block
+        self.data.blocks_mut().get_unchecked_mut(data_block_index)
     }
     
     /// # Safety
     ///
     /// Will panic, if `index` is out of range.
     pub fn insert(&mut self, index: usize){
-        assert!(Self::is_in_range(index), "{index} index out of range!");
+        assert!(Self::is_in_range(index), "{index} is out of index range!");
 
         // That's indices to next level
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
 
-        // 1. Level0
-        let level1_block_index = unsafe{
-            self.level0.get_or_insert(level0_index, ||{
-                let block_index = self.level1.insert_block();
-                Primitive::from_usize(block_index)
-            })
-        }.as_usize();
-
-        // 2. Level1
-        let data_block_index = unsafe{
-            let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-            level1_block.get_or_insert(level1_index, ||{
-                let block_index = self.data.insert_block();
-                Primitive::from_usize(block_index)
-            })
-        }.as_usize();
-
-        // 3. Data level
         unsafe{
-            let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
+            let data_block = self.get_or_insert_data_block(level0_index, level1_index);
             data_block.mask_mut().set_bit::<true>(data_index);
         }
     }
+
+    // TODO: test and document
+    /// # Safety
+    ///
+    /// Will panic, if `index` is out of range.
+    pub fn insert_block(&mut self, block: DataBlock<LevelDataBlock::Mask>) {
+        if block.is_empty() {
+            return;
+        }
+        
+        // does block end is in range?
+        assert!(
+            Self::is_in_range(block.start_index + LevelDataBlock::Mask::size()), 
+            "{:?} is out of index range!", block
+        );
+
+        // That's indices to next level
+        let (level0_index, level1_index, _) = Self::level_indices(block.start_index);
+
+        unsafe{
+            let data_block = self.get_or_insert_data_block(level0_index, level1_index);
+            *data_block.mask_mut() |= block.bit_block; 
+        }
+    }    
     
     /// Returns false if index is invalid/not in bitset.
     pub fn remove(&mut self, index: usize) -> bool {
@@ -240,36 +264,35 @@ where
 
         // 1. Resolve indices
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
-        let (level1_block_index, data_block_index) = match self.get_block_indices(level0_index, level1_index){
-            None => return false,
-            Some(value) => value,
+        let (level1_block_index, data_block_index) = unsafe {
+            self.get_block_indices(level0_index, level1_index)
         };
+        if data_block_index == 0 {
+            return false;
+        }
 
-        unsafe{
+        unsafe {
             // 2. Get Data block and set bit
             let data_block = self.data.blocks_mut().get_unchecked_mut(data_block_index);
             let existed = data_block.mask_mut().set_bit::<false>(data_index);
             
-            // TODO: fast check of mutated data_block's primitive == 0?
-            //if existed{
-                // 3. Remove free blocks
-                if data_block.is_empty(){
-                    // remove data block
-                    self.data.remove_empty_block_unchecked(data_block_index);
+            // 3. Remove free blocks
+            if data_block.is_empty(){
+                // remove data block
+                self.data.remove_empty_block_unchecked(data_block_index);
 
-                    // remove pointer from level1
-                    let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
-                    level1_block.remove_unchecked(level1_index);
+                // remove pointer from level1
+                let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
+                level1_block.remove_unchecked(level1_index);
 
-                    if level1_block.is_empty(){
-                        // remove level1 block
-                        self.level1.remove_empty_block_unchecked(level1_block_index);
+                if level1_block.is_empty(){
+                    // remove level1 block
+                    self.level1.remove_empty_block_unchecked(level1_block_index);
 
-                        // remove pointer from level0
-                        self.level0.remove_unchecked(level0_index);
-                    }
+                    // remove pointer from level0
+                    self.level0.remove_unchecked(level0_index);
                 }
-            //}
+            }
             existed
         }
     }
@@ -311,10 +334,7 @@ where
 
     #[inline]
     unsafe fn data_mask(&self, level0_index: usize, level1_index: usize) -> Conf::DataBitBlock {
-        let level1_block_index = self.level0.get_or_zero(level0_index).as_usize();
-        let level1_block = self.level1.blocks().get_unchecked(level1_block_index);
-
-        let data_block_index = level1_block.get_or_zero(level1_index).as_usize();
+        let (_, data_block_index) = self.get_block_indices(level0_index, level1_index);
         let data_block = self.data.blocks().get_unchecked(data_block_index);
         *data_block.mask()
     }

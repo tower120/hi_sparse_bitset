@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::mem;
-use std::ops::{BitAnd, BitOr, BitXor, ControlFlow};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, ControlFlow};
 use crate::bit_utils;
 use crate::bit_queue::*;
 use crate::primitive_array::PrimitiveArray;
@@ -29,7 +29,12 @@ use maybe_serde::*;
 /// [Config]: crate::config::Config
 /// [BitSet]: crate::BitSet
 pub trait BitBlock
-    : BitAnd<Output = Self> + BitOr<Output = Self> + BitXor<Output = Self>
+    : BitAnd<Output = Self>
+    + BitAndAssign
+    + BitOr<Output = Self>
+    + BitOrAssign
+    + BitXor<Output = Self>
+    + BitXorAssign
     + Eq + PartialEq
     + MaybeSerialize + for<'de> MaybeDeserialize<'de>
     + Debug

@@ -135,6 +135,8 @@
 //! # Serialization
 //! 
 //! BitSet have fast and compact [serialization](BitSet::serialize).
+//! [Deserialization](BitSet::deserialize) is the fastest way to fill BitSet,
+//! since serialized data store **contiguous** hierarchy bitblocks.  
 //! 
 //! ## Serde
 //! 
