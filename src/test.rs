@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 use itertools::assert_equal;
 use rand::Rng;
 use crate::ops::{And, BitSetOp, Or, Sub, Xor};
-use crate::{level_indices, reduce, reduce_w_cache, Apply, BitSetInterface};
+use crate::{level_indices, reduce, reduce_w_cache, Apply, BitBlock, BitSetInterface, DataBlock};
 use crate::config;
 use crate::cache;
 use crate::iter::{BlockCursor, IndexCursor};
@@ -95,6 +95,21 @@ fn insert_regression_test(){
 }
 
 #[test]
+fn insert_block_test(){
+    use crate::config::Config;
+    let mut bit_block: <Conf as Config>::DataBitBlock = Default::default();
+    for i in [1,2,3,16]{
+        unsafe{ bit_block.set_bit_unchecked::<true>(i) };
+    }
+    let block = DataBlock::new(1024, bit_block);
+    
+    let mut hi_set = HiSparseBitset::default();
+    hi_set.insert_block(block);
+    
+    assert_equal(&hi_set, [1025, 1026, 1027, 1040]);
+}
+
+#[test]
 fn fuzzy_test(){
     cfg_if::cfg_if! {
     if #[cfg(miri)] {
@@ -180,6 +195,15 @@ fn fuzzy_test(){
                 let other: HiSparseBitset = hi_set.iter().collect();
                 assert!(hi_set == other);
             }
+            
+            // insert_block through collect()
+            {
+                let other: HiSparseBitset = hi_set.block_iter().collect();
+                
+                assert_eq!(hi_set, other);
+                assert_equal(hi_set.block_iter(), other.block_iter());
+                assert_equal(hi_set.iter(), other.iter());
+            }            
 
             // serialization
             {

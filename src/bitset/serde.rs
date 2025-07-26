@@ -21,8 +21,8 @@ impl<Conf: Config> Serialize for BitSet<Conf>{
         // real_len <= approx_len
         let approx_len = 
             Conf::DataBitBlock::size()                                                 // root block
-            + (1 + self.0.level0.mask().count_ones()) * Conf::Level1BitBlock::size()   // lvl1 blocks
-            + (1 + self.0.data.blocks().len())        * Conf::DataBitBlock::size();    // approx data blocks
+            + (1 + self.level0.mask().count_ones()) * Conf::Level1BitBlock::size()   // lvl1 blocks
+            + (1 + self.data.blocks().len())        * Conf::DataBitBlock::size();    // approx data blocks
         
         // There should be no errors at all.
         let array = if approx_len <= STACK_BUFFER_LEN {

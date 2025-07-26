@@ -263,7 +263,7 @@ pub(crate) fn bitset_contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
         level_indices::<S::Conf>(index);
     unsafe{
         let data_block = bitset.data_mask(level0_index, level1_index);
-        data_block.get_bit(data_index)
+        data_block.get_bit_unchecked(data_index)
     }
 } 
 

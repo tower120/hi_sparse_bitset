@@ -57,16 +57,23 @@ where
     type Item = BlockIndices::Item;
 
     /// Same as `get_unchecked`
+    /// 
+    /// # Safety
+    ///
+    /// `index` is not checked.
     #[inline]
     unsafe fn get_or_zero(&self, index: usize) -> Self::Item {
         let block_indices = self.block_indices.as_ref();
         *block_indices.get_unchecked(index)
     }
 
+    /// # Safety
+    ///
+    /// `index` is not checked.
     #[inline]
     unsafe fn get_or_insert(&mut self, index: usize, mut f: impl FnMut() -> Self::Item) -> Self::Item {
         // mask
-        let exists = self.mask.set_bit::<true>(index);
+        let exists = self.mask.set_bit_unchecked::<true>(index);
 
         // indices
         let block_indices = self.block_indices.as_mut();
@@ -79,10 +86,13 @@ where
         }
     }
 
+    /// # Safety
+    ///
+    /// `index` is not checked.
     #[inline]
     unsafe fn insert_unchecked(&mut self, index: usize, item: Self::Item) {
         // mask
-        let exists = self.mask.set_bit::<true>(index);
+        let exists = self.mask.set_bit_unchecked::<true>(index);
         debug_assert!(!exists);
 
         // indices
@@ -90,10 +100,13 @@ where
         *block_indices.get_unchecked_mut(index) = item;
     }
 
+    /// # Safety
+    ///
+    /// `index` is not checked.
     #[inline]
     unsafe fn remove_unchecked(&mut self, index: usize) {
         // mask
-        self.mask.set_bit::<false>(index);
+        self.mask.set_bit_unchecked::<false>(index);
         // If we have block_indices section (compile-time check)
         if !size_of::<BlockIndices>().is_zero(){
             let block_indices = self.block_indices.as_mut();

@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use std::ops::ControlFlow;
 use std::{mem, slice};
 use crate::{BitBlock, BitSet};
-use crate::bitset::{Level0Block, Level1Block, LevelDataBlock, RawBitSet};
+use crate::bitset::{Level0Block, Level1Block, LevelDataBlock};
 use crate::bitset::block::Block;
 use crate::config::Config;
 use crate::internals::Primitive;
@@ -47,13 +47,13 @@ impl<Conf: Config> BitSet<Conf> {
     /// ```
     pub fn serialize(&self, w: &mut impl Write) -> std::io::Result<()> {
         // lvl0_mask
-        let lvl0_mask = self.0.level0.mask(); 
+        let lvl0_mask = self.level0.mask(); 
         w.write_all(lvl0_mask.to_le_bytes().as_ref())?;
         
         // [lvl1_mask;..]
         let ctrl = lvl0_mask.traverse_bits(|i| -> ControlFlow<_> {
-            let lvl1_block_index = unsafe{ self.0.level0.get_or_zero(i).as_usize() };
-            let lvl1_block = unsafe{ self.0.level1.blocks().get_unchecked(lvl1_block_index) };
+            let lvl1_block_index = unsafe{ self.level0.get_or_zero(i).as_usize() };
+            let lvl1_block = unsafe{ self.level1.blocks().get_unchecked(lvl1_block_index) };
             
             let res = w.write_all(lvl1_block.mask().to_le_bytes().as_ref());
             match res {
@@ -188,10 +188,9 @@ impl<Conf: Config> BitSet<Conf> {
             unsafe{ Level::from_blocks_unchecked(blocks) }
         };
         
-        Ok(Self(RawBitSet{
+        Ok(Self{
             level0, level1, data,
-            phantom: Default::default(),
-        }))
+        })
     }
 }
 
