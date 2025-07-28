@@ -2,7 +2,7 @@
 name = "hi_sparse_bitset"
 authors = ["Andrey Diduh <tower120@gmail.com>"]
 license = "MIT OR Apache-2.0"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 repository = "https://github.com/tower120/hi_sparse_bitset"
 keywords = ["hierarchical", "sparse", "bitset", "bitmap", "container"]
@@ -49,7 +49,7 @@ check-cfg = [
 ]
 
 [package.metadata.docs.rs]
-features = ["impl"]
+all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [[bench]]
