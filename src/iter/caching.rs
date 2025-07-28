@@ -28,9 +28,11 @@ use crate::iter::{BlockCursor, IndexCursor};
 /// 
 /// # Empty blocks
 /// 
-/// Block iterator may occasionally return empty blocks.
+/// For ![TRUSTED_HIERARCHY], block iterator may occasionally return empty blocks.
 /// This is for performance reasons - it is faster to just iterate/traverse empty
 /// blocks through, then to add adding additional `is_empty` check in the middle of the loop.
+/// 
+/// [TRUSTED_HIERARCHY]: crate::BitSetBase::TRUSTED_HIERARCHY 
 /// 
 /// TODO: consider changing this behavior.
 ///

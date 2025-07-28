@@ -16,6 +16,8 @@ This release:
 - `BitSet impl From<impl BitSetInterface>` - now you can materialize lazy bitset fast.
 - `BitSet::insert_block`.
 - `BitSet::FromIterator<DataBlock>` - for collecting `DataBlock`s into bitset.
+- `BitSet impl Extend<usize>`.
+- `BitSet impl Extend<DataBlock>`.
 - `DataBlock::new()` and `DataBlock::new_unchecked()` constructors.
 - `DataBlock::into_parts()` for destructuring.
 - `DataBlock` now support `serde`.

@@ -30,11 +30,12 @@ type LevelDataBlock<Conf> = Block<
 /// Tri-level hierarchy. Highest uint it can hold
 /// is [Level0BitBlock]::size() * [Level1BitBlock]::size() * [DataBitBlock]::size().
 ///
-/// Only last level contains blocks of actual data. Empty(skipped) data blocks
+/// Only the last level contains blocks of actual data. Empty(skipped) data blocks
 /// are not allocated.
 ///
 /// Structure optimized for intersection speed. 
-/// _(Other inter-bitset operations are in fact fast too - but intersection has lowest algorithmic complexity.)_
+/// _(Other inter-bitset operations are in fact fast too - but intersection 
+/// has the lowest algorithmic complexity.)_
 /// Insert/remove/contains is fast O(1) too.
 /// 
 /// [Level0BitBlock]: crate::config::Config::Level0BitBlock
@@ -69,23 +70,37 @@ impl<Conf: Config> Default for BitSet<Conf> {
 impl<Conf: Config> FromIterator<usize> for BitSet<Conf> {
     fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
         let mut this = Self::default();
-        for i in iter{
-            this.insert(i);
-        }
+        this.extend(iter);
         this
     }    
 }
 
 impl<Conf: Config> FromIterator<DataBlock<Conf::DataBitBlock>> for BitSet<Conf> {
     /// It is allowed for blocks with the same range to repeat in iterator.
-    /// Like `([1,42], [15,27,61])`. Their data will be accumulated.
+    /// Like `([1,42], [15,27,61])`. Their data will be merged.
     fn from_iter<T: IntoIterator<Item=DataBlock<Conf::DataBitBlock>>>(iter: T) -> Self {
         let mut this = Self::default();
-        for b in iter {
-            this.insert_block(b);
-        }
+        this.extend(iter);
         this
     }    
+}
+
+impl<Conf: Config> Extend<usize> for BitSet<Conf> {
+    fn extend<T: IntoIterator<Item=usize>>(&mut self, iter: T) {
+        for i in iter {
+            self.insert(i);
+        }
+    }
+}
+
+impl<Conf: Config> Extend<DataBlock<Conf::DataBitBlock>> for BitSet<Conf> {
+    /// It is allowed for blocks with the same range to repeat in iterator.
+    /// Like `([1,42], [15,27,61])`. Their data will be merged.
+    fn extend<T: IntoIterator<Item=DataBlock<Conf::DataBitBlock>>>(&mut self, iter: T) {
+        for b in iter {
+            self.insert_block(b);
+        }
+    }
 }
 
 impl<Conf: Config, const N: usize> From<[usize; N]> for BitSet<Conf> {
@@ -100,7 +115,7 @@ where
     Conf: Config, 
     B: BitSetInterface<Conf = Conf>
 {
-    /// Materialize any BitSetInterface. 
+    /// Materialize any [BitSetInterface]. 
     #[inline]
     fn from(bitset: B) -> Self {
         /*if B::TRUSTED_HIERARCHY{
