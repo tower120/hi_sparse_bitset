@@ -2,7 +2,7 @@
 name = "hi_sparse_bitset"
 authors = ["Andrey Diduh <tower120@gmail.com>"]
 license = "MIT OR Apache-2.0"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 repository = "https://github.com/tower120/hi_sparse_bitset"
 keywords = ["hierarchical", "sparse", "bitset", "bitmap", "container"]
@@ -46,7 +46,6 @@ check-cfg = [
     'cfg(hisparsebitset_test_256)',
 
     'cfg(hisparsebitset_test_bitset)',
-    'cfg(hisparsebitset_test_smallbitset)',
 ]
 
 [package.metadata.docs.rs]

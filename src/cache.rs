@@ -1,11 +1,12 @@
-//! Cache used by [CachingBlockIter] for [reduce] operations.
+//! Cache used by [BlockIter]/[IndexIter] for [reduce] operations.
 //!
 //! # Memory footprint
 //!
 //! Cache for one [BitSet] costs 2 pointers.
 //!
 //! [BitSet]: crate::BitSet
-//! [CachingBlockIter]: crate::iter::BlockIter
+//! [BlockIter]: crate::iter::BlockIter
+//! [IndexIter]: crate::iter::IndexIter
 //! [reduce]: crate::reduce()
 
 use crate::ops::BitSetOp;

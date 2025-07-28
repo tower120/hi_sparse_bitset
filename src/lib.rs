@@ -36,10 +36,10 @@
 //! It is multi-level structure. Last level contains actual bit-data. Each previous level
 //! have bitmask, where each bit corresponds to `!is_empty` of bitblock in next level. 
 //! 
-//! In addition to "non-empty-marker" bitmasks, there is pointers(indices) to non-empty blocks in next level.
+//! In addition to "non-empty-marker" bitmasks, there is pointers(indices) to non-empty blocks in the next level.
 //! In this way, only blocks with actual data allocated.
 //! 
-//! For inter-bitset operations, for example intersection:
+//! For inter-bitset operations, for example, intersection:
 //! * root level bitmasks AND-ed.
 //! * resulting bitmask traversed for bits with 1.
 //! * indexes of bits with 1, used for getting pointers to the next level for each bitset.
@@ -52,7 +52,7 @@
 //! bitsets are cached for faster access. Empty blocks are skipped and not added
 //! to the cache container, which algorithmically speeds up bitblock computations
 //! at the data level.
-//! This has observable effect in a merge operation between N non-intersecting
+//! This has an observable effect on a merge operation between N non-intersecting
 //! bitsets: without this optimization - the data level bitmask would be OR-ed N times;
 //! with it - only once. 
 //! 
@@ -80,7 +80,7 @@
 //! 
 //! Use [apply()]  to apply inter-bitset operation between two bitsets. Also [&], [|], [`^`], [-].
 //! 
-//! You can define your own inter-bitset operation, by implementing [BitSetOp].
+//! You can define your own inter-bitset operation by implementing [BitSetOp].
 //! 
 //! [&]: std::ops::BitAnd
 //! [|]: std::ops::BitOr
@@ -90,12 +90,12 @@
 //! # Laziness and materialization
 //! 
 //! Use `BitSet::from(impl BitSetInterface)` instead of collecting iterator for
-//! materialization into BitSet.
+//! faster materialization into BitSet.
 //! 
 //! # Cursor
 //! 
 //! [BitSetInterface] iterators can return [cursor()], pointing to the current iterator position. 
-//! You can use [Cursor] to move ANY [BitSetInterface] iterator to it's position with [move_to].
+//! You can use [Cursor] to move ANY [BitSetInterface] iterator to its position with [move_to].
 //! 
 //! You can also build cursor from index.
 //! 
@@ -106,7 +106,7 @@
 //! # Iterator::for_each
 //! 
 //! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - [traverse].
-//! For tight loops, traversing is observably faster then iterating.
+//! For tight loops, traversing is observably faster than iterating.
 //! 
 //! [for_each]: std::iter::Iterator::for_each
 //! [try_for_each]: std::iter::Iterator::try_for_each
@@ -153,10 +153,10 @@
 //! ## SIMD
 //! 
 //! 128 and 256 bit configurations use SIMD, powered by [wide]. Make sure you compile with simd support
-//! enabled (on x86: `sse2` for _128bit, `avx` for _256bit) to achieve best performance.
+//! enabled (on x86: `sse2` for _128bit, `avx` for _256bit) to achieve the best performance.
 //! _sse2 enabled by default in Rust for most desktop environments_ 
 //!
-//! If you don't need "wide" configurations, you may disable default feature `simd`.
+//! If you don't need "wide" configurations, you may disable the default feature `simd`.
 //!
 //! [wide]: https://crates.io/crates/wide
 

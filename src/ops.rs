@@ -39,7 +39,7 @@ pub trait BitSetOp: Default + Copy + 'static{
     /// 
     /// This is true for [intersection], or narrower.
     /// 
-    /// Enables some optimizations. False - is always safe value.
+    /// Enables some optimizations. False - is always a safe value.
     /// 
     /// [hierarchy_op]: Self::hierarchy_op
     /// [intersection]: And

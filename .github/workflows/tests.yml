@@ -26,8 +26,7 @@ jobs:
           hisparsebitset_test_256
         ]
         bitset: [
-          hisparsebitset_test_bitset,
-          #hisparsebitset_test_smallbitset                            
+          hisparsebitset_test_bitset                                 
         ]    
     uses: ./.github/workflows/tests_impl.yml
     with:
