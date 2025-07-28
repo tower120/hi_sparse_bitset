@@ -218,6 +218,7 @@ fn fuzzy_test(){
             }
             
             // serde_json
+            #[cfg(feature = "serde")]
             {
                 let serialized = serde_json::to_string(&hi_set).unwrap();
                 let deserialized: HiSparseBitset = serde_json::from_str(&serialized).unwrap();
@@ -228,6 +229,7 @@ fn fuzzy_test(){
             }
             
             // bincode::serde
+            #[cfg(feature = "serde")]
             {
                 let config = bincode::config::standard();
                 let serialized = bincode::serde::encode_to_vec(&hi_set, config).unwrap();

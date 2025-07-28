@@ -20,6 +20,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  build:
+    name: build tests with default features
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: RUSTFLAGS="
+             ${{ inputs.rustflags }}
+             --cfg ${{ inputs.cache_type_flag }}
+             --cfg ${{ inputs.config_type_flag }}
+             --cfg ${{ inputs.bitset }}
+           " cargo build tests
+    
   tests:
     name: careful tests
     runs-on: ubuntu-latest
