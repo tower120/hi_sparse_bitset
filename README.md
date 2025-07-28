@@ -62,14 +62,6 @@ second level are always allocated.
 Hierarchy-wise memory overhead, for `config::_128bit`:
 minimal(initial) = 416 bytes, maximum = 35 Kb.
 
-### SmallBitSet
-
-`hi_sparse_bitset::SmallBitSet` instead of full-sized array for block pointers
-use technique we call "SparseBitMap", which allows to store pointers only to 
-non-empty blocks.
-Thou, this tehcnique introduce some additional performance overhead, 
-all operations still have O(1) complexity, like `BitSet`.
-
 ## Performance
 
 It is faster than hashsets and pure bitsets for all inter-bitset operations
@@ -100,7 +92,7 @@ early, due to its tree-like nature.
 ## DataBlock operations
 
 In order to speed up things even more, you can work directly with
-`DataBlock`s. `DataBlock`s - is a bit-blocks (relatively small in size), 
+`DataBlock`s. `DataBlock`s - is a bit-blocks (relatively small), 
 which you can store and iterate latter.
 
 _In future versions, you can also insert DataBlocks into BitSet._
@@ -116,13 +108,13 @@ operations.
 
 ## Ordered/sorted
 
-Iteration always return sorted sequences.
+Iteration always returns sorted sequences.
 
 ## Suspend-resume iterator with cursor
 
 Iterators of `BitSetInterface` (any kind of bitset) can return cursor, 
 and can rewind to cursor. Cursor is like integer index in `Vec`.
-Which means, that you can use it even if container was mutated.
+Which means, that you can use it even if the container was mutated.
 
 ### Multi-session iteration
 
@@ -139,11 +131,13 @@ _(By wrapping bitsets in Mutex(es))_
 
 #### Invariant intersection
 
-If intersection of bitsets _(or any other operation)_ does not change with possible bitsets mutations - you're guaranteed to correctly traverse all of its elements.
+If intersection of bitsets _(or any other operation)_ does not change with possible 
+bitsets mutations - you're guaranteed to correctly traverse all of its elements.
 
 #### Bitsets mutations narrows intersection/union
 
-If in intersection, only `remove` operation mutates bitsets - this guarantees that you will not loose any valid elements at the end of "multi-session iteration".
+If in intersection, only `remove` operation mutates bitsets - this guarantees 
+that you will not lose any valid elements at the end of "multi-session iteration".
 
 #### Speculative iteration
 
