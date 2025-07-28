@@ -30,7 +30,7 @@ jobs:
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}
              --cfg ${{ inputs.bitset }}
-           " cargo build tests
+           " cargo build --tests
     
   tests:
     name: careful tests
