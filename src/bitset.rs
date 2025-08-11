@@ -244,7 +244,11 @@ impl<Conf: Config> BitSet<Conf> {
     ///
     /// Panics, if `index` is out of index range.
     pub fn insert(&mut self, index: usize){
-        assert!(Self::is_in_range(index), "{index} is out of index range!");
+        assert!(
+            Self::is_in_range(index),
+            "{index} is out of index range (max={})!"
+            Self::max_capacity(),
+        );
 
         // That's indices to next level
         let (level0_index, level1_index, data_index) = Self::level_indices(index);
