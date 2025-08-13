@@ -65,4 +65,5 @@ jobs:
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}        
              --cfg ${{ inputs.bitset }}
+             -Zmiri-disable-isolation
            " cargo +nightly miri nextest run -j6 --all-features
