@@ -60,7 +60,9 @@ jobs:
       with:
         tool: cargo-nextest
     - uses: actions/checkout@v4
-    - run: RUSTFLAGS="
+    - run:
+        MIRIFLAGS="-Zmiri-disable-isolation"
+        RUSTFLAGS="             
              ${{ inputs.rustflags }}
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}        
