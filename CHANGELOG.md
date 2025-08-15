@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2
+### Fix
+- `serde_json` deserialization did not work with `std::fs::File`.
+
+## 0.7.1
+### Fix
+- crates.io doc generation fix.
+
 ## 0.7.0
 
 This release:
