@@ -36,6 +36,7 @@ pub trait Primitive:
     
     fn trailing_zeros(self) -> u32;
     fn wrapping_neg(self) -> Self;
+    fn wrapping_add(self, rhs: Self) -> Self;
     
     fn is_zero(self) -> bool;
 }
@@ -67,6 +68,11 @@ macro_rules! impl_primitive {
             #[inline]
             fn wrapping_neg(self) -> Self {
                 self.wrapping_neg()
+            }
+            
+            #[inline]
+            fn wrapping_add(self, rhs: Self) -> Self {
+                self.wrapping_add(rhs)
             }
             
             #[inline]
