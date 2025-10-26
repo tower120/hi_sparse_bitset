@@ -2,6 +2,7 @@ use rand::{thread_rng, Rng};
 
 /// For issue https://github.com/tower120/hi_sparse_bitset/pull/47
 #[test]
+#[cfg_attr(miri, ignore)]
 fn regression_deserialization_256bit_arithmetic_overflow() {
     type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_256bit>;
     
