@@ -29,7 +29,10 @@ where
         let mut block_indices: BlockIndices = unsafe{MaybeUninit::zeroed().assume_init()};
         mask.for_each_bit(|i|{
             block_indices.as_mut()[i] = *index_offset;
-            *index_offset += Primitive::ONE;
+            // Allowed to overflow here, on the very last round with 
+            // BlockIndices::Item=u8 and 256bit config. 
+            // (root level with 256 items)
+            *index_offset = index_offset.wrapping_add(Primitive::ONE);
         });
         block_indices
     };
