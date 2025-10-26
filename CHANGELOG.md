@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3
+### Fix
+- 256bit deserialization overflow "warning" fix - for builds with checked arithmetic. 
+
 ## 0.7.2
 ### Fix
 - `serde_json` deserialization did not work with `std::fs::File`.
