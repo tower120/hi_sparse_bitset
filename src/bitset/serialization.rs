@@ -32,7 +32,7 @@ where
             // Allowed to overflow here, on the very last round with 
             // BlockIndices::Item=u8 and 256bit config. 
             // (root level with 256 items)
-            index_offset.wrapping_add(Primitive::ONE);
+            *index_offset = index_offset.wrapping_add(Primitive::ONE);
         });
         block_indices
     };

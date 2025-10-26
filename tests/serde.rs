@@ -1,9 +1,10 @@
 use rand::{thread_rng, Rng};
 
-type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_256bit>;
-
+/// For issue https://github.com/tower120/hi_sparse_bitset/pull/47
 #[test]
-fn serde() {
+fn regression_deserialization_256bit_arithmetic_overflow() {
+    type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_256bit>;
+    
     let mut rng = thread_rng();
     let bitset: BitSet = (0..BitSet::max_capacity())
         .filter(|_| rng.gen())
