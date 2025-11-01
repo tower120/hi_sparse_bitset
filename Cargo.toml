@@ -1,6 +1,6 @@
 [package]
 name = "hi_sparse_bitset"
-authors = ["Andrey Diduh <tower120@gmail.com>"]
+authors = ["Andrey Didukh <tower120@gmail.com>"]
 license = "MIT OR Apache-2.0"
 version = "0.7.3"
 edition = "2021"
