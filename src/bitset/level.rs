@@ -143,10 +143,11 @@ impl<Block: IBlock> Level<Block> {
         self.root_empty_block = block_index as u64;
     }
 
-    // TODO: rename insert_empty_block
     /// Inserts empty block and return its index.
+    ///
+    /// Faster then `insert_block(Default::default())`.
     #[inline]
-    pub fn insert_block(&mut self) -> usize {
+    pub fn insert_empty_block(&mut self) -> usize {
         if let Some(index) = self.pop_empty_block(){
             index
         } else {
@@ -156,10 +157,11 @@ impl<Block: IBlock> Level<Block> {
         }
     }
 
+    /// Inserts `block` and return its index.
     #[inline]
-    pub fn insert_specific_block(&mut self, block: Block) -> usize {
+    pub fn insert_block(&mut self, block: Block) -> usize {
         if let Some(index) = self.pop_empty_block(){
-            self.blocks[index] = block;
+            unsafe{ *self.blocks.get_unchecked_mut(index) = block; }
             index
         } else {
             let index = self.blocks.len();
@@ -176,10 +178,14 @@ impl<Block: IBlock> Level<Block> {
         index
     }
 
-    /// Reserve `additional` blocks.
+    /// Reserve for `len` blocks total.
     #[inline]
-    pub fn reserve(&mut self, additional: usize){
-        self.blocks.reserve(additional);
+    pub fn reserve_for(&mut self, len: usize) {
+        let cap = self.blocks.capacity();
+        if cap >= len{
+            return;
+        }
+        self.blocks.reserve(len - cap);
     }
 
     /// # Safety

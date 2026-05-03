@@ -146,7 +146,7 @@ where
                 // 1. Level0
                 let level1_block_index = unsafe{
                     this.level0.get_or_insert(inner_level0_index, ||{
-                        let block_index = this.level1.insert_block();
+                        let block_index = this.level1.insert_empty_block();
                         Primitive::from_usize(block_index)
                     })
                 }.as_usize();
@@ -219,7 +219,7 @@ impl<Conf: Config> BitSet<Conf> {
         // 1. Level0
         let level1_block_index =
             self.level0.get_or_insert(level0_index, ||{
-                let block_index = self.level1.insert_block();
+                let block_index = self.level1.insert_empty_block();
                 Primitive::from_usize(block_index)
             }).as_usize();
 
@@ -227,7 +227,7 @@ impl<Conf: Config> BitSet<Conf> {
         let data_block_index = {
             let level1_block = self.level1.blocks_mut().get_unchecked_mut(level1_block_index);
             level1_block.get_or_insert(level1_index, ||{
-                let block_index = self.data.insert_block();
+                let block_index = self.data.insert_empty_block();
                 Primitive::from_usize(block_index)
             }).as_usize()
         };
@@ -321,7 +321,7 @@ impl<Conf: Config> BitSet<Conf> {
         }
     }
 
-    /// In-place union.
+    /// In-place union with any [BitSetInterface].
     pub fn union_with<Other>(&mut self, other: Other)
     where
         Other: BitSetInterface<Conf=Conf>
@@ -330,9 +330,9 @@ impl<Conf: Config> BitSet<Conf> {
         {
             let new_lvl0_mask = self.level0_mask() | other.level0_mask();
             let mask_diff = self.level0_mask() ^ new_lvl0_mask;
-            self.level1.reserve(mask_diff.count_ones());
+            self.level1.reserve_for(new_lvl0_mask.count_ones());
             mask_diff.for_each_bit(|idx| {
-                let block_index = self.level1.insert_block();
+                let block_index = self.level1.insert_empty_block();
                 let item = Primitive::from_usize(block_index);
                 unsafe{ self.level0.insert_unchecked_no_mask(idx, item); }
             });
@@ -369,7 +369,7 @@ impl<Conf: Config> BitSet<Conf> {
 
                 // I. Insert data blocks that `self` does not have as direct copy from `other`.
                 let mask_diff = this_lvl1_mask ^ new_lvl1_mask;
-                this_data.reserve(mask_diff.count_ones());
+                this_data.reserve_for(new_lvl1_mask.count_ones());
                 mask_diff.for_each_bit(|lvl1_idx|{
                     let other_data = unsafe{
                         Other::data_mask_from_block_data(
@@ -378,7 +378,7 @@ impl<Conf: Config> BitSet<Conf> {
                         )
                     };
 
-                    let block_index = this_data.insert_specific_block(
+                    let block_index = this_data.insert_block(
                         unsafe{
                             Block::from_parts(other_data, Default::default())
                         }
@@ -493,6 +493,7 @@ where
     Conf: Config,
     Rhs: BitSetInterface<Conf=Conf>
 {
+    /// See [Self::union_with].
     #[inline]
     fn bitor_assign(&mut self, rhs: Rhs) {
         self.union_with(rhs);
