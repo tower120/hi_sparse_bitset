@@ -1116,7 +1116,7 @@ fn fuzzy_inplace_union_test(){
     }
     const MAX_SIZE: usize = 10000;
     const MAX_RANGE: usize = 100000;
-    const INDEX_MUL: usize = 4;
+    const INDEX_MUL: usize = 2;
 
     use rand::prelude::*;
     let mut rng = rand::rng();
