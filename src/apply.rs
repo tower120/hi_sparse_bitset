@@ -12,9 +12,9 @@ use crate::config::Config;
 ///
 /// Created by [apply], or by applying [BitOr], [BitAnd], [BitXor],
 /// [Sub] operations on [BitSetInterface]s.
-/// 
+///
 /// [BitOr]: std::ops::BitOr
-/// [BitAnd]: std::ops::BitAnd 
+/// [BitAnd]: std::ops::BitAnd
 /// [BitXor]: std::ops::BitXor
 /// [Sub]: std::ops::Sub
 /// [apply]: crate::apply()
@@ -39,10 +39,10 @@ where
     S2: LevelMasks<Conf = S1::Conf>,
 {
     type Conf = S1::Conf;
-    
-    /// true if S1, S2 and Op are `TrustedHierarchy`. 
-    const TRUSTED_HIERARCHY: bool = 
-        Op::TRUSTED_HIERARCHY 
+
+    /// true if S1, S2 and Op are `TrustedHierarchy`.
+    const TRUSTED_HIERARCHY: bool =
+        Op::TRUSTED_HIERARCHY
         & S1::TRUSTED_HIERARCHY & S2::TRUSTED_HIERARCHY;
 }
 
@@ -108,17 +108,17 @@ where
         level1_block_data: &mut MaybeUninit<Self::Level1BlockData>,
         level0_index: usize
     ) -> (<Self::Conf as Config>::Level1BitBlock, bool) {
-        // &mut MaybeUninit<(T0, T1)> = (&mut MaybeUninit<T0>, &mut MaybeUninit<T1>) 
+        // &mut MaybeUninit<(T0, T1)> = (&mut MaybeUninit<T0>, &mut MaybeUninit<T1>)
         let (level1_block_data0, level1_block_data1) = {
             let ptr = level1_block_data.as_mut_ptr();
             let ptr0 = addr_of_mut!((*ptr).0);
             let ptr1 = addr_of_mut!((*ptr).1);
             (
-                &mut*mem::transmute::<_, *mut MaybeUninit<S1::Level1BlockData>>(ptr0), 
+                &mut*mem::transmute::<_, *mut MaybeUninit<S1::Level1BlockData>>(ptr0),
                 &mut*mem::transmute::<_, *mut MaybeUninit<S2::Level1BlockData>>(ptr1)
             )
         };
-        
+
         let (mask1, v1) = self.s1.init_level1_block_data(
             &mut state.0, level1_block_data0, level0_index
         );
@@ -139,16 +139,16 @@ where
         );
         let m1 = S2::data_mask_from_block_data(
             &level1_blocks.1, level1_index
-        ); 
+        );
         Op::data_op(m0, m1)
     }
 }
 
 impl_bitset!(
-    impl<Op, S1, S2> for Apply<Op, S1, S2> 
-    where 
-        Op: BitSetOp, 
-        S1: BitSetInterface, 
+    impl<Op, S1, S2> for Apply<Op, S1, S2>
+    where
+        Op: BitSetOp,
+        S1: BitSetInterface,
         S2: BitSetInterface<Conf = S1::Conf>
 );
 
@@ -156,7 +156,6 @@ impl_bitset!(
 mod test{
     use std::collections::HashSet;
     use itertools::assert_equal;
-    use rand::Rng;
     use crate::reduce;
     use super::*;
 
@@ -176,16 +175,17 @@ mod test{
         }
         }
 
-        let mut rng = rand::thread_rng();
+        use rand::prelude::*;
+        let mut rng = rand::rng();
         let mut v1 = Vec::new();
         let mut v2 = Vec::new();
         let mut v3 = Vec::new();
         let mut v4 = Vec::new();
         for _ in 0..AMOUNT{
-            v1.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
-            v2.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
-            v3.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
-            v4.push(rng.gen_range(0..MAX_RANGE)*INDEX_MUL);
+            v1.push(rng.random_range(0..MAX_RANGE)*INDEX_MUL);
+            v2.push(rng.random_range(0..MAX_RANGE)*INDEX_MUL);
+            v3.push(rng.random_range(0..MAX_RANGE)*INDEX_MUL);
+            v4.push(rng.random_range(0..MAX_RANGE)*INDEX_MUL);
         }
 
         /*

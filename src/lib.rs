@@ -1,50 +1,49 @@
-#![cfg_attr(miri, feature(alloc_layout_extra) )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! Hierarchical sparse bitset. 
-//! 
+//! Hierarchical sparse bitset.
+//!
 //! Memory consumption does not depend on max index inserted.
-//! 
+//!
 //! ```text
-//! Level0       128bit SIMD                                             
-//!               [u8;128]                                               
-//!                                                  
-//!             ┌           ┐                 
-//! Level1  Vec │128bit SIMD│                 
-//!             │ [u16;128] │                 
-//!             └           ┘                 
-//!             ┌           ┐                                          
-//! Data    Vec │128bit SIMD│                                            
-//!             └           ┘                                            
-//! ────────────────────────────────────────────────────                 
-//!                        1 0 1   ...   1  ◀══ bit-mask                 
-//! Level0                 □ Ø □         □  ◀══ index-pointers           
-//!                      ┗━│━━━│━━━━━━━━━│┛                              
-//!                     ╭──╯   ╰──────╮  ╰───────────────────╮           
-//!           1 0 0 1   ▽             ▽   1                  ▽           
-//! Level1    □ Ø Ø □  ...           ...  □  ...                         
-//!         ┗━│━━━━━│━━━━━━━┛     ┗━━━━━━━│━━━━━━┛    ┗━━━━━━━━━━━━━━┛   
-//!           ╰──╮  ╰─────────────────╮   ╰───────────────╮              
-//!              ▽                    ▽                   ▽              
+//! Level0       128bit SIMD
+//!               [u8;128]
+//!
+//!             ┌           ┐
+//! Level1  Vec │128bit SIMD│
+//!             │ [u16;128] │
+//!             └           ┘
+//!             ┌           ┐
+//! Data    Vec │128bit SIMD│
+//!             └           ┘
+//! ────────────────────────────────────────────────────
+//!                        1 0 1   ...   1  ◀══ bit-mask
+//! Level0                 □ Ø □         □  ◀══ index-pointers
+//!                      ┗━│━━━│━━━━━━━━━│┛
+//!                     ╭──╯   ╰──────╮  ╰───────────────────╮
+//!           1 0 0 1   ▽             ▽   1                  ▽
+//! Level1    □ Ø Ø □  ...           ...  □  ...
+//!         ┗━│━━━━━│━━━━━━━┛     ┗━━━━━━━│━━━━━━┛    ┗━━━━━━━━━━━━━━┛
+//!           ╰──╮  ╰─────────────────╮   ╰───────────────╮
+//!              ▽                    ▽                   ▽
 //! Data     1 0 0 0 1 ...       0 0 1 1 0 ...       0 1 0 1 0 ...    ...
 //!        ┗━━━━━━━━━━━━━━━┛   ┗━━━━━━━━━━━━━━━┛   ┗━━━━━━━━━━━━━━━┛
 //! ```
-//! 
+//!
 //! The very structure of [BitSet] acts as acceleration structure for
 //! intersection operation. All operations are incredibly fast - see benchmarks.
 //! (insert/contains in "traditional bitset" ballpark, intersection/union - orders of magnitude faster)
-//! 
+//!
 //! It is multi-level structure. Last level contains actual bit-data. Each previous level
-//! have bitmask, where each bit corresponds to `!is_empty` of bitblock in next level. 
-//! 
+//! have bitmask, where each bit corresponds to `!is_empty` of bitblock in next level.
+//!
 //! In addition to "non-empty-marker" bitmasks, there is pointers(indices) to non-empty blocks in the next level.
 //! In this way, only blocks with actual data allocated.
-//! 
+//!
 //! For inter-bitset operations, for example, intersection:
 //! * root level bitmasks AND-ed.
 //! * resulting bitmask traversed for bits with 1.
 //! * indexes of bits with 1, used for getting pointers to the next level for each bitset.
 //! * repeat for next level until the data level, then for each next 1 bit in each level.
-//! 
+//!
 //! Bitmasks allow to cutoff empty tree/hierarchy branches early for intersection operation,
 //! and traverse only actual data during iteration.
 //!
@@ -54,107 +53,107 @@
 //! at the data level.
 //! This has an observable effect on a merge operation between N non-intersecting
 //! bitsets: without this optimization - the data level bitmask would be OR-ed N times;
-//! with it - only once. 
-//! 
+//! with it - only once.
+//!
 //! # Config
-//! 
+//!
 //! Max index [BitSet] can hold, depends on used bitblocks capacity.
 //! The bigger the bitblocks - the higher [BitSet] index range.
 //! The lower - the smaller memory footprint it has.
-//! 
+//!
 //! Max index for 64bit blocks = 262_144; for 256bit blocks = 16_777_216.
-//! 
+//!
 //! Use [BitSet] with predefined [config]:
 //! ```
 //! type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 //! ```
-//! 
+//!
 //! # Inter-bitset operations
-//! 
+//!
 //! Inter-bitset operations can be applied between ANY [BitSetInterface].
 //! Output of inter-bitset operations are lazy bitsets(which are [BitSetInterface]s too).
 //! This means that you can combine different operations however you want
 //! without ever materializing them into actual [BitSet].
-//! 
+//!
 //! Use [reduce()] to apply inter-bitset operation between elements of bitsets iterator.
-//! 
+//!
 //! Use [apply()]  to apply inter-bitset operation between two bitsets. Also [&], [|], [`^`], [-].
-//! 
+//!
 //! You can define your own inter-bitset operation by implementing [BitSetOp].
-//! 
+//!
 //! [&]: std::ops::BitAnd
 //! [|]: std::ops::BitOr
 //! [`^`]: std::ops::BitXor
 //! [-]: std::ops::Sub
-//! 
+//!
 //! # Laziness and materialization
-//! 
+//!
 //! Use `BitSet::from(impl BitSetInterface)` instead of collecting iterator for
 //! faster materialization into BitSet.
-//! 
+//!
 //! # Cursor
-//! 
-//! [BitSetInterface] iterators can return [cursor()], pointing to the current iterator position. 
+//!
+//! [BitSetInterface] iterators can return [cursor()], pointing to the current iterator position.
 //! You can use [Cursor] to move ANY [BitSetInterface] iterator to its position with [move_to].
-//! 
+//!
 //! You can also build cursor from index.
-//! 
+//!
 //! [cursor()]: crate::iter::IndexIter::cursor
 //! [Cursor]: crate::iter::IndexCursor
 //! [move_to]: crate::iter::IndexIter::move_to
-//! 
+//!
 //! # Iterator::for_each
-//! 
+//!
 //! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - [traverse].
 //! For tight loops, traversing is observably faster than iterating.
-//! 
+//!
 //! [for_each]: std::iter::Iterator::for_each
 //! [try_for_each]: std::iter::Iterator::try_for_each
 //! [traverse]: crate::iter::IndexIter::traverse
-//! 
+//!
 //! # TrustedHierarchy
-//! 
+//!
 //! TrustedHierarchy means that each raised bit in hierarchy bitblock
 //! is guaranteed to correspond to non-empty block.
 //! That may be not true for [difference] and [symmetric difference] operation result.
-//! 
-//! You can check if bitset has TrustedHierarchy with [BitSetBase::TRUSTED_HIERARCHY]. 
-//! 
+//!
+//! You can check if bitset has TrustedHierarchy with [BitSetBase::TRUSTED_HIERARCHY].
+//!
 //! Bitsets with TrustedHierarchy are faster to compare with [Eq] and
 //! have O(1) [is_empty()].
 //!
 //! [difference]: ops::Sub
 //! [symmetric difference]: ops::Xor
 //! [is_empty()]: BitSetInterface::is_empty
-//! 
+//!
 //! # DataBlocks
-//! 
+//!
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
-//! 
+//!
 //! # Serialization
-//! 
+//!
 //! BitSet have fast and compact [serialization](BitSet::serialize).
 //! [Deserialization](BitSet::deserialize) is the fastest way to fill BitSet,
-//! since serialized data store **contiguous** hierarchy bitblocks.  
-//! 
+//! since serialized data store **contiguous** hierarchy bitblocks.
+//!
 //! ## Serde
-//! 
+//!
 //! Enable feature `serde` - for [serde] serialization support.
-//! 
+//!
 //! [serde]: https://crates.io/crates/serde
-//! 
+//!
 //! # CPU extensions
-//! 
+//!
 //! Library uses `popcnt`/`count_ones` and `tzcnt`/`trailing_zeros` heavily.
-//! Make sure you compile with hardware support of these 
+//! Make sure you compile with hardware support of these
 //! (on x86: `target-feature=+popcnt,+bmi1`).
-//! 
+//!
 //! ## SIMD
-//! 
+//!
 //! 128 and 256 bit configurations use SIMD, powered by [wide]. Make sure you compile with simd support
 //! enabled (on x86: `sse2` for _128bit, `avx` for _256bit) to achieve the best performance.
-//! _sse2 enabled by default in Rust for most desktop environments_ 
+//! _sse2 enabled by default in Rust for most desktop environments_
 //!
 //! If you don't need "wide" configurations, you may disable the default feature `simd`.
 //!
@@ -269,14 +268,14 @@ where
 /// [reduce], using specific [cache] for iteration.
 ///
 /// Cache applied to current operation only, so you can combine different cache
-/// types. 
-/// 
+/// types.
+///
 /// N.B. Alternatively, you can change [Config::DefaultCache] and use [reduce].
 ///
 /// # Safety
 ///
 /// Panics, if `Cache` capacity is smaller then sets len.
-/// 
+///
 /// [reduce]: reduce()
 #[inline]
 pub fn reduce_w_cache<Op, I, Cache>(_: Op, bitsets: I, _: Cache)

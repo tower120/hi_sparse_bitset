@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.4
+### Fix
+- MIRI compatibility with Rust >= 1.95
+
 ## 0.7.3
 ### Fix
 - 256bit deserialization overflow "warning" fix - for builds with checked arithmetic. 

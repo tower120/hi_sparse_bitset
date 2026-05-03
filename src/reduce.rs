@@ -12,7 +12,7 @@ use crate::config::Config;
 /// Bitsets iterator reduction, as lazy bitset.
 ///
 /// Constructed by [reduce] and [reduce_w_cache].
-/// 
+///
 /// [reduce]: crate::reduce()
 /// [reduce_w_cache]: crate::reduce_w_cache()
 #[derive(Clone)]
@@ -225,7 +225,7 @@ where
                 )
             )
             .reduce(Op::data_op);
-        
+
         if Op::HIERARCHY_OPERANDS_CONTAIN_RESULT {
             // level1_blocks can not be empty, since then -
             // level1 mask will be empty, and there will be nothing to iterate.
@@ -277,7 +277,7 @@ impl<T, const N: usize> Default for RawArray<T, N>{
     #[inline]
     fn default() -> Self {
         unsafe{
-            Self{mem: MaybeUninit::uninit().assume_init(), len: 0}    
+            Self{mem: MaybeUninit::uninit().assume_init(), len: 0}
         }
     }
 }
@@ -385,7 +385,7 @@ where
         // child state
         Box<[ManuallyDrop<<Self::Set as LevelMasksIterExt>::IterState>]>,
     );
-    
+
     /// raw slice
     type Level1BlockData = (
         // This points to Self::IterState heap
@@ -396,16 +396,16 @@ where
     #[inline]
     fn make_state(sets: &Self::Sets) -> Self::IterState {
         let len = sets.clone().count();
-        
-        // Box::new_uninit_slice is still unsafe. 
+
+        // Box::new_uninit_slice is still unsafe.
         // We construct as UniqueArrayPtr, and then transfer ownership to Box<[]>.
-        
+
         // 1. Allocate and initialize childs.
         let mut child_state = UniqueArrayPtr::new_uninit(len);
         unsafe{
             construct_child_state(sets, child_state.as_mut_ptr());
         }
-        
+
         // 2. Transfer ownership to Box.
         let child_state = unsafe{
             let mut storage = ManuallyDrop::new(child_state);
@@ -448,7 +448,7 @@ where
             level1_block_data_array_ptr,
             level0_index
         );
-        
+
         storage.set_len(len);
 
         level1_block_data.write((
@@ -530,11 +530,19 @@ mod unique_ptr{
     use std::ptr::{drop_in_place, NonNull, null_mut};
     use std::{mem, slice};
 
+    #[rustversion::since(1.95)]
+    #[inline]
+    fn dangling(layout: Layout) -> NonNull<u8>{
+        layout.dangling_ptr()
+    }
+
+    #[rustversion::before(1.95)]
     #[inline]
     fn dangling(layout: Layout) -> NonNull<u8>{
         #[cfg(miri)]
         {
-            layout.dangling()
+            const{ panic!("Run MIRI with Rust >= 1.95"); }
+            // layout.dangling()
         }
         #[cfg(not(miri))]
         {

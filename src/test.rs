@@ -3,7 +3,6 @@ use std::io::Cursor;
 use std::iter::zip;
 use std::ops::ControlFlow;
 use itertools::assert_equal;
-use rand::Rng;
 use crate::ops::{And, BitSetOp, Or, Sub, Xor};
 use crate::{level_indices, reduce, reduce_w_cache, Apply, BitBlock, BitSetInterface, DataBlock};
 use crate::config;
@@ -100,10 +99,10 @@ fn insert_block_test(){
         unsafe{ bit_block.set_bit_unchecked::<true>(i) };
     }
     let block = DataBlock::new(1024, bit_block);
-    
+
     let mut hi_set = HiSparseBitset::default();
     hi_set.insert_block(block);
-    
+
     assert_equal(&hi_set, [1025, 1026, 1027, 1040]);
 }
 
@@ -128,7 +127,8 @@ fn fuzzy_test(){
     }
     const MAX_CURSOR_READ_SESSION: usize = MAX_SIZE;
 
-    let mut rng = rand::thread_rng();
+    use rand::prelude::*;
+    let mut rng = rand::rng();
     for _ in 0..REPEATS{
         let mut hash_set = HashSet::new();
         let mut hi_set = HiSparseBitset::default();
@@ -138,8 +138,8 @@ fn fuzzy_test(){
 
         for _ in 0..INNER_REPEATS{
             // random insert
-            for _ in 0..rng.gen_range(0..MAX_SIZE){
-                let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
+            for _ in 0..rng.random_range(0..MAX_SIZE){
+                let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
                 inserted.push(index);
                 hash_set.insert(index);
                 hi_set.insert(index);
@@ -147,8 +147,8 @@ fn fuzzy_test(){
 
             // random remove
             if !inserted.is_empty(){
-                for _ in 0..rng.gen_range(0..inserted.len()){
-                    let index = rng.gen_range(0..inserted.len());
+                for _ in 0..rng.random_range(0..inserted.len()){
+                    let index = rng.random_range(0..inserted.len());
                     let value = inserted[index];
                     removed.push(value);
                     hash_set.remove(&value);
@@ -158,7 +158,7 @@ fn fuzzy_test(){
 
             // random contains
             for _ in 0..CONTAINS_PROBES{
-                let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
+                let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
                 let h1 = hash_set.contains(&index);
                 let h2 = hi_set.contains(index);
                 assert_eq!(h1, h2);
@@ -168,18 +168,18 @@ fn fuzzy_test(){
             for &index in &hash_set{
                 assert!(hi_set.contains(index));
             }
-            
+
             // block traverse contains
-            hi_set.block_iter().for_each(|block|{ 
+            hi_set.block_iter().for_each(|block|{
                 block.for_each(|index|{
                     assert!(hash_set.contains(&index));
                 })
             });
 
             // index traverse contains
-            hi_set.iter().for_each(|index|{ 
+            hi_set.iter().for_each(|index|{
                 assert!(hash_set.contains(&index));
-            });            
+            });
 
             // non existent does not contains
             for &index in &removed{
@@ -187,54 +187,54 @@ fn fuzzy_test(){
                 let h2 = hi_set.contains(index);
                 assert_eq!(h1, h2);
             }
-            
+
             // eq
             {
                 let other: HiSparseBitset = hi_set.iter().collect();
                 assert!(hi_set == other);
             }
-            
+
             // insert_block through collect()
             {
                 let other: HiSparseBitset = hi_set.block_iter().collect();
-                
+
                 assert_eq!(hi_set, other);
                 assert_equal(hi_set.block_iter(), other.block_iter());
                 assert_equal(hi_set.iter(), other.iter());
-            }            
+            }
 
             // serialization
             {
                 let mut serialized: Vec<u8> = Vec::new();
                 hi_set.serialize(&mut serialized).unwrap();
-                
+
                 let deserialized = HiSparseBitset::deserialize(
                     &mut Cursor::new(serialized)
                 ).unwrap();
-                
+
                 assert_eq!(hi_set, deserialized);
                 assert_equal(hi_set.block_iter(), deserialized.block_iter());
                 assert_equal(hi_set.iter(), deserialized.iter());
             }
-            
+
             // serde_json
             #[cfg(feature = "serde")]
             {
                 let serialized = serde_json::to_string(&hi_set).unwrap();
                 let deserialized: HiSparseBitset = serde_json::from_str(&serialized).unwrap();
-                
+
                 assert_eq!(hi_set, deserialized);
                 assert_equal(hi_set.block_iter(), deserialized.block_iter());
                 assert_equal(hi_set.iter(), deserialized.iter());
             }
-            
+
             // bincode::serde
             #[cfg(feature = "serde")]
             {
                 let config = bincode::config::standard();
                 let serialized = bincode::serde::encode_to_vec(&hi_set, config).unwrap();
                 let deserialized: HiSparseBitset = bincode::serde::decode_from_slice(&serialized, config).unwrap().0;
-                
+
                 assert_eq!(hi_set, deserialized);
                 assert_equal(hi_set.block_iter(), deserialized.block_iter());
                 assert_equal(hi_set.iter(), deserialized.iter());
@@ -242,14 +242,14 @@ fn fuzzy_test(){
 
             let mut hash_set_vec: Vec<usize> = hash_set.iter().copied().collect();
             hash_set_vec.sort();
-            
+
             // block traverse cursor sessions
             {
                 let mut cursor = BlockCursor::start();
                 let mut traversed = Vec::new();
 
                 loop{
-                    let mut session_counter = rng.gen_range(0..MAX_CURSOR_READ_SESSION) as isize;                
+                    let mut session_counter = rng.random_range(0..MAX_CURSOR_READ_SESSION) as isize;
                     let ctrl = hi_set.block_iter().move_to(cursor).traverse(|block|{
                         if session_counter <= 0{
                             cursor = (&block).into();
@@ -267,14 +267,14 @@ fn fuzzy_test(){
 
                 assert_equal(traversed, hash_set_vec.iter().copied());
             }
-            
+
             // index traverse cursor sessions
             {
                 let mut cursor = IndexCursor::start();
                 let mut traversed = Vec::new();
 
                 loop{
-                    let mut session_counter = rng.gen_range(0..MAX_CURSOR_READ_SESSION);
+                    let mut session_counter = rng.random_range(0..MAX_CURSOR_READ_SESSION);
                     let ctrl = hi_set.iter().move_to(cursor).traverse(|index|{
                         if session_counter == 0{
                             cursor = index.into();
@@ -344,9 +344,10 @@ where
         acc
     }
 
-    let mut rng = rand::thread_rng();
+    use rand::prelude::*;
+    let mut rng = rand::rng();
     for _ in 0..REPEATS{
-        let sets_count = rng.gen_range(2..MAX_SETS);
+        let sets_count = rng.random_range(2..MAX_SETS);
         let mut hash_sets: Vec<HashSet<usize>> = vec![Default::default(); sets_count];
         let mut hi_sets  : Vec<HiSparseBitset> = vec![Default::default(); sets_count];
 
@@ -360,22 +361,22 @@ where
         let mut initial_hashsets_intersection_for_indices;
         {
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
-                for _ in 0..rng.gen_range(0..MAX_INSERTS){
-                    let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
+                for _ in 0..rng.random_range(0..MAX_INSERTS){
+                    let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
                     hash_set.insert(index);
                     hi_set.insert(index);
                 }
             }
-            initial_hashsets_intersection_for_blocks  = hashset_multi_op(&hash_sets, hashset_op);            
+            initial_hashsets_intersection_for_blocks  = hashset_multi_op(&hash_sets, hashset_op);
             initial_hashsets_intersection_for_indices = initial_hashsets_intersection_for_blocks.clone();
-        }        
+        }
 
         for _ in 0..INNER_REPEATS{
             let mut inserted = Vec::new();
             // random insert
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
-                for _ in 0..rng.gen_range(0..MAX_INSERTS){
-                    let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
+                for _ in 0..rng.random_range(0..MAX_INSERTS){
+                    let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
                     hash_set.insert(index);
                     hi_set.insert(index);
                     inserted.push(index);
@@ -383,8 +384,8 @@ where
             }
 
             // guaranteed intersection (insert all)
-            for _ in 0..rng.gen_range(0..MAX_GUARANTEED_INTERSECTIONS){
-                let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
+            for _ in 0..rng.random_range(0..MAX_GUARANTEED_INTERSECTIONS){
+                let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
                 for hash_set in &mut hash_sets{
                     hash_set.insert(index);
                 }
@@ -397,8 +398,8 @@ where
             // random remove
             let mut removed = Vec::new();
             for (hash_set, hi_set) in zip(hash_sets.iter_mut(), hi_sets.iter_mut()){
-                for _ in 0..rng.gen_range(0..MAX_REMOVES){
-                    let index = rng.gen_range(0..MAX_RANGE)*INDEX_MUL;
+                for _ in 0..rng.random_range(0..MAX_REMOVES){
+                    let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
                     hash_set.remove(&index);
                     hi_set.remove(index);
                     removed.push(index);
@@ -422,12 +423,12 @@ where
 
             // suspend/resume blocks
             {
-                let mut intersection = 
+                let mut intersection =
                     reduce(hiset_op, hi_sets.iter()).unwrap()
                     .into_block_iter()
                     .move_to(block_cursor);
 
-                let mut blocks_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
+                let mut blocks_to_consume = rng.random_range(0..MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME);
 
                 // through traverse
                 let mut traversed_cursor = BlockCursor::end();
@@ -440,7 +441,7 @@ where
                             return ControlFlow::Break(());
                         }
                         blocks_to_consume -= 1;
-                                                 
+
                         traversed_blocks.push(block);
                         ControlFlow::Continue(())
                     });
@@ -464,13 +465,13 @@ where
                                 initial_hashsets_intersection_for_blocks.remove(&index);
                             }
                         );
-                        
+
                         iterated_blocks.push(block);
                     } else {
                         break;
                     }
                 }
-                
+
                 assert_equal(traversed_blocks, iterated_blocks);
 
                 block_cursor = intersection.cursor();
@@ -482,12 +483,12 @@ where
 
             // suspend/resume indices
             {
-                let mut intersection = 
+                let mut intersection =
                     reduce(hiset_op, hi_sets.iter()).unwrap()
                     .into_iter()
                     .move_to(index_cursor);
-                
-                let indices_to_consume = rng.gen_range(0..MAX_RESUMED_INTERSECTION_INDICES_CONSUME);
+
+                let indices_to_consume = rng.random_range(0..MAX_RESUMED_INTERSECTION_INDICES_CONSUME);
 
                 // through traverse
                 let mut traversed_cursor = IndexCursor::end();
@@ -501,7 +502,7 @@ where
                         }
                         indices_to_consume -= 1;
 
-                        traversed_indices.push(i);                        
+                        traversed_indices.push(i);
                         ControlFlow::Continue(())
                     });
                 }
@@ -536,7 +537,7 @@ where
                 indices2.sort();
                 assert_eq!(hashsets_intersection_vec, indices2);
             }
-            
+
             // reduce into Bitset test
             {
                 let reduce = reduce(hiset_op, hi_sets.iter()).unwrap();
@@ -595,7 +596,7 @@ where
 
         // consume resumable blocks leftovers
         {
-            let intersection = 
+            let intersection =
                 reduce(hiset_op, hi_sets.iter()).unwrap()
                 .into_block_iter()
                 .move_to(block_cursor);
@@ -608,11 +609,11 @@ where
 
         // consume resumable indices leftovers
         {
-            let intersection = 
+            let intersection =
                 reduce(hiset_op, hi_sets.iter()).unwrap()
                 .into_iter()
                 .move_to(index_cursor);
-            
+
             for index in intersection{
                 initial_hashsets_intersection_for_indices.remove(&index);
             }
@@ -660,7 +661,7 @@ fn one_intersection_test(){
     hi_set.insert(521);
 
     let cursor = BlockCursor::default();
-    let iter = 
+    let iter =
         reduce(And, [&hi_set].into_iter()).unwrap()
         .into_block_iter()
         .move_to(cursor);
@@ -703,7 +704,7 @@ fn regression_test1() {
 
     {
         let mut indices2 = Vec::new();
-        let iter = 
+        let iter =
             reduce(And, hi_sets.iter()).unwrap()
             .into_block_iter()
             .move_to(BlockCursor::default());
@@ -1012,11 +1013,11 @@ fn block_cursor_test_empty2(){
 fn index_cursor_test(){
     type HiSparseBitset = BitSet<config::_64bit>;
     let seq: HiSparseBitset = (0..4096*4).collect();
-    
+
     let mut iter = seq.iter();
     assert_equal(iter.by_ref().take(4096*3), 0..4096*3);
     let c = iter.cursor();
-    
+
     let mut iter = seq.iter().move_to(c);
     assert_equal(iter.by_ref().take(4096), 4096*3..4096*4);
 }
@@ -1025,12 +1026,12 @@ fn index_cursor_test(){
 fn index_cursor_test2(){
     type HiSparseBitset = BitSet<config::_64bit>;
     let seq: HiSparseBitset = (0..4096*4).collect();
-    
+
     let mut iter = seq.iter();
     let milestone = 4096*3 - 64;
     assert_equal(iter.by_ref().take(milestone), 0..milestone);
     let c = iter.cursor();
-    
+
     let mut iter = seq.iter().move_to(c);
     assert_eq!(iter.next().unwrap(), milestone);
 }
@@ -1062,21 +1063,21 @@ fn non_trusted_hierarchy_eq_test(){
 #[test]
 fn is_empty_non_trusted_test(){
     use crate::config::*;
-    
+
     let mut bm0: BitSet<_64bit> = BitSet::new();
     bm0.insert(0);
     bm0.insert(1);
     bm0.insert(512);
     bm0.insert(800);
-    
+
     let mut bm1: BitSet<_64bit> = BitSet::new();
     bm1.insert(1);
     bm1.insert(2);
     bm1.insert(511);
     bm1.insert(513);
     bm1.insert(800);
-    
+
     let intersection = &bm0 & &bm1;
     dbg!(&intersection);
-    assert!(!intersection.is_empty());    
+    assert!(!intersection.is_empty());
 }
