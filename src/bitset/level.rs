@@ -74,7 +74,12 @@ pub struct Level<Block: IBlock>{
     /// Single linked list of empty block indices.
     /// Mask of empty block used as a "next free block".
     /// u64::MAX - terminator.
+    ///
+    /// This is index of first block in list.
     root_empty_block: u64,
+
+    /// We need this for `len()`.
+    empty_blocks_count: usize,
 }
 
 impl<Block: IBlock> Default for Level<Block> {
@@ -90,7 +95,7 @@ impl<Block: IBlock> Level<Block> {
     /// Always have empty block at index 0.
     #[inline]
     pub unsafe fn from_blocks_unchecked(blocks: Vec<Block>) -> Self {
-        Self{blocks, root_empty_block: u64::MAX}
+        Self{blocks, root_empty_block: u64::MAX, empty_blocks_count: 0 }
     }
 
     #[inline]
@@ -113,7 +118,9 @@ impl<Block: IBlock> Level<Block> {
 
     #[inline]
     fn pop_empty_block(&mut self) -> Option<usize> {
-        if self.root_empty_block == u64::MAX {
+        // It is marginally faster to compare with zero,
+        // then self.root_empty_block == u64::MAX
+        if self.empty_blocks_count == 0 {
             return None;
         }
 
@@ -127,6 +134,8 @@ impl<Block: IBlock> Level<Block> {
 
             // restore original mask zero state
             *next_empty_block_index = 0;
+
+            self.empty_blocks_count -= 1;
         }
         Some(index)
     }
@@ -141,6 +150,7 @@ impl<Block: IBlock> Level<Block> {
         *next_empty_block_index = self.root_empty_block;
 
         self.root_empty_block = block_index as u64;
+        self.empty_blocks_count += 1;
     }
 
     /// Inserts empty block and return its index.
@@ -186,6 +196,11 @@ impl<Block: IBlock> Level<Block> {
             return;
         }
         self.blocks.reserve(len - cap);
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.blocks.len() - self.empty_blocks_count
     }
 
     /// # Safety

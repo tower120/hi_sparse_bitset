@@ -4,6 +4,8 @@
 ### Added
 - `BitSet::union_with`.
 - `BitSet impl BitOrAssign<impl BitSetInterface>`.
+- `BitSet::into_union`.
+- `BitSet impl BitOr<BitSet>`.
 
 ## 0.7.4
 ### Fix

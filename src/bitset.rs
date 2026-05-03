@@ -5,7 +5,7 @@ mod serialization;
 mod serde;
 
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{BitOrAssign};
+use std::ops::{BitOr, BitOrAssign};
 use std::ptr::NonNull;
 use crate::config::Config;
 use block::Block;
@@ -278,6 +278,12 @@ impl<Conf: Config> BitSet<Conf> {
         }
     }
 
+    /// Number of used [DataBlock]s.
+    #[inline]
+    pub fn blocks_len(&self) -> usize {
+        self.data.len()
+    }
+
     /// Returns false if `index` is not in bitset.
     ///
     /// # Panics
@@ -414,6 +420,26 @@ impl<Conf: Config> BitSet<Conf> {
 
         unsafe{ other.drop_iter_state(&mut ManuallyDrop::new(other_iter_state)); }
     }
+
+    /// Union smaller `BitSet` into bigger.
+    ///
+    /// Basically same as [`union_with`] but auto select union direction,
+    /// and can work only with `BitSet`.
+    ///
+    /// [`union_with`]: Self::union_with
+    pub fn into_union(self, other: Self) -> Self{
+        let mut left : Self;
+        let right: &Self;
+        if self.blocks_len() > other.blocks_len(){
+            left  = self;
+            right = &other;
+        } else {
+            left  = other;
+            right = &self;
+        }
+        left.union_with(right);
+        left
+    }
 }
 
 impl<Conf: Config> BitSetBase for BitSet<Conf> {
@@ -497,5 +523,15 @@ where
     #[inline]
     fn bitor_assign(&mut self, rhs: Rhs) {
         self.union_with(rhs);
+    }
+}
+
+impl<Conf: Config> BitOr for BitSet<Conf> {
+    type Output = Self;
+
+    /// See [Self::into_union].
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self::Output {
+        self.into_union(rhs)
     }
 }
