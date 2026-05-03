@@ -136,12 +136,12 @@ mod tests {
         type BitSet = crate::BitSet<config::_64bit>;
         let set = BitSet::from_iter(0..260_000usize);
 
-        //let mut file = tempfile::tempfile()?;
-        use std::fs::File;
-        let mut file = File::create("tests_out/foo.txt")?;
+        let mut file = tempfile::tempfile()?;
+        // use std::fs::File;
+        // let mut file = File::create("tests_out/foo.txt")?;
         serde_json::to_writer(&mut file, &set)?;
 
-        let mut file = File::open("tests_out/foo.txt")?;
+        // let mut file = File::open("tests_out/foo.txt")?;
         file.rewind()?;
         let _s: BitSet = serde_json::from_reader(file)?;
         Ok(())
