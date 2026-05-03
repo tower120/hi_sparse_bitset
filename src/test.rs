@@ -1081,3 +1081,60 @@ fn is_empty_non_trusted_test(){
     dbg!(&intersection);
     assert!(!intersection.is_empty());
 }
+
+#[test]
+fn inplace_union_test(){
+    use crate::config::*;
+
+    let mut bm0: BitSet<_64bit> = BitSet::new();
+    bm0.insert(0);
+    bm0.insert(1);
+    bm0.insert(512);
+    bm0.insert(800);
+
+    let mut bm1: BitSet<_64bit> = BitSet::new();
+    bm1.insert(1);
+    bm1.insert(2);
+    bm1.insert(511);
+    bm1.insert(513);
+    bm1.insert(800);
+
+    let reference_union: BitSet<_64bit> = (&bm0 | &bm1).into();
+
+    bm0.union_with(&bm1);
+    assert_equal(&reference_union, &bm0);
+}
+
+#[test]
+fn fuzzy_inplace_union_test(){
+    cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        const REPEATS: usize = 100;
+    } else {
+        const REPEATS: usize = 10000;
+    }
+    }
+    const MAX_SIZE: usize = 10000;
+    const MAX_RANGE: usize = 100000;
+    const INDEX_MUL: usize = 4;
+
+    use rand::prelude::*;
+    let mut rng = rand::rng();
+    for _ in 0..REPEATS{
+        let mut s1 = HiSparseBitset::default();
+        let mut s2 = HiSparseBitset::default();
+
+        let mut random_insert = |s: &mut HiSparseBitset|{
+            for _ in 0..rng.random_range(0..MAX_SIZE){
+                let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
+                s.insert(index);
+            }
+        };
+        random_insert(&mut s1);
+        random_insert(&mut s2);
+
+        let reference_union: HiSparseBitset = (&s1 | &s2).into();
+        s1.union_with(&s2);
+        assert_equal(&reference_union, &s1);
+    }
+}

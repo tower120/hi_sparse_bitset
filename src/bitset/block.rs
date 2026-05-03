@@ -4,7 +4,7 @@ use crate::{Primitive, PrimitiveArray};
 use crate::bitset::level::IBlock;
 
 #[derive(Clone)]
-#[repr(C)]          // repr(C) for BitSet::deserialization Data level 
+#[repr(C)]          // repr(C) for BitSet::deserialization Data level
 pub struct Block<Mask, BlockIndices> {
     mask: Mask,
     /// Next level block indices
@@ -57,7 +57,7 @@ where
     type Item = BlockIndices::Item;
 
     /// Same as `get_unchecked`
-    /// 
+    ///
     /// # Safety
     ///
     /// `index` is not checked.
@@ -86,16 +86,17 @@ where
         }
     }
 
-    /// # Safety
-    ///
-    /// `index` is not checked.
     #[inline]
     unsafe fn insert_unchecked(&mut self, index: usize, item: Self::Item) {
         // mask
         let exists = self.mask.set_bit_unchecked::<true>(index);
         debug_assert!(!exists);
 
-        // indices
+        self.insert_unchecked_no_mask(index, item);
+    }
+
+    #[inline]
+    unsafe fn insert_unchecked_no_mask(&mut self, index: usize, item: Self::Item) {
         let block_indices = self.block_indices.as_mut();
         *block_indices.get_unchecked_mut(index) = item;
     }
