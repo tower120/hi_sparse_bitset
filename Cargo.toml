@@ -18,6 +18,7 @@ simd = ["dep:wide"]
 serde = ["dep:serde", "dep:base64", "dep:arrayvec", "wide/serde"]
 
 [dependencies]
+rustversion = "1.0"
 wide = { version = "0.7.28", optional = true }
 serde = { version = "1.0", features = ["serde_derive"], optional = true }
 arrayvec = { version = "0.7", optional = true }
@@ -25,10 +26,10 @@ base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 anyhow = "1"
-tempfile = "3"
+tempfile = "3.27"
 serde_json = "1.0"
 bincode = { version = "2.0", features = ["serde"] }
-rand = "0.8"
+rand = "0.10.1"
 itertools = "0.11"
 criterion = "0.5.1"
 cfg-if = "1"
@@ -39,7 +40,7 @@ roaring = "0.10.2"
 [lints.rust.unexpected_cfgs]
 level = "warn"
 check-cfg = [
-    'cfg(hisparsebitset_test_NoCache)', 
+    'cfg(hisparsebitset_test_NoCache)',
     'cfg(hisparsebitset_test_FixedCache)',
     'cfg(hisparsebitset_test_DynamicCache)',
 
