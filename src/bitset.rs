@@ -120,7 +120,7 @@ where
     #[inline]
     fn from(bitset: B) -> Self {
         let mut this = Self::default();
-        this.union_with_impl::<B, true>(bitset);
+        this.unite_impl::<B, true>(bitset);
         this
     }
 }
@@ -277,7 +277,7 @@ impl<Conf: Config> BitSet<Conf> {
 
     /// `SELF_IS_EMPTY` is true if we can GUARANTEE that self is empty.
     #[inline]
-    fn union_with_impl<Other, const SELF_IS_EMPTY: bool>(&mut self, other: Other)
+    fn unite_impl<Other, const SELF_IS_EMPTY: bool>(&mut self, other: Other)
     where
         Other: BitSetInterface<Conf=Conf>
     {
@@ -420,21 +420,20 @@ impl<Conf: Config> BitSet<Conf> {
         unsafe{ other.drop_iter_state(&mut ManuallyDrop::new(other_iter_state)); }
     }
 
-
     /// In-place union with any [BitSetInterface].
-    pub fn union_with<Other>(&mut self, other: Other)
+    pub fn unite<Other>(&mut self, other: Other)
     where
         Other: BitSetInterface<Conf=Conf>
     {
-        self.union_with_impl::<Other, false>(other)
+        self.unite_impl::<Other, false>(other)
     }
 
     /// Union smaller `BitSet` into bigger.
     ///
-    /// Basically same as [`union_with`] but auto select union direction,
+    /// Basically same as [`unite`] but auto select union direction,
     /// and can work only with `BitSet`.
     ///
-    /// [`union_with`]: Self::union_with
+    /// [`unite`]: Self::unite
     pub fn into_union(self, other: Self) -> Self{
         let mut left : Self;
         let right: &Self;
@@ -445,7 +444,7 @@ impl<Conf: Config> BitSet<Conf> {
             left  = other;
             right = &self;
         }
-        left.union_with(right);
+        left.unite(right);
         left
     }
 }
@@ -527,10 +526,10 @@ where
     Conf: Config,
     Rhs: BitSetInterface<Conf=Conf>
 {
-    /// See [Self::union_with].
+    /// See [Self::unite].
     #[inline]
     fn bitor_assign(&mut self, rhs: Rhs) {
-        self.union_with(rhs);
+        self.unite(rhs);
     }
 }
 

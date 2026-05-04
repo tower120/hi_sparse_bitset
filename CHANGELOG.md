@@ -5,10 +5,12 @@
 - `BitSet` materialization improved.
 
 ### Added
-- `BitSet::union_with`.
+- `BitSet::unite`.
 - `BitSet impl BitOrAssign<impl BitSetInterface>`.
 - `BitSet::into_union`.
 - `BitSet impl BitOr<BitSet>`.
+- `BitSetInterface::union`.
+- `BitSetInterface::intersection`.
 
 ## 0.7.4
 ### Fix

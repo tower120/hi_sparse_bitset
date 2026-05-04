@@ -1,6 +1,6 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
-use crate::{assume, level_indices};
+use crate::{Apply, apply, assume, level_indices, ops};
 use crate::bit_block::BitBlock;
 use crate::config::Config;
 use crate::iter::{BlockIter, IndexIter};
@@ -255,6 +255,40 @@ pub unsafe trait BitSetInterface
     fn is_empty(&self) -> bool {
         bitset_is_empty(self)
     }
+
+    #[inline]
+    fn union<Other>(self, other: Other) -> Apply<ops::Or, Self, Other>
+    where
+        Other: BitSetInterface<Conf=Self::Conf>
+    {
+        apply(ops::Or, self, other)
+    }
+
+    #[inline]
+    fn intersection<Other>(self, other: Other) -> Apply<ops::And, Self, Other>
+    where
+        Other: BitSetInterface<Conf=Self::Conf>
+    {
+        apply(ops::And, self, other)
+    }
+
+/*     /// Symmetrical difference
+    #[inline]
+    fn sym_diff<Other>(self, other: Other) -> Apply<ops::Xor, Self, Other>
+    where
+        Other: BitSetInterface<Conf=Self::Conf>
+    {
+        apply(ops::Xor, self, other)
+    }
+
+    /// Difference
+    #[inline]
+    fn subtraction<Other>(self, other: Other) -> Apply<ops::Sub, Self, Other>
+    where
+        Other: BitSetInterface<Conf=Self::Conf>
+    {
+        apply(ops::Sub, self, other)
+    } */
 }
 
 #[inline]
