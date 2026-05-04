@@ -332,8 +332,9 @@ impl<Conf: Config> BitSet<Conf> {
     where
         Other: BitSetInterface<Conf=Conf>
     {
-        // 1. Insert lvl1 blocks that `self` does not have.
-        {
+        // 1. For TRUSTED_HIERARCHY we can upfront Insert lvl1 blocks that `self` does not have.
+        //    In one go.
+        if Other::TRUSTED_HIERARCHY {
             let new_lvl0_mask = self.level0_mask() | other.level0_mask();
             let mask_diff = self.level0_mask() ^ new_lvl0_mask;
             self.level1.reserve_for(new_lvl0_mask.count_ones());
@@ -360,10 +361,19 @@ impl<Conf: Config> BitSet<Conf> {
                 )
             };
 
+            let this_lvl1_block_index = unsafe {
+                if Other::TRUSTED_HIERARCHY {
+                    // SAFETY: We just inserted all missing lvl1 blocks.
+                    self.level0.get_or_zero(lvl0_idx)
+                } else {
+                    self.level0.get_or_insert(lvl0_idx, ||{
+                        let block_index = self.level1.insert_empty_block();
+                        Primitive::from_usize(block_index)
+                    })
+                }.as_usize()
+            };
             let this_lvl1_block = unsafe {
-                // SAFETY: We just inserted all missing lvl1 blocks.
-                let index = self.level0.get_or_zero(lvl0_idx);
-                &mut self.level1.blocks_mut()[index.as_usize()]
+                self.level1.blocks_mut().get_unchecked_mut(this_lvl1_block_index)
             };
 
             let this_data = &mut self.data;
@@ -384,14 +394,29 @@ impl<Conf: Config> BitSet<Conf> {
                         )
                     };
 
-                    let block_index = this_data.insert_block(
+                    if Other::TRUSTED_HIERARCHY // Always non-zero in TRUSTED_HIERARCHY
+                    || !other_data.is_zero() {
+                        let block_index = this_data.insert_block(
+                            unsafe{
+                                Block::from_parts(other_data, Default::default())
+                            }
+                        );
+                        let item = Primitive::from_usize(block_index);
                         unsafe{
-                            Block::from_parts(other_data, Default::default())
+                            if Other::TRUSTED_HIERARCHY {
+                                // We'll update mask in one go in the end.
+                                this_lvl1_block.insert_unchecked_no_mask(lvl1_idx, item);
+                            }else {
+                                this_lvl1_block.insert_unchecked(lvl1_idx, item);
+                            }
                         }
-                    );
-                    let item = Primitive::from_usize(block_index);
-                    unsafe{ this_lvl1_block.insert_unchecked_no_mask(lvl1_idx, item); }
+                    }
                 });
+                if Other::TRUSTED_HIERARCHY {
+                    unsafe{
+                        *this_lvl1_block.mask_mut() = new_lvl1_mask;
+                    }
+                }
 
                 // II. Insert intersecting blocks.
                 let mask_intersect = this_lvl1_mask & other_lvl1_mask;
@@ -411,9 +436,16 @@ impl<Conf: Config> BitSet<Conf> {
                     };
                 });
 
-                // III. Update mask.
-                unsafe{
-                    *this_lvl1_block.mask_mut() = new_lvl1_mask;
+                // III. Remove if needed
+                if !Other::TRUSTED_HIERARCHY    // Can't happened with TRUSTED_HIERARCHY
+                && this_lvl1_block.mask().is_zero() {
+                    // It is faster to directly write to allocated block in lvl1,
+                    // and return it to pool if empty,
+                    // then to use tmp block and then copy it if non-empty.
+                    unsafe{
+                        self.level1.remove_empty_block_unchecked(this_lvl1_block_index);
+                        self.level0.remove_unchecked(lvl0_idx);
+                    }
                 }
             }
         });

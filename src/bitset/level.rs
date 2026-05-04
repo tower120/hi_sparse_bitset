@@ -183,6 +183,7 @@ impl<Block: IBlock> Level<Block> {
     /// Unlike [insert_block] - never re-use block.
     #[inline]
     pub fn push_block(&mut self, block: Block) -> usize {
+        debug_assert_eq!(self.empty_blocks_count, 0);
         let index = self.blocks.len();
         self.blocks.push(block);
         index

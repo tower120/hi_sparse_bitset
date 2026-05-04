@@ -1106,6 +1106,30 @@ fn inplace_union_test(){
 }
 
 #[test]
+fn inplace_union_untrusted_test(){
+    use crate::config::*;
+
+    let mut bm0: BitSet<_64bit> = BitSet::new();
+    bm0.insert(0);
+    bm0.insert(1);
+    bm0.insert(100);
+
+    let mut bm1: BitSet<_64bit> = BitSet::new();
+    bm0.insert(2);
+    bm0.insert(3);
+    bm0.insert(200);
+    bm1.insert(513);
+    bm1.insert(800);
+
+    let mut bm3: BitSet<_64bit> = BitSet::new();
+    let intetsection = &bm0 & &bm1;
+    let reference_union: BitSet<_64bit> = (&bm3 | &intetsection).into();
+
+    bm3.union_with(&intetsection);
+    assert_equal(&reference_union, &bm3);
+}
+
+#[test]
 fn fuzzy_inplace_union_test(){
     cfg_if::cfg_if! {
     if #[cfg(miri)] {
@@ -1115,7 +1139,7 @@ fn fuzzy_inplace_union_test(){
     }
     }
     const MAX_SIZE: usize = 10000;
-    const MAX_RANGE: usize = 100000;
+    const MAX_RANGE: usize = 10000;
     const INDEX_MUL: usize = 2;
 
     use rand::prelude::*;
@@ -1123,6 +1147,7 @@ fn fuzzy_inplace_union_test(){
     for _ in 0..REPEATS{
         let mut s1 = HiSparseBitset::default();
         let mut s2 = HiSparseBitset::default();
+        let mut s3 = HiSparseBitset::default();
 
         let mut random_insert = |s: &mut HiSparseBitset|{
             for _ in 0..rng.random_range(0..MAX_SIZE){
@@ -1132,6 +1157,24 @@ fn fuzzy_inplace_union_test(){
         };
         random_insert(&mut s1);
         random_insert(&mut s2);
+        random_insert(&mut s3);
+
+        // !TRUSTED_HIERARCHY UNION
+        {
+            let non_trusted = &s2 & &s3;
+            {
+                let mut s1 = HiSparseBitset::new();
+                let reference_union: HiSparseBitset = (&s1 | &non_trusted).into();
+                s1.union_with(&non_trusted);
+                assert_equal(&reference_union, &s1);
+            }
+            {
+                let mut s1 = s1.clone();
+                let reference_union: HiSparseBitset = (&s1 | &non_trusted).into();
+                s1.union_with(&non_trusted);
+                assert_equal(&reference_union, &s1);
+            }
+        }
 
         let reference_union: HiSparseBitset = (&s1 | &s2).into();
         s1.union_with(&s2);
