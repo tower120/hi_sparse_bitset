@@ -1081,3 +1081,110 @@ fn is_empty_non_trusted_test(){
     dbg!(&intersection);
     assert!(!intersection.is_empty());
 }
+
+#[test]
+fn inplace_union_test(){
+    use crate::config::*;
+
+    let mut bm0: BitSet<_64bit> = BitSet::new();
+    bm0.insert(0);
+    bm0.insert(1);
+    bm0.insert(512);
+    bm0.insert(800);
+
+    let mut bm1: BitSet<_64bit> = BitSet::new();
+    bm1.insert(1);
+    bm1.insert(2);
+    bm1.insert(511);
+    bm1.insert(513);
+    bm1.insert(800);
+
+    let reference_union = &bm0 | &bm1;
+
+    let mut bm0 = bm0.clone();
+    bm0.unite(&bm1);
+    assert_equal(&reference_union, &bm0);
+}
+
+#[test]
+fn inplace_union_untrusted_test(){
+    use crate::config::*;
+
+    let mut bm0: BitSet<_64bit> = BitSet::new();
+    bm0.insert(0);
+    bm0.insert(1);
+    bm0.insert(100);
+
+    let mut bm1: BitSet<_64bit> = BitSet::new();
+    bm0.insert(2);
+    bm0.insert(3);
+    bm0.insert(200);
+    bm1.insert(513);
+    bm1.insert(800);
+
+    let bm3: BitSet<_64bit> = BitSet::new();
+    let intersection = &bm0 & &bm1;
+    let reference_union = bm3.union(&intersection);
+
+    let mut bm3 = bm3.clone();
+    bm3.unite(&intersection);
+    assert_equal(&reference_union, &bm3);
+}
+
+#[test]
+fn fuzzy_inplace_union_test(){
+    cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        const REPEATS: usize = 10;
+        const MAX_SIZE: usize = 1000;
+        const MAX_RANGE: usize = 1000;
+    } else {
+        const REPEATS: usize = 10000;
+        const MAX_SIZE: usize = 10000;
+        const MAX_RANGE: usize = 10000;
+    }
+    }
+    const INDEX_MUL: usize = 2;
+
+    use rand::prelude::*;
+    let mut rng = rand::rng();
+    for _ in 0..REPEATS{
+        let mut s1 = HiSparseBitset::default();
+        let mut s2 = HiSparseBitset::default();
+        let mut s3 = HiSparseBitset::default();
+
+        let mut random_insert = |s: &mut HiSparseBitset|{
+            for _ in 0..rng.random_range(0..MAX_SIZE){
+                let index = rng.random_range(0..MAX_RANGE)*INDEX_MUL;
+                s.insert(index);
+            }
+        };
+        random_insert(&mut s1);
+        random_insert(&mut s2);
+        random_insert(&mut s3);
+
+        // !TRUSTED_HIERARCHY UNION
+        {
+            let non_trusted = &s2 & &s3;
+            {
+                let s1 = HiSparseBitset::new();
+                let reference_union = &s1 | &non_trusted;
+
+                let mut s1 = s1.clone();
+                s1.unite(&non_trusted);
+                assert_equal(&reference_union, &s1);
+            }
+            {
+                let reference_union = &s1 | &non_trusted;
+
+                let mut s1 = s1.clone();
+                s1.unite(&non_trusted);
+                assert_equal(&reference_union, &s1);
+            }
+        }
+
+        let reference_union: HiSparseBitset = (&s1 | &s2).into();
+        s1.unite(&s2);
+        assert_equal(&reference_union, &s1);
+    }
+}

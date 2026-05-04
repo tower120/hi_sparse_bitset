@@ -15,7 +15,7 @@ mod maybe_serde{
 mod maybe_serde{
     pub trait MaybeSerialize {}
     impl<T> MaybeSerialize for T {}
-    
+
     pub trait MaybeDeserialize<'de> {}
     impl<'de, T> MaybeDeserialize<'de> for T {}
 }
@@ -24,8 +24,8 @@ use maybe_serde::*;
 
 /// Bit block.
 ///
-/// Used in [Config], to define bit blocks [BitSet] is built from. 
-/// 
+/// Used in [Config], to define bit blocks [BitSet] is built from.
+///
 /// [Config]: crate::config::Config
 /// [BitSet]: crate::BitSet
 pub trait BitBlock
@@ -42,7 +42,7 @@ pub trait BitBlock
 {
     /// 2^N bits
     const SIZE_POT_EXPONENT: usize;
-    
+
     /// Size in bits
     #[inline]
     /*const*/ fn size() -> usize {
@@ -50,16 +50,16 @@ pub trait BitBlock
     }
 
     fn zero() -> Self;
-    
+
     #[inline]
     fn is_zero(&self) -> bool {
         self == &Self::zero()
     }
 
     /// Returns previous bit
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// `bit_index` must be < SIZE
     #[inline]
     unsafe fn set_bit_unchecked<const BIT: bool>(&mut self, bit_index: usize) -> bool {
@@ -68,18 +68,18 @@ pub trait BitBlock
     }
 
     /// # Safety
-    /// 
+    ///
     /// `bit_index` must be < SIZE
     #[inline]
     unsafe fn get_bit_unchecked(&self, bit_index: usize) -> bool{
         let array = self.as_array().as_ref();
-        bit_utils::get_array_bit_unchecked(array, bit_index)    
+        bit_utils::get_array_bit_unchecked(array, bit_index)
     }
 
     // TODO: This can be removed, since there is BitQueue::traverse
     //       which do the same and perform the same in optimized build.
     /// Returns [Break] if traverse was interrupted (`f` returns [Break]).
-    /// 
+    ///
     /// [Break]: ControlFlow::Break
     #[inline]
     fn traverse_bits<F, B>(&self, f: F) -> ControlFlow<B>
@@ -89,7 +89,7 @@ pub trait BitBlock
         let array = self.as_array().as_ref();
         bit_utils::traverse_array_one_bits(array, f)
     }
-    
+
     #[inline]
     fn for_each_bit<F>(&self, mut f: F)
     where
@@ -103,28 +103,28 @@ pub trait BitBlock
 
     type BitsIter: BitQueue;
     fn into_bits_iter(self) -> Self::BitsIter;
-    
+
     fn as_array(&self) -> &[u64];
     fn as_array_mut(&mut self) -> &mut [u64];
-    
+
     type BytesArray: PrimitiveArray<Item=u8>;
     fn to_ne_bytes(self) -> Self::BytesArray;
     fn to_le_bytes(self) -> Self::BytesArray;
     fn from_ne_bytes(bytes: Self::BytesArray) -> Self;
     fn from_le_bytes(bytes: Self::BytesArray) -> Self;
-    
+
     #[inline]
     fn to_le(self) -> Self {
         Self::from_le_bytes(self.to_le_bytes())
     }
-    
+
     #[inline]
     fn count_ones(&self) -> usize {
         let mut sum = 0;
         // will be unrolled at compile time
         for &i in self.as_array(){
             sum += u64::count_ones(i);
-        } 
+        }
         sum as usize
     }
 }
@@ -165,21 +165,21 @@ impl BitBlock for u64{
     fn as_array(&self) -> &[u64] {
         unsafe {
             mem::transmute::<&u64, &[u64; 1]>(self)
-        }        
+        }
     }
 
     #[inline]
     fn as_array_mut(&mut self) -> &mut [u64] {
         unsafe {
             mem::transmute::<&mut u64, &mut [u64; 1]>(self)
-        }        
+        }
     }
 
     type BytesArray = [u8;8];
     #[inline]
     fn to_ne_bytes(self) -> Self::BytesArray {
         u64::to_ne_bytes(self)
-    }    
+    }
     #[inline]
     fn to_le_bytes(self) -> Self::BytesArray {
         u64::to_le_bytes(self)
@@ -227,7 +227,7 @@ impl BitBlock for wide::u64x2{
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
     }
-    
+
     type BytesArray = [u8;16];
     #[inline]
     fn to_ne_bytes(self) -> Self::BytesArray {
@@ -280,7 +280,7 @@ impl BitBlock for wide::u64x4{
     fn as_array_mut(&mut self) -> &mut [u64] {
         self.as_array_mut()
     }
-    
+
     type BytesArray = [u8;32];
     #[inline]
     fn to_ne_bytes(self) -> Self::BytesArray {
@@ -305,5 +305,5 @@ impl BitBlock for wide::u64x4{
         { Self::from_ne_bytes(bytes) }
         #[cfg(target_endian = "big")]
         { unimplemented!() }
-    }  
+    }
 }

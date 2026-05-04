@@ -1,12 +1,24 @@
 # Changelog
 
+## 0.7.5
+### Changed
+- `BitSet` materialization improved.
+
+### Added
+- `BitSet::unite`.
+- `BitSet impl BitOrAssign<impl BitSetInterface>`.
+- `BitSet::into_union`.
+- `BitSet impl BitOr<BitSet>`.
+- `BitSetInterface::union`.
+- `BitSetInterface::intersection`.
+
 ## 0.7.4
 ### Fix
 - MIRI compatibility with Rust >= 1.95
 
 ## 0.7.3
 ### Fix
-- 256bit deserialization overflow "warning" fix - for builds with checked arithmetic. 
+- 256bit deserialization overflow "warning" fix - for builds with checked arithmetic.
 
 ## 0.7.2
 ### Fix
@@ -47,7 +59,7 @@ This release:
 
 ## 0.6.1
 ### Fix
-- `is_empty()` worked wrong in non-`TRUSTED_HIERARCHY`. 
+- `is_empty()` worked wrong in non-`TRUSTED_HIERARCHY`.
 
 ## 0.6.0
 ### Changed
@@ -55,7 +67,7 @@ This release:
 - `config::Config` changed (simplified).
 
 ### Added
-- `SmallBitset` - `BitSet` with minimized memory overhead of hierarchy indirection. 
+- `SmallBitset` - `BitSet` with minimized memory overhead of hierarchy indirection.
 - `internals::PrimitiveArray`.
 
 ## 0.5.1
@@ -64,18 +76,18 @@ This release:
 
 ## 0.5.0
 ### Fix
-- `NoCache` reduce version was unsound for iterators which had to be dropped. 
+- `NoCache` reduce version was unsound for iterators which had to be dropped.
 
 ### Optimization
 - On each level, instead of empty block indices Vec, an intrusive single-linked list is now used.
   This completely eliminates this kind of memory overhead. Previously, if you would fill `_256bit` bitset,
   and then clear it - you would end up with additional 132Kb memory overhead from the list of free blocks.
   Considering that preallocated bitblocks themselves took 2Mb, this saves more than 5% of memory.
-- Minor `BitSet::remove()` optimization. 
+- Minor `BitSet::remove()` optimization.
 
 ### Changed
 - `BitSetInterface` now have default implementation.
-- `BitSet` no longer implements `BitSetInterface`. 
+- `BitSet` no longer implements `BitSetInterface`.
   But `&BitSet` still does. This prevents accidental sending container by value.
 - `config::with_cache::*` moved to `config::*` with additional default generic argument.
 - `crate::bit_queue` moved to `internals::bit_queue`.
@@ -86,7 +98,7 @@ This release:
 - `BitBlock::as_array()`.
 - `BitBlock::as_array_mut()`.
 - Some `BitBlock` methods  now have default implementations.
-- `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like 
+- `BitSetOp::HIERARCHY_OPERANDS_CONTAIN_RESULT` marker, for intersection-like
   optimization in user-defined operations.
 - Machinery, which allows to implement custom bitsets. Enabled with `impl` flag.
 - `internals` module, with implementation details that end user can use for deep customization.
@@ -106,7 +118,7 @@ This release:
 - All former `binary_op` operations renamed.
 
 ### Added
-- `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetInterface` in 
+- `BitSet`, `BitSetOp`, `Reduce` now duplicate part of `BitSetInterface` in
 order to prevent the need of `BitSetInterface` import.
 - `CachingIndexIter` now have former `IndexIterator` functionality.
 - `CachingBlockIter` now have former `BlockIterator` functionality.
@@ -121,14 +133,14 @@ order to prevent the need of `BitSetInterface` import.
 ### Fix
 - `IndexIter::move_to` to the empty bitset area fix.
 
-### Changed 
+### Changed
 - General minor performance improvement (removed index check in bit-manipulation).
 - `BitSetInterface`'s `IntoIterator` now implement `IndexIter`.
 - `BlockIterCursor` renamed to `BlockCursor`.
 - `IndexIterCursor` renamed to `IndexCursor`.
 - `BlockCursor` and `IndexCursor` now have `Conf` generic parameter.
 - both cursors now <= 64bit in size.
-- `BlockIter::as_indices` renamed to `BlockIter::into_indices`. 
+- `BlockIter::as_indices` renamed to `BlockIter::into_indices`.
 
 ### Added
 - `BlockCursor` now implements `Copy`.
@@ -156,7 +168,7 @@ order to prevent the need of `BitSetInterface` import.
 - `BitSet` (without &) now implements `op`s too.
 
 ### Removed
-- `IndexIterator::as_blocks()` removed as redundant, the same can be achieved with cursor move. 
+- `IndexIterator::as_blocks()` removed as redundant, the same can be achieved with cursor move.
   And the very need of moving from index iterator to block iterator is questionable.
 
 ## 0.2.0
