@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.7.5
+### Changed
+- `BitSet` materialization improved.
+
 ### Added
 - `BitSet::union_with`.
 - `BitSet impl BitOrAssign<impl BitSetInterface>`.

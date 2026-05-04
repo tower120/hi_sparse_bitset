@@ -119,60 +119,8 @@ where
     /// Materialize any [BitSetInterface].
     #[inline]
     fn from(bitset: B) -> Self {
-        /*if B::TRUSTED_HIERARCHY{
-            todo!("optimized special case with hierarchies + prealocated space")
-        }*/
-
-        // number of blocks in each level unknown.
-        // insert block by block.
-        // We only know that blocks come in order.
         let mut this = Self::default();
-        let mut global_level1_index = usize::MAX;
-        let mut level1_block_ptr: Option<NonNull<Level1Block<Conf>>> = None;
-        bitset.block_iter().for_each(|block|{
-            // block can be empty
-            if block.is_empty(){
-                return;
-            }
-
-            // TODO: block_iter could just return these
-            let (inner_level0_index, inner_level1_index, _) = Self::level_indices(block.start_index);
-
-            // block.start_index / 2^Conf::DataBitBlock::SIZE_POT_EXPONENT
-            let current_level1_block_index = block.start_index >> Conf::DataBitBlock::SIZE_POT_EXPONENT;
-            if current_level1_block_index != global_level1_index {
-                global_level1_index = current_level1_block_index;
-
-                // 1. Level0
-                let level1_block_index = unsafe{
-                    this.level0.get_or_insert(inner_level0_index, ||{
-                        let block_index = this.level1.insert_empty_block();
-                        Primitive::from_usize(block_index)
-                    })
-                }.as_usize();
-
-                // 2. Level1
-                level1_block_ptr = Some(NonNull::from(
-                    unsafe{
-                        this.level1.blocks_mut().get_unchecked_mut(level1_block_index)
-                    }
-                ));
-            }
-
-            // 3. Data Level
-            unsafe{
-                // Make data block.
-                let mut data_block = LevelDataBlock::<Conf>::default();
-                *data_block.mask_mut() = block.bit_block;
-
-                // Push block to data level.
-                let data_block_index = this.data.push_block(data_block);
-
-                // Register block's index in level1.
-                level1_block_ptr.unwrap_unchecked().as_mut()
-                    .insert_unchecked(inner_level1_index, Primitive::from_usize(data_block_index));
-            }
-        });
+        this.union_with_impl::<B, true>(bitset);
         this
     }
 }
@@ -327,11 +275,14 @@ impl<Conf: Config> BitSet<Conf> {
         }
     }
 
-    /// In-place union with any [BitSetInterface].
-    pub fn union_with<Other>(&mut self, other: Other)
+    /// `SELF_IS_EMPTY` is true if we can GUARANTEE that self is empty.
+    #[inline]
+    fn union_with_impl<Other, const SELF_IS_EMPTY: bool>(&mut self, other: Other)
     where
         Other: BitSetInterface<Conf=Conf>
     {
+        debug_assert_eq!(SELF_IS_EMPTY, self.is_empty());
+
         // 1. For TRUSTED_HIERARCHY we can upfront Insert lvl1 blocks that `self` does not have.
         //    In one go.
         if Other::TRUSTED_HIERARCHY {
@@ -339,7 +290,11 @@ impl<Conf: Config> BitSet<Conf> {
             let mask_diff = self.level0_mask() ^ new_lvl0_mask;
             self.level1.reserve_for(new_lvl0_mask.count_ones());
             mask_diff.for_each_bit(|idx| {
-                let block_index = self.level1.insert_empty_block();
+                let block_index = if SELF_IS_EMPTY {
+                    self.level1.push_block(Default::default())
+                } else {
+                    self.level1.insert_empty_block()
+                };
                 let item = Primitive::from_usize(block_index);
                 unsafe{ self.level0.insert_unchecked_no_mask(idx, item); }
             });
@@ -388,7 +343,9 @@ impl<Conf: Config> BitSet<Conf> {
 
                 // I. Insert data blocks that `self` does not have as direct copy from `other`.
                 let mask_diff = this_lvl1_mask ^ new_lvl1_mask;
-                this_data.reserve_for(new_lvl1_mask.count_ones());
+                if Other::TRUSTED_HIERARCHY{
+                    this_data.reserve_for(new_lvl1_mask.count_ones());
+                }
                 mask_diff.for_each_bit(|lvl1_idx|{
                     let other_data = unsafe{
                         Other::data_mask_from_block_data(
@@ -399,11 +356,16 @@ impl<Conf: Config> BitSet<Conf> {
 
                     if Other::TRUSTED_HIERARCHY // Always non-zero in TRUSTED_HIERARCHY
                     || !other_data.is_zero() {
-                        let block_index = this_data.insert_block(
-                            unsafe{
+                        let block_index = {
+                            let block = unsafe{
                                 Block::from_parts(other_data, Default::default())
+                            };
+                            if SELF_IS_EMPTY{
+                                this_data.push_block(block)
+                            } else {
+                                this_data.insert_block(block)
                             }
-                        );
+                        };
                         let item = Primitive::from_usize(block_index);
                         unsafe{
                             if Other::TRUSTED_HIERARCHY {
@@ -422,22 +384,24 @@ impl<Conf: Config> BitSet<Conf> {
                 }
 
                 // II. Insert intersecting blocks.
-                let mask_intersect = this_lvl1_mask & other_lvl1_mask;
-                mask_intersect.for_each_bit(|lvl1_idx|{
-                    let other_data = unsafe{
-                        Other::data_mask_from_block_data(
-                            &mut other_level1_block_data,
-                            lvl1_idx
-                        )
-                    };
-                    let this_data = unsafe {
-                        let index = this_lvl1_block.get_or_zero(lvl1_idx);
-                        &mut this_data.blocks_mut()[index.as_usize()]
-                    };
-                    unsafe {
-                        *this_data.mask_mut() |= other_data
-                    };
-                });
+                if !SELF_IS_EMPTY{  // Can't happened if self is empty
+                    let mask_intersect = this_lvl1_mask & other_lvl1_mask;
+                    mask_intersect.for_each_bit(|lvl1_idx|{
+                        let other_data = unsafe{
+                            Other::data_mask_from_block_data(
+                                &mut other_level1_block_data,
+                                lvl1_idx
+                            )
+                        };
+                        let this_data = unsafe {
+                            let index = this_lvl1_block.get_or_zero(lvl1_idx);
+                            &mut this_data.blocks_mut()[index.as_usize()]
+                        };
+                        unsafe {
+                            *this_data.mask_mut() |= other_data
+                        };
+                    });
+                }
 
                 // III. Remove if needed
                 if !Other::TRUSTED_HIERARCHY    // Can't happened with TRUSTED_HIERARCHY
@@ -454,6 +418,15 @@ impl<Conf: Config> BitSet<Conf> {
         });
 
         unsafe{ other.drop_iter_state(&mut ManuallyDrop::new(other_iter_state)); }
+    }
+
+
+    /// In-place union with any [BitSetInterface].
+    pub fn union_with<Other>(&mut self, other: Other)
+    where
+        Other: BitSetInterface<Conf=Conf>
+    {
+        self.union_with_impl::<Other, false>(other)
     }
 
     /// Union smaller `BitSet` into bigger.
