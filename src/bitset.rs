@@ -360,6 +360,9 @@ impl<Conf: Config> BitSet<Conf> {
                     lvl0_idx
                 )
             };
+            let mut other_level1_block_data = unsafe{
+                other_level1_block_data.assume_init()
+            };
 
             let this_lvl1_block_index = unsafe {
                 if Other::TRUSTED_HIERARCHY {
@@ -389,7 +392,7 @@ impl<Conf: Config> BitSet<Conf> {
                 mask_diff.for_each_bit(|lvl1_idx|{
                     let other_data = unsafe{
                         Other::data_mask_from_block_data(
-                            other_level1_block_data.assume_init_mut(),
+                            &mut other_level1_block_data,
                             lvl1_idx
                         )
                     };
@@ -423,7 +426,7 @@ impl<Conf: Config> BitSet<Conf> {
                 mask_intersect.for_each_bit(|lvl1_idx|{
                     let other_data = unsafe{
                         Other::data_mask_from_block_data(
-                            other_level1_block_data.assume_init_mut(),
+                            &mut other_level1_block_data,
                             lvl1_idx
                         )
                     };
