@@ -281,7 +281,7 @@ impl<Conf: Config> BitSet<Conf> {
     where
         Other: BitSetInterface<Conf=Conf>
     {
-        debug_assert_eq!(SELF_IS_EMPTY, self.is_empty());
+        if SELF_IS_EMPTY{ debug_assert!(self.is_empty()) }
 
         // 1. For TRUSTED_HIERARCHY we can upfront Insert lvl1 blocks that `self` does not have.
         //    In one go.

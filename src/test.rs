@@ -1099,8 +1099,9 @@ fn inplace_union_test(){
     bm1.insert(513);
     bm1.insert(800);
 
-    let reference_union: BitSet<_64bit> = (&bm0 | &bm1).into();
+    let reference_union = &bm0 | &bm1;
 
+    let mut bm0 = bm0.clone();
     bm0.union_with(&bm1);
     assert_equal(&reference_union, &bm0);
 }
@@ -1121,11 +1122,12 @@ fn inplace_union_untrusted_test(){
     bm1.insert(513);
     bm1.insert(800);
 
-    let mut bm3: BitSet<_64bit> = BitSet::new();
-    let intetsection = &bm0 & &bm1;
-    let reference_union: BitSet<_64bit> = (&bm3 | &intetsection).into();
+    let bm3: BitSet<_64bit> = BitSet::new();
+    let intersection = &bm0 & &bm1;
+    let reference_union = &bm3 | &intersection;
 
-    bm3.union_with(&intetsection);
+    let mut bm3 = bm3.clone();
+    bm3.union_with(&intersection);
     assert_equal(&reference_union, &bm3);
 }
 
@@ -1166,7 +1168,7 @@ fn fuzzy_inplace_union_test(){
             let non_trusted = &s2 & &s3;
             {
                 let s1 = HiSparseBitset::new();
-                let reference_union: HiSparseBitset = (&s1 | &non_trusted).into();
+                let reference_union = &s1 | &non_trusted;
 
                 let mut s1 = s1.clone();
                 s1.union_with(&non_trusted);
