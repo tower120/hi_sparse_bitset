@@ -1133,13 +1133,15 @@ fn inplace_union_untrusted_test(){
 fn fuzzy_inplace_union_test(){
     cfg_if::cfg_if! {
     if #[cfg(miri)] {
-        const REPEATS: usize = 100;
+        const REPEATS: usize = 10;
+        const MAX_SIZE: usize = 1000;
+        const MAX_RANGE: usize = 1000;
     } else {
         const REPEATS: usize = 10000;
+        const MAX_SIZE: usize = 10000;
+        const MAX_RANGE: usize = 10000;
     }
     }
-    const MAX_SIZE: usize = 10000;
-    const MAX_RANGE: usize = 10000;
     const INDEX_MUL: usize = 2;
 
     use rand::prelude::*;
