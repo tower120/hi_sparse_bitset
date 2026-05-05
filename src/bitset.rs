@@ -395,7 +395,7 @@ impl<Conf: Config> BitSet<Conf> {
                         };
                         let this_data = unsafe {
                             let index = this_lvl1_block.get_or_zero(lvl1_idx);
-                            &mut this_data.blocks_mut()[index.as_usize()]
+                            this_data.blocks_mut().get_unchecked_mut(index.as_usize())
                         };
                         unsafe {
                             *this_data.mask_mut() |= other_data
