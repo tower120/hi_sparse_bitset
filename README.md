@@ -20,10 +20,10 @@ algorithmic complexity on operations between bitsets.
   <img src="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png">
 </picture>
 
-## Usage 
+## Usage
 
 ```rust
-use hi_sparse_bitset::reduce;    
+use hi_sparse_bitset::reduce;
 use hi_sparse_bitset::ops::*;
 type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_128bit>;
 
@@ -65,17 +65,17 @@ minimal(initial) = 416 bytes, maximum = 35 Kb.
 ## Performance
 
 It is faster than hashsets and pure bitsets for all inter-bitset operations
-and all cases in orders of magnitude. It is even faster than 
+and all cases in orders of magnitude. It is even faster than
 hibitset. See benchmarks.
 
 ### Against `hibitset`
 
 Despite the fact that `hi_sparse_bitset` have layer of indirection for accessing
-each level, it is faster (sometimes significantly) then `hibitset` for all operations.
+each level, it is faster (sometimes significantly) than `hibitset` for all operations.
 
-On top of that, it is also **algorithmically** faster than `hibitset` in 
+On top of that, it is also **algorithmically** faster than `hibitset` in
 non-intersection inter-bitset operations due to caching iterator, which
-can skip bitsets with empty level1 blocks. 
+can skip bitsets with empty level1 blocks.
 
 ### Against `roaring`
 
@@ -83,8 +83,8 @@ can skip bitsets with empty level1 blocks.
 and big fixed-sized bitset for a small ones.
 Let's consider case for intersecting `roaring` sets, that contain large integers.
 In order to find intersection, it binary search for bitblocks with the same start index,
-then intersect each bitblock. Operation of binary searching matching bitblock 
-is algorithmically more complex O(log N), then directly traversing intersected 
+then intersect each bitblock. Operation of binary searching matching bitblock
+is algorithmically more complex O(log N), than directly traversing intersected
 bitblock in hierarchy, which is close to O(1) for each resulted bitblock.
 Plus, hierarchical bitset discard groups of non-intersected blocks
 early, due to its tree-like nature.
@@ -92,7 +92,7 @@ early, due to its tree-like nature.
 ## DataBlock operations
 
 In order to speed up things even more, you can work directly with
-`DataBlock`s. `DataBlock`s - is a bit-blocks (relatively small), 
+`DataBlock`s. `DataBlock`s - is a bit-blocks (relatively small),
 which you can store and iterate latter.
 
 _In future versions, you can also insert DataBlocks into BitSet._
@@ -112,13 +112,13 @@ Iteration always returns sorted sequences.
 
 ## Suspend-resume iterator with cursor
 
-Iterators of `BitSetInterface` (any kind of bitset) can return cursor, 
+Iterators of `BitSetInterface` (any kind of bitset) can return cursor,
 and can rewind to cursor. Cursor is like integer index in `Vec`.
 Which means, that you can use it even if the container was mutated.
 
 ### Multi-session iteration
 
-With cursor you can suspend and later resume your iteration 
+With cursor you can suspend and later resume your iteration
 session. For example, you can create an intersection between several bitsets, iterate it
 to a certain point, and obtain an iterator cursor. Then, later,
 you can make an intersection between the same bitsets (but possibly in different state),
@@ -131,12 +131,12 @@ _(By wrapping bitsets in Mutex(es))_
 
 #### Invariant intersection
 
-If intersection of bitsets _(or any other operation)_ does not change with possible 
+If intersection of bitsets _(or any other operation)_ does not change with possible
 bitsets mutations - you're guaranteed to correctly traverse all of its elements.
 
 #### Bitsets mutations narrows intersection/union
 
-If in intersection, only `remove` operation mutates bitsets - this guarantees 
+If in intersection, only `remove` operation mutates bitsets - this guarantees
 that you will not lose any valid elements at the end of "multi-session iteration".
 
 #### Speculative iteration
@@ -152,28 +152,28 @@ See [CHANGELOG.md](CHANGELOG.md) for version differences.
 
 ## Known alternatives
 
-* [hibitset](https://crates.io/crates/hibitset) - hierarchical dense bitset. 
-    If you'll insert one index = 16_000_000, it will allocate 2Mb of RAM. 
+* [hibitset](https://crates.io/crates/hibitset) - hierarchical dense bitset.
+    If you'll insert one index = 16_000_000, it will allocate 2Mb of RAM.
     It uses 4-level hierarchy, and being dense - does not use indirection.
     This makes it hierarchy overhead smaller, and on intersection operations it SHOULD perform
-    better - but it doesn't (probably because of additional level of hierarchy, or some 
+    better - but it doesn't (probably because of additional level of hierarchy, or some
     implementation details).
 
 * [bitvec](https://crates.io/crates/bitvec) - pure dense bitset. Plain operations (insert/contains)
     should be reasonably faster (not at magnitude scale).
-    Inter-bitset operations - super-linearly slower for the worst case (which is almost always), 
+    Inter-bitset operations - super-linearly slower for the worst case (which is almost always),
     and have approx. same performance for the best case (when each bitset block used).
-    Have no memory overhead per-se, but memory usage depends on max int in bitset, 
+    Have no memory overhead per-se, but memory usage depends on max int in bitset,
     so if you do not need to perform inter-bitset operations,
     and know that your indices are relatively small numbers, or expect bitset to be
     densely populated - this is a good choice.
 
 * `HashSet<usize>` - you should use it only if you work with a relatively small
-   set with extremely large numbers. 
+   set with extremely large numbers.
    It is orders of magnitude slower for inter-set operations.
    And "just" slower for the rest ones.
 
-*  [roaring](https://crates.io/crates/roaring) - compressed hybrid bitset. 
+*  [roaring](https://crates.io/crates/roaring) - compressed hybrid bitset.
    Higher algorithmic complexity of operations, but theoretically unlimited range.
    It is still super-linearly faster than pure dense bitsets and hashsets in inter-set
    operations. See [performance section](#against-roaring) for detais.
