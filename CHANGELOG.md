@@ -13,6 +13,8 @@ In-place union + intersection.
 - `BitSet impl BitOr<BitSet>`.
 - `BitSetInterface::union`.
 - `BitSetInterface::intersection`.
+- `BitSet::intersect`.
+- `BitSet::into_intersection`.
 - `BitSet impl BitAndAssign<impl BitSetInterface>`.
 - `BitSet impl BitAnd<BitSet>`.
 - `BitSet::mem_info`.
