@@ -101,17 +101,26 @@ where
         *block_indices.get_unchecked_mut(index) = item;
     }
 
-    /// # Safety
-    ///
-    /// `index` is not checked.
     #[inline]
     unsafe fn remove_unchecked(&mut self, index: usize) {
-        // mask
         self.mask.set_bit_unchecked::<false>(index);
+        self.remove_unchecked_no_mask(index);
+    }
+
+    #[inline]
+    unsafe fn remove_unchecked_no_mask(&mut self, index: usize) {
         // If we have block_indices section (compile-time check)
         if !size_of::<BlockIndices>().is_zero(){
             let block_indices = self.block_indices.as_mut();
             *block_indices.get_unchecked_mut(index) = Primitive::ZERO;
+        }
+    }
+
+    #[inline]
+    fn clear(&mut self){
+        self.mask = Mask::zero();
+        if !size_of::<BlockIndices>().is_zero(){
+            self.block_indices.as_mut().fill(Self::Item::ZERO);
         }
     }
 }

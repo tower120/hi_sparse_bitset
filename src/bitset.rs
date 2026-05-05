@@ -430,8 +430,8 @@ impl<Conf: Config> BitSet<Conf> {
 
     /// Union smaller `BitSet` into bigger.
     ///
-    /// Basically same as [`unite`] but auto select union direction,
-    /// and can work only with `BitSet`.
+    /// Basically same as [`unite`] but auto select union direction to reduce
+    /// amount of inserted data blocks, and can work with `BitSet` only.
     ///
     /// [`unite`]: Self::unite
     pub fn into_union(self, other: Self) -> Self{
@@ -446,6 +446,120 @@ impl<Conf: Config> BitSet<Conf> {
         }
         left.unite(right);
         left
+    }
+
+    /// In-place intersection with any [BitSetInterface].
+    ///
+    /// This is O(N) operation, where N - amount of blocks to be removed from `self`.
+    /// So [intersection()] + [materialization] can be faster, if amount of materialized
+    /// blocks is lower then amount blocks of removed with `intersect()`.
+    pub fn intersect<Other>(&mut self, other: Other)
+    where
+        Other: BitSetInterface<Conf=Conf>
+    {
+        let clear_lvl1_block = |this: &mut BitSet<Conf>, lvl1_block_idx: usize|{
+            let lvl1_block = &mut this.level1.blocks_mut()[lvl1_block_idx];
+            let lvl1_mask = *lvl1_block.mask();
+            lvl1_mask.for_each_bit(|lvl1_idx| unsafe{
+                let data_block_idx = lvl1_block.get_or_zero(lvl1_idx).as_usize();
+
+                // This is probably not necessary, since it will be overwritten any way.
+                this.data.blocks_mut()[data_block_idx].clear();
+
+                this.data.remove_empty_block_unchecked(data_block_idx);
+
+                lvl1_block.remove_unchecked_no_mask(lvl1_idx);
+            });
+
+            unsafe{ *lvl1_block.mask_mut() =  BitBlock::zero() }
+        };
+
+        // 1. Roughly cut by lvl0 mask
+        let other_lvl0_mask = other.level0_mask();
+        let new_lvl0_mask = *self.level0.mask() & other_lvl0_mask;
+        {
+            let mask_diff = *self.level0.mask() ^ new_lvl0_mask;
+            mask_diff.for_each_bit(|lvl0_idx| unsafe{
+                let lvl1_block_idx = self.level0.get_or_zero(lvl0_idx).as_usize();
+                clear_lvl1_block(self, lvl1_block_idx);
+                self.level1.remove_empty_block_unchecked(lvl1_block_idx);
+                self.level0.remove_unchecked_no_mask(lvl0_idx);
+            });
+            unsafe{ *self.level0.mask_mut() = new_lvl0_mask }
+        }
+
+        let mut other_iter_state = other.make_iter_state();
+
+        // Traverse Lvl0 intersection
+        new_lvl0_mask.for_each_bit(|lvl0_idx|{
+            let mut other_level1_block_data = MaybeUninit::uninit();
+            let (other_lvl1_mask, _) = unsafe{
+                other.init_level1_block_data(
+                    &mut other_iter_state,
+                    &mut other_level1_block_data,
+                    lvl0_idx
+                )
+            };
+            let mut other_level1_block_data = unsafe{
+                other_level1_block_data.assume_init()
+            };
+
+            let this_lvl1_block_index = unsafe {
+                // SAFETY: We just know we have it - it's intersection
+                self.level0.get_or_zero(lvl0_idx).as_usize()
+            };
+
+            let this_lvl1_block = unsafe {
+                self.level1.blocks_mut().get_unchecked_mut(this_lvl1_block_index)
+            };
+
+            let this_data = &mut self.data;
+
+            // Traverse Lvl1
+            {
+                let this_lvl1_mask = *this_lvl1_block.mask();
+                let new_lvl1_mask = other_lvl1_mask & this_lvl1_mask;
+
+                // I. Remove data blocks that `self` should not have.
+                let mask_diff = this_lvl1_mask ^ new_lvl1_mask;
+                mask_diff.for_each_bit(|lvl1_idx| unsafe{
+                    let this_data_idx = this_lvl1_block.get_or_zero(lvl1_idx).as_usize();
+                    let this_data_block = &mut this_data.blocks_mut()[this_data_idx];
+                    this_data_block.clear();
+                    this_lvl1_block.remove_unchecked_no_mask(lvl1_idx);
+                });
+                unsafe{
+                    *this_lvl1_block.mask_mut() ^= mask_diff;
+                }
+
+                // II. Do actual data intersection
+                new_lvl1_mask.for_each_bit(|lvl1_idx| unsafe{
+                    let other_data =
+                        Other::data_mask_from_block_data(
+                            &mut other_level1_block_data,
+                            lvl1_idx
+                        );
+                    let this_data_idx = this_lvl1_block.get_or_zero(lvl1_idx).as_usize();
+                    let this_data_block = &mut this_data.blocks_mut()[this_data_idx];
+
+                    *this_data_block.mask_mut() &= other_data;
+
+                    if this_data_block.mask().is_zero(){
+                        this_lvl1_block.remove_unchecked(lvl1_idx);
+                    }
+                });
+
+                // III. Remove if needed
+                if this_lvl1_block.mask().is_zero() {
+                    unsafe{
+                        self.level1.remove_empty_block_unchecked(this_lvl1_block_index);
+                        self.level0.remove_unchecked(lvl0_idx);
+                    }
+                }
+            }
+        });
+
+        unsafe{ other.drop_iter_state(&mut ManuallyDrop::new(other_iter_state)); }
     }
 }
 
