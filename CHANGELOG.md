@@ -1,7 +1,6 @@
 # Changelog
 
 ## 0.7.5
-
 In-place union + intersection.
 
 ### Changed
@@ -35,7 +34,6 @@ In-place union + intersection.
 - crates.io doc generation fix.
 
 ## 0.7.0
-
 This release:
 - Introduces serialization and `serde` support.
 - Adds means of inserting `DataBlock`s.
@@ -187,5 +185,4 @@ order to prevent the need of `BitSetInterface` import.
 - `_256bit` `Config` added.
 
 ## 0.1.0
-
 Initial version

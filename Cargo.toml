@@ -2,7 +2,7 @@
 name = "hi_sparse_bitset"
 authors = ["Andrey Didukh <tower120@gmail.com>"]
 license = "MIT OR Apache-2.0"
-version = "0.7.4"
+version = "0.7.5"
 edition = "2021"
 repository = "https://github.com/tower120/hi_sparse_bitset"
 keywords = ["hierarchical", "sparse", "bitset", "bitmap", "container"]
