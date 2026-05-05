@@ -4,6 +4,9 @@ mod serialization;
 #[cfg(feature="serde")]
 mod serde;
 
+mod mem_info;
+pub use mem_info::*;
+
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
 use std::ptr::NonNull;
@@ -45,7 +48,7 @@ type LevelDataBlock<Conf> = Block<
 pub struct BitSet<Conf: Config> {
     level0: Level0Block<Conf>,
     level1: Level<Level1Block<Conf>>,
-    data  : Level<LevelDataBlock<Conf> >,
+    data  : Level<LevelDataBlock<Conf>>,
 }
 
 impl<Conf: Config> Clone for BitSet<Conf> {
@@ -189,6 +192,12 @@ impl<Conf: Config> BitSet<Conf> {
         Default::default()
     }
 
+    /// Memory usage info.
+    #[inline]
+    pub fn mem_info(&self) -> MemInfo<'_, Conf> {
+        MemInfo { bitset: self }
+    }
+
     /// # Panics
     ///
     /// Panics, if `index` is out of index range.
@@ -224,12 +233,6 @@ impl<Conf: Config> BitSet<Conf> {
             let data_block = self.get_or_insert_data_block(level0_index, level1_index);
             *data_block.mask_mut() |= block.bit_block;
         }
-    }
-
-    /// Number of used [DataBlock]s.
-    #[inline]
-    pub fn blocks_len(&self) -> usize {
-        self.data.len()
     }
 
     /// Returns false if `index` is not in bitset.
@@ -438,7 +441,7 @@ impl<Conf: Config> BitSet<Conf> {
         let mut left : Self;
         let right: &Self;
         // Unite into bigger bitset.
-        if self.blocks_len() > other.blocks_len(){
+        if self.data.len() > other.data.len() {
             left  = self;
             right = &other;
         } else {
@@ -459,7 +462,7 @@ impl<Conf: Config> BitSet<Conf> {
     /// Since `M` is equal in both cases, but with [`intersection()`] + [`materialization`]
     /// `N` is always zero (but `M` more costly, since it needs to allocate blocks).
     ///
-    /// [`intersection()`]: Self::intersection
+    /// [`intersection()`]: BitSetInterface::intersection
     /// [`materialization`]: crate#laziness-and-materialization
     pub fn intersect<Other>(&mut self, other: Other)
     where
@@ -576,12 +579,12 @@ impl<Conf: Config> BitSet<Conf> {
     /// Basically same as [`intersect`] but auto select intersection direction
     /// to reduce amount of removed data blocks, and can work with `BitSet` only.
     ///
-    /// [`unite`]: Self::unite
+    /// [`intersect`]: Self::intersect
     pub fn into_intersection(self, other: Self) -> Self {
         let mut left : Self;
         let right: &Self;
         // Intersect into smaller bitset.
-        if self.blocks_len() < other.blocks_len(){
+        if self.data.len() < other.data.len() {
             left  = self;
             right = &other;
         } else {

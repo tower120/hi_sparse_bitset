@@ -1,16 +1,22 @@
 # Changelog
 
 ## 0.7.5
+
+In-place union + intersection.
+
 ### Changed
 - `BitSet` materialization improved.
 
 ### Added
 - `BitSet::unite`.
-- `BitSet impl BitOrAssign<impl BitSetInterface>`.
 - `BitSet::into_union`.
+- `BitSet impl BitOrAssign<impl BitSetInterface>`.
 - `BitSet impl BitOr<BitSet>`.
 - `BitSetInterface::union`.
 - `BitSetInterface::intersection`.
+- `BitSet impl BitAndAssign<impl BitSetInterface>`.
+- `BitSet impl BitAnd<BitSet>`.
+- `BitSet::mem_info`.
 
 ## 0.7.4
 ### Fix

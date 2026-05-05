@@ -199,7 +199,8 @@ impl<Block: IBlock> Level<Block> {
 
     /// Reserve for `len` blocks total.
     #[inline]
-    pub fn reserve_for(&mut self, len: usize) {
+    pub fn reserve_for(&mut self, mut len: usize) {
+        len += 1;   // One for a first empty block
         let cap = self.blocks.capacity();
         if cap >= len{
             return;
@@ -207,9 +208,16 @@ impl<Block: IBlock> Level<Block> {
         self.blocks.reserve(len - cap);
     }
 
+    /// Actual len including first empty block
     #[inline]
     pub fn len(&self) -> usize {
         self.blocks.len() - self.empty_blocks_count
+    }
+
+    /// Actual cap
+    #[inline]
+    pub fn cap(&self) -> usize {
+        self.blocks.capacity()
     }
 
     /// # Safety
