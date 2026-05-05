@@ -457,21 +457,18 @@ impl<Conf: Config> BitSet<Conf> {
     where
         Other: BitSetInterface<Conf=Conf>
     {
-        let clear_lvl1_block = |this: &mut BitSet<Conf>, lvl1_block_idx: usize|{
-            let lvl1_block = &mut this.level1.blocks_mut()[lvl1_block_idx];
+        let clear_lvl1_block = |this: &mut BitSet<Conf>, lvl1_block_idx: usize| unsafe{
+            let lvl1_block = this.level1.blocks_mut().get_unchecked_mut(lvl1_block_idx);
             let lvl1_mask = *lvl1_block.mask();
-            lvl1_mask.for_each_bit(|lvl1_idx| unsafe{
+            lvl1_mask.for_each_bit(|lvl1_idx| {
                 let data_block_idx = lvl1_block.get_or_zero(lvl1_idx).as_usize();
-
-                // This is probably not necessary, since it will be overwritten any way.
-                this.data.blocks_mut()[data_block_idx].clear();
-
+                // We don't clear block, since that will clear only it's mask.
+                // Mask will be cleared any way on pop_empty_block()
+                //this.data.blocks_mut().get_unchecked_mut(data_block_idx).clear();
                 this.data.remove_empty_block_unchecked(data_block_idx);
-
                 lvl1_block.remove_unchecked_no_mask(lvl1_idx);
             });
-
-            unsafe{ *lvl1_block.mask_mut() =  BitBlock::zero() }
+            *lvl1_block.mask_mut() = BitBlock::zero();
         };
 
         // 1. Roughly cut by lvl0 mask
@@ -505,7 +502,7 @@ impl<Conf: Config> BitSet<Conf> {
             };
 
             let this_lvl1_block_index = unsafe {
-                // SAFETY: We just know we have it - it's intersection
+                // SAFETY: We know we have it - it's intersection
                 self.level0.get_or_zero(lvl0_idx).as_usize()
             };
 
@@ -524,8 +521,11 @@ impl<Conf: Config> BitSet<Conf> {
                 let mask_diff = this_lvl1_mask ^ new_lvl1_mask;
                 mask_diff.for_each_bit(|lvl1_idx| unsafe{
                     let this_data_idx = this_lvl1_block.get_or_zero(lvl1_idx).as_usize();
-                    let this_data_block = &mut this_data.blocks_mut()[this_data_idx];
-                    this_data_block.clear();
+                    // We don't clear block, since that will clear only it's mask.
+                    // Mask will be cleared any way on pop_empty_block()
+                    /*let this_data_block = this_data.blocks_mut().get_unchecked_mut(this_data_idx);
+                    this_data_block.clear(); */
+                    this_data.remove_empty_block_unchecked(this_data_idx);
                     this_lvl1_block.remove_unchecked_no_mask(lvl1_idx);
                 });
                 unsafe{
@@ -540,11 +540,12 @@ impl<Conf: Config> BitSet<Conf> {
                             lvl1_idx
                         );
                     let this_data_idx = this_lvl1_block.get_or_zero(lvl1_idx).as_usize();
-                    let this_data_block = &mut this_data.blocks_mut()[this_data_idx];
+                    let this_data_block = this_data.blocks_mut().get_unchecked_mut(this_data_idx);
 
                     *this_data_block.mask_mut() &= other_data;
 
                     if this_data_block.mask().is_zero(){
+                        this_data.remove_empty_block_unchecked(this_data_idx);
                         this_lvl1_block.remove_unchecked(lvl1_idx);
                     }
                 });
