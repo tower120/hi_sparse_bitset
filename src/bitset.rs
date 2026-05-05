@@ -10,7 +10,7 @@ use std::ptr::NonNull;
 use crate::config::Config;
 use block::Block;
 use crate::bitset::level::{IBlock, Level};
-use crate::{BitBlock, BitSetBase, BitSetInterface, DataBlock, apply, level_indices, ops};
+use crate::{BitBlock, BitSetBase, BitSetInterface, DataBlock, level_indices};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::internals::{impl_bitset, Primitive};
 
