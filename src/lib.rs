@@ -186,9 +186,11 @@ mod bit_utils;
 mod reduce;
 mod bitset_interface;
 mod apply;
-mod bitset;
 mod internals;
 mod data_block;
+
+mod bitset;
+pub use bitset::*;
 
 pub mod config;
 pub mod ops;
@@ -199,7 +201,6 @@ pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;
 pub use bit_block::BitBlock;
-pub use bitset::BitSet;
 pub use data_block::{DataBlock, DataBlockIter};
 
 use primitive::Primitive;
