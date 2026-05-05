@@ -5,12 +5,12 @@ mod serialization;
 mod serde;
 
 use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{BitOr, BitOrAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
 use std::ptr::NonNull;
 use crate::config::Config;
 use block::Block;
 use crate::bitset::level::{IBlock, Level};
-use crate::{level_indices, BitBlock, BitSetBase, BitSetInterface, DataBlock};
+use crate::{BitBlock, BitSetBase, BitSetInterface, DataBlock, apply, level_indices, ops};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
 use crate::internals::{impl_bitset, Primitive};
 
@@ -437,6 +437,7 @@ impl<Conf: Config> BitSet<Conf> {
     pub fn into_union(self, other: Self) -> Self{
         let mut left : Self;
         let right: &Self;
+        // Unite into bigger bitset.
         if self.blocks_len() > other.blocks_len(){
             left  = self;
             right = &other;
@@ -450,9 +451,16 @@ impl<Conf: Config> BitSet<Conf> {
 
     /// In-place intersection with any [BitSetInterface].
     ///
-    /// This is O(N) operation, where N - amount of blocks to be removed from `self`.
-    /// So [intersection()] + [materialization] can be faster, if amount of materialized
-    /// blocks is lower then amount blocks of removed with `intersect()`.
+    /// This is `O(N+M)` operation, where:
+    /// * `N` is amount of blocks to be removed from `self`.
+    /// * `M` is amount of blocks to be modified.
+    ///
+    /// So [`intersection()`] + [`materialization`] can be faster, then `intersect()`.
+    /// Since `M` is equal in both cases, but with [`intersection()`] + [`materialization`]
+    /// `N` is always zero (but `M` more costly, since it needs to allocate blocks).
+    ///
+    /// [`intersection()`]: Self::intersection
+    /// [`materialization`]: crate#laziness-and-materialization
     pub fn intersect<Other>(&mut self, other: Other)
     where
         Other: BitSetInterface<Conf=Conf>
@@ -562,6 +570,27 @@ impl<Conf: Config> BitSet<Conf> {
 
         unsafe{ other.drop_iter_state(&mut ManuallyDrop::new(other_iter_state)); }
     }
+
+    /// Intersect bigger `BitSet` into smaller.
+    ///
+    /// Basically same as [`intersect`] but auto select intersection direction
+    /// to reduce amount of removed data blocks, and can work with `BitSet` only.
+    ///
+    /// [`unite`]: Self::unite
+    pub fn into_intersection(self, other: Self) -> Self {
+        let mut left : Self;
+        let right: &Self;
+        // Intersect into smaller bitset.
+        if self.blocks_len() < other.blocks_len(){
+            left  = self;
+            right = &other;
+        } else {
+            left  = other;
+            right = &self;
+        }
+        left.intersect(right);
+        left
+    }
 }
 
 impl<Conf: Config> BitSetBase for BitSet<Conf> {
@@ -655,5 +684,27 @@ impl<Conf: Config> BitOr for BitSet<Conf> {
     #[inline]
     fn bitor(self, rhs: Self) -> Self::Output {
         self.into_union(rhs)
+    }
+}
+
+impl<Conf, Rhs> BitAndAssign<Rhs> for BitSet<Conf>
+where
+    Conf: Config,
+    Rhs: BitSetInterface<Conf=Conf>
+{
+    /// See [Self::intersect].
+    #[inline]
+    fn bitand_assign(&mut self, rhs: Rhs) {
+        self.intersect(rhs);
+    }
+}
+
+impl<Conf: Config> BitAnd for BitSet<Conf> {
+    type Output = Self;
+
+    /// See [Self::into_intersection].
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self::Output {
+        self.into_intersection(rhs)
     }
 }

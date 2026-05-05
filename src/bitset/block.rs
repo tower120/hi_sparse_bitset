@@ -115,12 +115,4 @@ where
             *block_indices.get_unchecked_mut(index) = Primitive::ZERO;
         }
     }
-
-    #[inline]
-    fn clear(&mut self){
-        self.mask = Mask::zero();
-        if !size_of::<BlockIndices>().is_zero(){
-            self.block_indices.as_mut().fill(Self::Item::ZERO);
-        }
-    }
 }
