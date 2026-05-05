@@ -61,6 +61,14 @@ pub trait IBlock: Sized + Default{
     /// * `index` is not checked for out-of-bounds.
     unsafe fn remove_unchecked(&mut self, index: usize);
 
+    /// Same as [Self::remove_unchecked()] but does not update mask.
+    ///
+    /// # Safety
+    ///
+    /// * `index` must be set
+    /// * `index` is not checked for out-of-bounds.
+    unsafe fn remove_unchecked_no_mask(&mut self, index: usize);
+
     #[inline]
     fn is_empty(&self) -> bool {
         Self::Mask::is_zero(self.mask())

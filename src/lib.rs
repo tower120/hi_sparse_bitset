@@ -77,7 +77,7 @@
 //!
 //! Use [reduce()] to apply inter-bitset operation between elements of bitsets iterator.
 //!
-//! Use [apply()]  to apply inter-bitset operation between two bitsets.
+//! Use [apply()] to apply inter-bitset operation between two bitsets.
 //! Also [&], [|], [`^`], [-] over &[BitSet], or corresponding [BitSetInterface]
 //! members.
 //!
@@ -95,13 +95,17 @@
 //!
 //! # Eager inter-bitset operations
 //!
-//! Thou we encourage to use lazy inter-bitset operations whenever possible,
+//! Thou we encourage use of lazy inter-bitset operations whenever possible,
 //! there are optimized eager in-place operations in [BitSet]:
 //! * [`unite()`] and it's operator counterpart `a |= &b`.
 //! * [`into_union()`] and it's operator counterpart `a | b`.
+//! * [`intersect()`] and it's operator counterpart `a &= &b`.
+//! * [`into_intersection()`] and it's operator counterpart `a & b`.
 //!
 //! [`unite()`]: BitSet::unite
 //! [`into_union()`]: BitSet::into_union
+//! [`intersect()`]: BitSet::intersect
+//! [`into_intersection()`]: BitSet::into_intersection
 //!
 //! # Cursor
 //!
