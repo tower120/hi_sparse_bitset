@@ -1,10 +1,7 @@
 use core::slice;
 use std::{
-    mem::MaybeUninit,
-    ptr::{NonNull, copy_nonoverlapping},
-    sync::Arc
+    mem::MaybeUninit, ops::Deref, ptr::{NonNull, copy_nonoverlapping}, rc::Rc, sync::Arc
 };
-use memmap2::Mmap;
 use crate::{
     BitBlock, BitSetBase,
     bit_utils::{get_bit_unchecked, zero_high_bits_unchecked},
@@ -24,13 +21,68 @@ type Lvl1Index<Conf> = <<Conf as Config>::Level1BlockIndices as PrimitiveArray>:
 /// In bytes.
 const ROOT_MASK_MAX_SIZE: usize = 32;
 
-// TODO: generic MMap
-pub struct MmapBitset<Conf: Config>{
+/// Data source for [ImmutableBitset].
+pub trait DataSource{
+    fn data_src(&self) -> &[u8];
+}
+
+impl<T: AsRef<[u8]>> DataSource for Arc<T>{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self.deref().as_ref()
+    }
+}
+
+impl<T: AsRef<[u8]>> DataSource for Rc<T>{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self.deref().as_ref()
+    }
+}
+
+impl DataSource for &[u8]{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self
+    }
+}
+
+/// Immutable bitset that can work directly with any source of [`serialized data`].
+///
+/// Have very small additional memory overhead.
+///
+/// [`serialized data`]: crate#serialization
+///
+/// # Example
+///
+/// With memory-mapped file
+/// ```
+/// # use std::sync::Arc;
+/// # use hi_sparse_bitset::{config, BitSet, ImmutableBitset};
+/// use memmap2::Mmap;
+///
+/// type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
+/// type Config = config::_64bit;
+///
+/// // Make serialized data in tempfile.
+/// let mut file = tempfile::tempfile().unwrap();
+/// BitSet::<Config>::from(
+///     [1,2,3,4,66,100,16089]
+/// ).serialize(&mut file).unwrap();
+///
+/// // Mmap file.
+/// let mmap = unsafe { Mmap::map(&file).unwrap()  };
+///
+/// // Feed mmaped file to ImmutableBitset.
+/// let bitset: MmapBitset<Config> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
+/// ```
+#[derive(Clone)]
+pub struct ImmutableBitset<Conf: Config, Data>{
     lvl0_mask: Lvl0Mask<Conf>,
     lvl0_u64_index_starts: [Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8],
-    lvl1_masks: Vec<Lvl1Mask<Conf>>,
+    lvl1_masks: Vec<Lvl1Mask<Conf>>,        // TODO: we can read this from data as well
     lvl1_u64_index_starts: Vec<Lvl1Index<Conf>>,
-    mmap: Arc<Mmap>,
+    data: Data,
     data_offset: usize,
 }
 
@@ -46,7 +98,7 @@ unsafe fn read_mask<Mask: BitBlock>(ptr: *const u8) -> Mask {
     Mask::from_le_bytes(bytes.assume_init())
 }
 
-impl<Conf: Config> MmapBitset<Conf>{
+impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
     #[inline]
     fn lvl1_as_u64(slice: &[Lvl1Mask<Conf>]) -> &[u64]{
         unsafe {
@@ -57,10 +109,12 @@ impl<Conf: Config> MmapBitset<Conf>{
         }
     }
 
-    pub fn new(mmap: Arc<Mmap>, offset: usize) -> std::io::Result<Self> {
+    /// * `data` - data source that points to byte data.
+    /// * `offset` - `data` offset in bytes, where serialized data begins.
+    pub fn new(data: Data, offset: usize) -> std::io::Result<Self> {
         const{ assert!(size_of::<Lvl0Mask<Conf>>() <= ROOT_MASK_MAX_SIZE) }
 
-        let slice = &mmap[offset..];
+        let slice = &data.data_src()[offset..];
         let mut ptr = slice.as_ptr();
         let mut len = slice.len();
 
@@ -107,7 +161,7 @@ impl<Conf: Config> MmapBitset<Conf>{
             );
 
             #[cfg(target_endian = "big")]
-            unimplemented!();
+            const{ unimplemented!() }
 
             lvl1_masks.set_len(lvl1_blocks_len);
             ptr = ptr.add(lvl1_bytes_len);
@@ -138,7 +192,7 @@ impl<Conf: Config> MmapBitset<Conf>{
             lvl0_u64_index_starts,
             lvl1_masks,
             lvl1_u64_index_starts,
-            mmap,
+            data,
             data_offset
         })
     }
@@ -191,17 +245,17 @@ impl<Conf: Config> MmapBitset<Conf>{
     unsafe fn data_mask(&self, data_index: usize) -> DataMask<Conf> {
         // Unaligned read for now
         let offset_bytes = self.data_offset + data_index * size_of::<DataMask<Conf>>();
-        let ptr = self.mmap.as_ptr().add(offset_bytes);
+        let ptr = self.data.data_src().as_ptr().add(offset_bytes);
         read_mask(ptr)
     }
 }
 
-impl<Conf: Config> BitSetBase for MmapBitset<Conf>{
+impl<Conf: Config, Data: DataSource> BitSetBase for ImmutableBitset<Conf, Data>{
     type Conf = Conf;
     const TRUSTED_HIERARCHY: bool = true;
 }
 
-impl<Conf: Config> LevelMasks for MmapBitset<Conf>{
+impl<Conf: Config, Data: DataSource> LevelMasks for ImmutableBitset<Conf, Data>{
     #[inline]
     fn level0_mask(&self) -> Lvl0Mask<Conf> {
         self.lvl0_mask
@@ -233,7 +287,7 @@ impl<Conf: Config> LevelMasks for MmapBitset<Conf>{
     }
 }
 
-impl<Conf: Config> LevelMasksIterExt for MmapBitset<Conf>{
+impl<Conf: Config, Data: DataSource> LevelMasksIterExt for ImmutableBitset<Conf, Data>{
     type IterState = ();
     fn make_iter_state(&self) -> Self::IterState {()}
     unsafe fn drop_iter_state(&self, _: &mut std::mem::ManuallyDrop<Self::IterState>) {}
@@ -279,12 +333,15 @@ impl<Conf: Config> LevelMasksIterExt for MmapBitset<Conf>{
     }
 }
 
-impl_bitset!(impl<Conf> for ref MmapBitset<Conf> where Conf: Config);
+impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data> where Conf: Config, Data: DataSource);
 
 #[cfg(test)]
 mod tests{
     use super::*;
     use crate::BitSet;
+    use memmap2::Mmap;
+
+    type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
 
     #[test]
     fn test(){
@@ -295,7 +352,7 @@ mod tests{
 
         let mmap = unsafe { Mmap::map(&file).unwrap()  };
 
-        let b: MmapBitset<Config> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
+        let b: MmapBitset<Config> = ImmutableBitset::new(Arc::new(mmap), 0).unwrap();
 
         for i in &etalon{
             assert!( b.contains(i) );

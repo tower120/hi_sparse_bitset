@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.6
+Immutable bitset with direct data access.
+
+### Added
+- `ImmutableBitset`.
+- `DataSrc` trait.
+
 ## 0.7.5
 In-place union + intersection.
 

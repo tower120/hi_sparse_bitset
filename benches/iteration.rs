@@ -5,7 +5,7 @@ use memmap2::Mmap;
 
 type Config = hi_sparse_bitset::config::_64bit;
 type HiSparseBitset = hi_sparse_bitset::BitSet<Config>;
-type MMapBitset = hi_sparse_bitset::mmap_bitset::MmapBitset<Config>;
+type MMapBitset = hi_sparse_bitset::mmap_bitset::ImmutableBitset<Config>;
 
 fn iteration(set: &HiSparseBitset) -> u64{
     let mut s = 0;

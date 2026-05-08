@@ -192,13 +192,14 @@ mod data_block;
 mod bitset;
 pub use bitset::*;
 
+mod immutable_bitset;
+pub use immutable_bitset::*;
+
 pub mod config;
 pub mod ops;
 pub mod iter;
 pub mod cache;
 
-#[cfg(feature = "mmap")]
-pub mod mmap_bitset;
 
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
