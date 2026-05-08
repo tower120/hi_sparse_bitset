@@ -200,7 +200,6 @@ pub mod ops;
 pub mod iter;
 pub mod cache;
 
-
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;

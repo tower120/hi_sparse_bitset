@@ -343,8 +343,9 @@ mod tests{
 
     type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
 
+    #[cfg(not(miri))]
     #[test]
-    fn test(){
+    fn mmap_test(){
         type Config = crate::config::_64bit;
         let mut file = tempfile::tempfile().unwrap();
         let etalon: BitSet<Config> = [1,2,3,4,66,100, 16089].into();
