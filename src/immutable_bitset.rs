@@ -339,13 +339,13 @@ impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data> where Conf: Co
 mod tests{
     use super::*;
     use crate::BitSet;
-    use memmap2::Mmap;
-
-    type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
 
     #[cfg(not(miri))]
     #[test]
     fn mmap_test(){
+        use memmap2::Mmap;
+        type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
+
         type Config = crate::config::_64bit;
         let mut file = tempfile::tempfile().unwrap();
         let etalon: BitSet<Config> = [1,2,3,4,66,100, 16089].into();
