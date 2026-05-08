@@ -337,13 +337,14 @@ impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data> where Conf: Co
 
 #[cfg(test)]
 mod tests{
-    use super::*;
-    use crate::BitSet;
-
+    // Mmap not supported by miri.
     #[cfg(not(miri))]
     #[test]
     fn mmap_test(){
+        use super::*;
+        use crate::BitSet;
         use memmap2::Mmap;
+
         type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
 
         type Config = crate::config::_64bit;
