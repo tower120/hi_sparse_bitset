@@ -197,6 +197,9 @@ pub mod ops;
 pub mod iter;
 pub mod cache;
 
+#[cfg(feature = "mmap")]
+pub mod mmap_bitset;
+
 pub use bitset_interface::{BitSetBase, BitSetInterface};
 pub use apply::Apply;
 pub use reduce::Reduce;

@@ -16,6 +16,8 @@ default = ["simd"]
 simd = ["dep:wide"]
 # serde support.
 serde = ["dep:serde", "dep:base64", "dep:arrayvec", "wide/serde"]
+# mmap support
+mmap = ["dep:memmap2"]
 
 [dependencies]
 rustversion = "1.0"
@@ -23,6 +25,7 @@ wide = { version = "0.7.28", optional = true }
 serde = { version = "1.0", features = ["serde_derive"], optional = true }
 arrayvec = { version = "0.7", optional = true }
 base64 = { version = "0.22", optional = true }
+memmap2 = { version = "0.9.10", optional = true }
 
 [dev-dependencies]
 anyhow = "1"

@@ -3,7 +3,7 @@ use std::ops::*;
 
 // num_traits was just **TOO** hard to use with primitives...
 // Cast from/to concrete primitive was a final nail into num_trait's coffin.
-pub trait Primitive: 
+pub trait Primitive:
     Default
     + Add<Output = Self>
     + AddAssign
@@ -20,8 +20,8 @@ pub trait Primitive:
     + Shr<usize, Output = Self>
     + ShrAssign
     + Not<Output = Self>
-    + Copy 
-    + Ord 
+    + Copy
+    + Ord
     + Debug
     + 'static
 {
@@ -30,14 +30,19 @@ pub trait Primitive:
 
     const ZERO: Self;
     const ONE : Self;
-    
+
     fn from_usize(i: usize) -> Self;
+    fn from_u64(i: u64) -> Self;
+    fn from_u32(i: u32) -> Self;
+
     fn as_usize(self) -> usize;
-    
+    fn as_u64(self) -> u64;
+    fn as_u32(self) -> u32;
+
     fn trailing_zeros(self) -> u32;
     fn wrapping_neg(self) -> Self;
     fn wrapping_add(self, rhs: Self) -> Self;
-    
+
     fn is_zero(self) -> bool;
 }
 
@@ -49,16 +54,36 @@ macro_rules! impl_primitive {
 
             const ZERO: Self = 0;
             const ONE : Self = 1;
-            
+
             #[inline]
             fn from_usize(i: usize) -> Self {
                 i as Self
             }
-            
+
+            #[inline]
+            fn from_u64(i: u64) -> Self {
+                i as Self
+            }
+
+            #[inline]
+            fn from_u32(i: u32) -> Self {
+                i as Self
+            }
+
             #[inline]
             fn as_usize(self) -> usize {
                 self as usize
-            }        
+            }
+
+            #[inline]
+            fn as_u64(self) -> u64 {
+                self as u64
+            }
+
+            #[inline]
+            fn as_u32(self) -> u32 {
+                self as u32
+            }
 
             #[inline]
             fn trailing_zeros(self) -> u32 {
@@ -69,12 +94,12 @@ macro_rules! impl_primitive {
             fn wrapping_neg(self) -> Self {
                 self.wrapping_neg()
             }
-            
+
             #[inline]
             fn wrapping_add(self, rhs: Self) -> Self {
                 self.wrapping_add(rhs)
             }
-            
+
             #[inline]
             fn is_zero(self) -> bool {
                 self == 0
