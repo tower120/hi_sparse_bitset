@@ -18,7 +18,7 @@ use crate::primitive_array::PrimitiveArray;
 type DefaultCache = cache::FixedCache<32>;
 
 /// [BitSet] configuration
-/// 
+///
 /// [BitSet]: crate::BitSet
 pub trait Config: 'static {
 // Level 0
@@ -28,7 +28,7 @@ pub trait Config: 'static {
     /// Contiguous container, used as indirection storage for level 0.
     ///
     /// * Must be big enough to accommodate at least [Level0BitBlock]::size().
-    /// * Item should be able to store [Level0BitBlock]::size() integer.  
+    /// * Item should be able to store [Level0BitBlock]::size() integer.
     ///
     /// [Level0BitBlock]: Self::Level0BitBlock
     type Level0BlockIndices: PrimitiveArray;
@@ -42,7 +42,7 @@ pub trait Config: 'static {
     /// Contiguous container, used as indirection storage for level 1 block.
     ///
     /// * Must be big enough to accommodate at least [Level1BitBlock]::size().
-    /// * Item should be able to store [Level0BitBlock]::size() * [Level1BitBlock]::size() integer.  
+    /// * Item should be able to store [Level0BitBlock]::size() * [Level1BitBlock]::size() integer.
     ///
     /// [Level0BitBlock]: Self::Level0BitBlock
     /// [Level1BitBlock]: Self::Level1BitBlock
@@ -57,10 +57,32 @@ pub trait Config: 'static {
 // Other
     const MAX_CAPACITY: usize;
 
+    /// Maximum alignment of Masks at all levels.
+    const MAX_MASK_ALIGN: usize;
+
     /// Cache used be [reduce()].
-    /// 
+    ///
     /// [reduce()]: crate::reduce()
     type DefaultCache: ReduceCache;
+}
+
+#[inline]
+const fn usize_max(left: usize, right: usize) -> usize {
+    if left < right{
+        right
+    } else {
+        left
+    }
+}
+
+#[inline]
+const fn max_mask_align<Conf: Config>() -> usize {
+    usize_max(align_of::<Conf::Level0BitBlock>(),
+        usize_max(
+            align_of::<Conf::Level1BitBlock>(),
+            align_of::<Conf::DataBitBlock>()
+        )
+    )
 }
 
 #[inline]
@@ -81,8 +103,9 @@ impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
     type Level1BlockIndices = [u16; 64];
 
     type DataBitBlock = u64;
-    
+
     const MAX_CAPACITY: usize = max_capacity::<Self>();
+    const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
 
     type DefaultCache = DefaultCache;
 }
@@ -102,13 +125,14 @@ impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
     type Level1BlockIndices = [u16; 128];
 
     type DataBitBlock = wide::u64x2;
-    
-    const MAX_CAPACITY: usize = max_capacity::<Self>();    
+
+    const MAX_CAPACITY: usize = max_capacity::<Self>();
+    const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
 
     type DefaultCache = DefaultCache;
 }
 
-/// MAX = 16_777_216 
+/// MAX = 16_777_216
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 #[derive(Default)]
@@ -123,8 +147,9 @@ impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
     type Level1BlockIndices = [u16; 256];
 
     type DataBitBlock = wide::u64x4;
-    
-    const MAX_CAPACITY: usize = max_capacity::<Self>() - (256*256);    
+
+    const MAX_CAPACITY: usize = max_capacity::<Self>() - (256*256);
+    const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
 
     type DefaultCache = DefaultCache;
 }

@@ -8,7 +8,8 @@ use crate::{
     config::Config,
     internals::{LevelMasks, LevelMasksIterExt, impl_bitset},
     primitive::Primitive,
-    primitive_array::PrimitiveArray
+    primitive_array::PrimitiveArray,
+    serialization::{lvl0_padding, lvl1_padding}
 };
 
 type Lvl0Mask<Conf> = <Conf as Config>::Level0BitBlock;
@@ -23,6 +24,7 @@ const ROOT_MASK_MAX_SIZE: usize = 32;
 
 /// Data source for [ImmutableBitset].
 pub trait DataSource{
+    /// This must be no-op or VERY cheap operation.
     fn data_src(&self) -> &[u8];
 }
 
@@ -47,15 +49,35 @@ impl DataSource for &[u8]{
     }
 }
 
+impl DataSource for Vec<u8>{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self
+    }
+}
+
 /// Immutable bitset that can work directly with any source of [`serialized data`].
 ///
 /// Have very small additional memory overhead.
 ///
 /// [`serialized data`]: crate#serialization
 ///
+/// # Aligning
+///
+/// `ImmutableBitset` can benefit from aligned data performance-wise.
+/// Serialized data already perfectly aligned. You need only to provide
+/// correct "base" and set generic argument `ALIGNED` to true.
+///
+/// Base address must be aligned to [Conf::MAX_MASK_ALIGN]. You can achieve this
+/// by using something like `aligned_vec` crate. Memory-mapped file almost for
+/// sure will have greater base align - so it should work as-is.
+///
+/// N.B. On most desktop platforms unaligned reads have negligible
+/// performance overhead.
+///
 /// # Example
 ///
-/// With memory-mapped file
+/// With memory-mapped file:
 /// ```
 /// # use std::sync::Arc;
 /// # use hi_sparse_bitset::{config, BitSet, ImmutableBitset};
@@ -76,8 +98,12 @@ impl DataSource for &[u8]{
 /// // Feed mmaped file to ImmutableBitset.
 /// let bitset: MmapBitset<Config> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
 /// ```
+///
+/// With aligning:
+///
+/// TODO
 #[derive(Clone)]
-pub struct ImmutableBitset<Conf: Config, Data>{
+pub struct ImmutableBitset<Conf: Config, Data, const ALIGNED: bool = false>{
     lvl0_mask: Lvl0Mask<Conf>,
     lvl0_u64_index_starts: [Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8],
     lvl1_masks: Vec<Lvl1Mask<Conf>>,        // TODO: we can read this from data as well
@@ -87,18 +113,41 @@ pub struct ImmutableBitset<Conf: Config, Data>{
 }
 
 #[inline]
-unsafe fn read_mask<Mask: BitBlock>(ptr: *const u8) -> Mask {
-    // Unaligned read
+unsafe fn read_mask<Mask: BitBlock, const ALIGNED: bool>(ptr: *const u8) -> Mask {
+    #[cfg(target_endian = "little")]
+    if ALIGNED{
+        return ptr.cast::<Mask>().read();
+    }
+
     let mut bytes: MaybeUninit<Mask::BytesArray> = MaybeUninit::uninit();
-    copy_nonoverlapping(
-        ptr,
-        bytes.as_mut_ptr().cast::<u8>(),
-        size_of::<Mask>()
-    );
+    if ALIGNED{
+        // cast to mask
+        copy_nonoverlapping(
+            ptr.cast(),
+            bytes.as_mut_ptr(),
+            size_of::<Mask>()
+        );
+    } else {
+        // cast to bytes
+        copy_nonoverlapping(
+            ptr,
+            bytes.as_mut_ptr().cast::<u8>(),
+            size_of::<Mask>()
+        );
+    }
     Mask::from_le_bytes(bytes.assume_init())
 }
 
-impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
+#[inline]
+fn ptr_is_aligned_to<T>(ptr: *const T, align: usize) -> bool {
+    if !align.is_power_of_two() {
+        panic!("is_aligned_to: align is not a power-of-two");
+    }
+
+    ptr.addr() & (align - 1) == 0
+}
+
+impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, Data, ALIGNED> {
     #[inline]
     fn lvl1_as_u64(slice: &[Lvl1Mask<Conf>]) -> &[u64]{
         unsafe {
@@ -111,12 +160,26 @@ impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
 
     /// * `data` - data source that points to byte data.
     /// * `offset` - `data` offset in bytes, where serialized data begins.
+    ///
+    /// For `ALIGNED`, ImmutableBitset `data` + `offset` must be aligned to MAX_MASK_ALIGN,
+    /// otherwise error will be returned.
     pub fn new(data: Data, offset: usize) -> std::io::Result<Self> {
         const{ assert!(size_of::<Lvl0Mask<Conf>>() <= ROOT_MASK_MAX_SIZE) }
 
         let slice = &data.data_src()[offset..];
         let mut ptr = slice.as_ptr();
         let mut len = slice.len();
+
+        if ALIGNED {
+            let aligned = ptr_is_aligned_to(ptr, Conf::MAX_MASK_ALIGN);
+            if !aligned{
+                use std::io::*;
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "data start base must be aligned with Conf::MAX_MASK_ALIGN",
+                ));
+            }
+        }
 
         // I. Lvl0
         let lvl0_mask_size = size_of::<Lvl0Mask<Conf>>();
@@ -125,7 +188,7 @@ impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
             return Err(Error::from(ErrorKind::InvalidData));
         }
         let lvl0_mask: Lvl0Mask<Conf> = unsafe {
-            read_mask(ptr)
+            read_mask::<_, ALIGNED>(ptr)
         };
         unsafe{
             ptr = ptr.add(lvl0_mask_size);
@@ -139,6 +202,14 @@ impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
                     Primitive::from_usize(lvl1_blocks_len);
             };
             lvl1_blocks_len += sub_mask.count_ones();
+        }
+
+        // lvl0padding
+        unsafe{
+            let pos = ptr.offset_from_unsigned(slice.as_ptr());
+            let padding = lvl0_padding::<Conf>(pos);
+            ptr = ptr.add(padding);
+            len -= padding;
         }
 
         // II. Lvl1
@@ -175,6 +246,14 @@ impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
             // TODO: more efficient push
             lvl1_u64_index_starts.push(Primitive::from_usize(data_blocks_len));
             data_blocks_len += lvl1_mask_u64.count_ones();
+        }
+
+        // lvl1padding
+        unsafe{
+            let pos = ptr.offset_from_unsigned(slice.as_ptr());
+            let padding = lvl1_padding::<Conf>(pos);
+            ptr = ptr.add(padding);
+            len -= padding;
         }
 
         // III. Data level checks
@@ -246,16 +325,16 @@ impl<Conf: Config, Data: DataSource> ImmutableBitset<Conf, Data> {
         // Unaligned read for now
         let offset_bytes = self.data_offset + data_index * size_of::<DataMask<Conf>>();
         let ptr = self.data.data_src().as_ptr().add(offset_bytes);
-        read_mask(ptr)
+        read_mask::<_, ALIGNED>(ptr)
     }
 }
 
-impl<Conf: Config, Data: DataSource> BitSetBase for ImmutableBitset<Conf, Data>{
+impl<Conf: Config, Data: DataSource, const ALIGNED: bool> BitSetBase for ImmutableBitset<Conf, Data, ALIGNED>{
     type Conf = Conf;
     const TRUSTED_HIERARCHY: bool = true;
 }
 
-impl<Conf: Config, Data: DataSource> LevelMasks for ImmutableBitset<Conf, Data>{
+impl<Conf: Config, Data: DataSource, const ALIGNED: bool> LevelMasks for ImmutableBitset<Conf, Data, ALIGNED>{
     #[inline]
     fn level0_mask(&self) -> Lvl0Mask<Conf> {
         self.lvl0_mask
@@ -287,7 +366,7 @@ impl<Conf: Config, Data: DataSource> LevelMasks for ImmutableBitset<Conf, Data>{
     }
 }
 
-impl<Conf: Config, Data: DataSource> LevelMasksIterExt for ImmutableBitset<Conf, Data>{
+impl<Conf: Config, Data: DataSource, const ALIGNED: bool> LevelMasksIterExt for ImmutableBitset<Conf, Data, ALIGNED>{
     type IterState = ();
     fn make_iter_state(&self) -> Self::IterState {()}
     unsafe fn drop_iter_state(&self, _: &mut std::mem::ManuallyDrop<Self::IterState>) {}
@@ -333,16 +412,21 @@ impl<Conf: Config, Data: DataSource> LevelMasksIterExt for ImmutableBitset<Conf,
     }
 }
 
-impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data> where Conf: Config, Data: DataSource);
+// TODO!
+impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data, true> where Conf: Config, Data: DataSource);
+impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data, false> where Conf: Config, Data: DataSource);
 
 #[cfg(test)]
 mod tests{
+    use itertools::assert_equal;
+
+use super::*;
+    use crate::BitSet;
+
     // Mmap not supported by miri.
     #[cfg(not(miri))]
     #[test]
     fn mmap_test(){
-        use super::*;
-        use crate::BitSet;
         use memmap2::Mmap;
 
         type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
@@ -366,5 +450,23 @@ mod tests{
                 LevelMasks::data_mask(&b, 0, 1)
             );
         }
+    }
+
+    #[test]
+    fn aligned_test(){
+        use aligned_vec::{AVec, ConstAlign};
+
+        type Conf = crate::config::_64bit;
+        const ALIGN: usize = <Conf as Config>::MAX_MASK_ALIGN;
+        type AlignedVec = AVec<u8, ConstAlign<ALIGN>>;
+
+        let etalon: BitSet<Conf> = [1,2,3,4,66,100, 16089].into();
+        let mut vec = Vec::new();
+        etalon.serialize(&mut vec).unwrap();
+        let avec = AlignedVec::from_slice(ALIGN, &vec);
+
+        let im = ImmutableBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
+
+        assert_equal(etalon.iter(), im.iter());
     }
 }

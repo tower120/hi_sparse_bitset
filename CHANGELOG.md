@@ -1,11 +1,14 @@
 # Changelog
 
-## 0.7.6
+## 0.8.0
 Immutable bitset with direct data access.
+
+### Changed
+- Serialization format changed, to support aligned reads.
 
 ### Added
 - `ImmutableBitset`.
-- `DataSrc` trait.
+- `DataSource` trait.
 
 ## 0.7.5
 In-place union + intersection.

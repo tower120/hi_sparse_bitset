@@ -1,6 +1,6 @@
 mod block;
 mod level;
-mod serialization;
+pub(crate) mod serialization;
 #[cfg(feature="serde")]
 mod serde;
 

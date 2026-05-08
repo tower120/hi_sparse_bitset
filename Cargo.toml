@@ -34,6 +34,7 @@ itertools = "0.11"
 criterion = "0.5.1"
 cfg-if = "1"
 memmap2 = "0.9.10"
+aligned-vec = "0.6.4"
 # for benchmarks
 hibitset = "0.6.4"
 roaring = "0.10.2"
