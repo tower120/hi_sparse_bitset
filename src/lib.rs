@@ -171,6 +171,9 @@
 //! Make sure you compile with hardware support of these
 //! (on x86: `target-feature=+popcnt,+bmi1`).
 //!
+//! [DirectBitset] can utilize `bzhi` instructions, when available
+//! (on x86: `target-feature=+bmi2`).
+//!
 //! ## SIMD
 //!
 //! 128 and 256 bit configurations use SIMD, powered by [wide]. Make sure you compile with simd support
