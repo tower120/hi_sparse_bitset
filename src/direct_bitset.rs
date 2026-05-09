@@ -442,9 +442,11 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> LevelMasksIterEx
     }
 }
 
-// TODO!
-impl_bitset!(impl<Conf, Data> for ref DirectBitset<Conf, Data, true> where Conf: Config, Data: DirectDataSource);
-impl_bitset!(impl<Conf, Data> for ref DirectBitset<Conf, Data, false> where Conf: Config, Data: DirectDataSource);
+impl_bitset!(
+    impl<Conf, Data> const<ALIGNED: bool> for ref DirectBitset<Conf, Data, ALIGNED>
+    where
+        Conf: Config, Data: DirectDataSource
+);
 
 #[cfg(test)]
 mod tests{

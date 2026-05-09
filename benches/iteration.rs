@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use criterion::{black_box, Criterion, criterion_group, criterion_main};
 use memmap2::Mmap;
 
 type Config = hi_sparse_bitset::config::_64bit;
 type HiSparseBitset = hi_sparse_bitset::BitSet<Config>;
-type MMapBitset = hi_sparse_bitset::ImmutableBitset<Config, Arc<Mmap>>;
+type MMapBitset<'a> = hi_sparse_bitset::DirectBitset<Config, &'a[u8], true>;
 
 fn iteration(set: &HiSparseBitset) -> u64{
     let mut s = 0;
@@ -33,7 +31,7 @@ pub fn bench_iter(c: &mut Criterion) {
     set.serialize(&mut file).unwrap();
 
     let mmap = unsafe { Mmap::map(&file).unwrap()  };
-    let mmap_set = MMapBitset::new(Arc::new(mmap), 0).unwrap();
+    let mmap_set = MMapBitset::new(&*mmap, 0).unwrap();
 
     c.bench_function("hi_sparse_bitset iter", |b| b.iter(|| iteration(black_box(&set))));
     c.bench_function("mmap iter", |b| b.iter(|| mmap_iteration(black_box(&mmap_set))));
