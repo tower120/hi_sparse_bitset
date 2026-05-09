@@ -70,7 +70,7 @@ hibitset. See benchmarks.
 
 ## Zero-copy support
 
-See `ImmutableBitset`.
+See `DirectBitset`.
 
 ### Against `hibitset`
 

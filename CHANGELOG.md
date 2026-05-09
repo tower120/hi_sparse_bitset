@@ -1,15 +1,15 @@
 # Changelog
 
 ## 0.8.0
-Immutable bitset with direct data access.
+Bitset with direct data access.
 
 ### Changed
 - Serialization format changed, to support aligned reads.
 - MSRV 1.95
 
 ### Added
-- `ImmutableBitset`.
-- `DataSource` trait.
+- `DirectBitset`.
+- `DirectDataSource` trait.
 
 ## 0.7.5
 In-place union + intersection.

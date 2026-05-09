@@ -22,51 +22,51 @@ type Lvl1Index<Conf> = <<Conf as Config>::Level1BlockIndices as PrimitiveArray>:
 /// In bytes.
 const ROOT_MASK_MAX_SIZE: usize = 32;
 
-/// Data source for [ImmutableBitset].
-pub trait DataSource{
+/// Data source for [DirectBitset].
+pub trait DirectDataSource{
     /// This must be no-op or VERY cheap operation.
     fn data_src(&self) -> &[u8];
 }
 
-impl<T: AsRef<[u8]>> DataSource for Arc<T>{
+impl<T: AsRef<[u8]>> DirectDataSource for Arc<T>{
     #[inline]
     fn data_src(&self) -> &[u8] {
         self.deref().as_ref()
     }
 }
 
-impl<T: AsRef<[u8]>> DataSource for Rc<T>{
+impl<T: AsRef<[u8]>> DirectDataSource for Rc<T>{
     #[inline]
     fn data_src(&self) -> &[u8] {
         self.deref().as_ref()
     }
 }
 
-impl DataSource for &[u8]{
+impl DirectDataSource for &[u8]{
     #[inline]
     fn data_src(&self) -> &[u8] {
         self
     }
 }
 
-impl DataSource for Vec<u8>{
+impl DirectDataSource for Vec<u8>{
     #[inline]
     fn data_src(&self) -> &[u8] {
         self
     }
 }
 
-/// Immutable bitset that can work directly with any source of [`serialized data`].
+/// Bitset that work directly with any source of [`serialized data`].
 ///
 /// Have very small additional memory overhead, consisting from lvl0 and lvl1 masks.
-/// Constructing `ImmutableBitset` is MUCH faster then constructing [`BitSet`].
+/// Constructing `DirectBitset` is MUCH faster then constructing [`BitSet`].
 ///
 /// [`serialized data`]: crate#serialization
 /// [`BitSet`]: crate::BitSet
 ///
 /// # Aligning
 ///
-/// `ImmutableBitset` can benefit from aligned data performance-wise.
+/// `DirectBitset` can benefit from aligned data performance-wise.
 /// Serialized data already perfectly aligned. You need only to provide
 /// correct "base" and set generic argument `ALIGNED` to true.
 ///
@@ -84,10 +84,10 @@ impl DataSource for Vec<u8>{
 /// With memory-mapped file:
 /// ```
 /// # use std::sync::Arc;
-/// # use hi_sparse_bitset::{config, BitSet, ImmutableBitset};
+/// # use hi_sparse_bitset::{config, BitSet, DirectBitset};
 /// use memmap2::Mmap;
 ///
-/// type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
+/// type MmapBitset<Conf> = DirectBitset<Conf, Arc<Mmap>>;
 /// type Conf = config::_64bit;
 ///
 /// // Make serialized data in tempfile.
@@ -99,14 +99,14 @@ impl DataSource for Vec<u8>{
 /// // Mmap file.
 /// let mmap = unsafe { Mmap::map(&file).unwrap()  };
 ///
-/// // Feed mmaped file to ImmutableBitset.
+/// // Feed mmaped file to DirectBitset.
 /// let bitset: MmapBitset<Conf> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
 /// ```
 ///
 /// With aligning:
 ///
 ///```
-/// # use hi_sparse_bitset::{config, config::Config, BitSet, ImmutableBitset};
+/// # use hi_sparse_bitset::{config, config::Config, BitSet, DirectBitset};
 /// use aligned_vec::{AVec, ConstAlign};
 ///
 /// type Conf = config::_64bit;
@@ -124,10 +124,10 @@ impl DataSource for Vec<u8>{
 /// // we just copy byte array in it.
 /// let avec = AlignedVec::from_slice(ALIGN, &vec);
 ///
-/// let im = ImmutableBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
+/// let im = DirectBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
 /// ```
 #[derive(Clone)]
-pub struct ImmutableBitset<Conf: Config, Data, const ALIGNED: bool = false>{
+pub struct DirectBitset<Conf: Config, Data, const ALIGNED: bool = false>{
     lvl0_mask: Lvl0Mask<Conf>,
     lvl0_u64_index_starts: [Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8],
     // We can't read this directly from data, since we need correct endianess,
@@ -173,7 +173,7 @@ fn ptr_is_aligned_to<T>(ptr: *const T, align: usize) -> bool {
     ptr.addr() & (align - 1) == 0
 }
 
-impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, Data, ALIGNED> {
+impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Conf, Data, ALIGNED> {
     #[inline]
     fn lvl1_as_u64(slice: &[Lvl1Mask<Conf>]) -> &[u64]{
         unsafe {
@@ -187,7 +187,7 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, 
     /// * `data` - data source that points to byte data.
     /// * `offset` - `data` offset in bytes, where serialized data begins.
     ///
-    /// For `ALIGNED`, ImmutableBitset `data` + `offset` must be aligned to MAX_MASK_ALIGN,
+    /// For `ALIGNED`, DirectBitset `data` + `offset` must be aligned to MAX_MASK_ALIGN,
     /// otherwise error will be returned.
     pub fn new(data: Data, offset: usize) -> std::io::Result<Self> {
         const{ assert!(size_of::<Lvl0Mask<Conf>>() <= ROOT_MASK_MAX_SIZE) }
@@ -359,12 +359,12 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, 
     }
 }
 
-impl<Conf: Config, Data: DataSource, const ALIGNED: bool> BitSetBase for ImmutableBitset<Conf, Data, ALIGNED>{
+impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> BitSetBase for DirectBitset<Conf, Data, ALIGNED>{
     type Conf = Conf;
     const TRUSTED_HIERARCHY: bool = true;
 }
 
-impl<Conf: Config, Data: DataSource, const ALIGNED: bool> LevelMasks for ImmutableBitset<Conf, Data, ALIGNED>{
+impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> LevelMasks for DirectBitset<Conf, Data, ALIGNED>{
     #[inline]
     fn level0_mask(&self) -> Lvl0Mask<Conf> {
         self.lvl0_mask
@@ -396,7 +396,7 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> LevelMasks for Immutab
     }
 }
 
-impl<Conf: Config, Data: DataSource, const ALIGNED: bool> LevelMasksIterExt for ImmutableBitset<Conf, Data, ALIGNED>{
+impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> LevelMasksIterExt for DirectBitset<Conf, Data, ALIGNED>{
     type IterState = ();
     fn make_iter_state(&self) -> Self::IterState {()}
     unsafe fn drop_iter_state(&self, _: &mut std::mem::ManuallyDrop<Self::IterState>) {}
@@ -443,8 +443,8 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> LevelMasksIterExt for 
 }
 
 // TODO!
-impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data, true> where Conf: Config, Data: DataSource);
-impl_bitset!(impl<Conf, Data> for ref ImmutableBitset<Conf, Data, false> where Conf: Config, Data: DataSource);
+impl_bitset!(impl<Conf, Data> for ref DirectBitset<Conf, Data, true> where Conf: Config, Data: DirectDataSource);
+impl_bitset!(impl<Conf, Data> for ref DirectBitset<Conf, Data, false> where Conf: Config, Data: DirectDataSource);
 
 #[cfg(test)]
 mod tests{
@@ -459,7 +459,7 @@ use super::*;
     fn mmap_test(){
         use memmap2::Mmap;
 
-        type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
+        type MmapBitset<Conf> = DirectBitset<Conf, Arc<Mmap>>;
 
         type Config = crate::config::_64bit;
         let mut file = tempfile::tempfile().unwrap();
@@ -468,7 +468,7 @@ use super::*;
 
         let mmap = unsafe { Mmap::map(&file).unwrap()  };
 
-        let b: MmapBitset<Config> = ImmutableBitset::new(Arc::new(mmap), 0).unwrap();
+        let b: MmapBitset<Config> = DirectBitset::new(Arc::new(mmap), 0).unwrap();
 
         for i in &etalon{
             assert!( b.contains(i) );
@@ -495,7 +495,7 @@ use super::*;
         etalon.serialize(&mut vec).unwrap();
         let avec = AlignedVec::from_slice(ALIGN, &vec);
 
-        let im = ImmutableBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
+        let im = DirectBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
 
         assert_equal(etalon.iter(), im.iter());
     }

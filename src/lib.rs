@@ -161,7 +161,7 @@
 //!
 //! # Zero-copy usage
 //!
-//! [ImmutableBitset] works with any byte source that can provide serialized data.
+//! [DirectBitset] works with any byte source that can provide serialized data.
 //! You can use this with serialized data in memory-mapped file.
 //! "Almost" zero-copy.
 //!
@@ -198,8 +198,8 @@ mod data_block;
 mod bitset;
 pub use bitset::*;
 
-mod immutable_bitset;
-pub use immutable_bitset::*;
+mod direct_bitset;
+pub use direct_bitset::*;
 
 pub mod config;
 pub mod ops;
