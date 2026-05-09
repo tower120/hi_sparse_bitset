@@ -24,6 +24,7 @@ jobs:
     name: build tests with default features
     runs-on: ubuntu-latest
     steps:
+    - uses: dtolnay/rust-toolchain@stable
     - uses: actions/checkout@v6
     - run: RUSTFLAGS="
              ${{ inputs.rustflags }}

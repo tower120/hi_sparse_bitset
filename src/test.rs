@@ -4,7 +4,7 @@ use std::iter::zip;
 use std::ops::ControlFlow;
 use itertools::assert_equal;
 use crate::ops::{And, BitSetOp, Or, Sub, Xor};
-use crate::{level_indices, reduce, reduce_w_cache, Apply, BitBlock, BitSetInterface, DataBlock};
+use crate::{Apply, BitBlock, BitSetInterface, DataBlock, DirectBitset, level_indices, reduce, reduce_w_cache};
 use crate::config;
 use crate::cache;
 use crate::iter::{BlockCursor, IndexCursor};
@@ -209,12 +209,17 @@ fn fuzzy_test(){
                 hi_set.serialize(&mut serialized).unwrap();
 
                 let deserialized = HiSparseBitset::deserialize(
-                    &mut Cursor::new(serialized)
+                    &mut Cursor::new(&serialized)
                 ).unwrap();
 
                 assert_eq!(hi_set, deserialized);
                 assert_equal(hi_set.block_iter(), deserialized.block_iter());
                 assert_equal(hi_set.iter(), deserialized.iter());
+
+                // Direct test
+                let im = DirectBitset::<Conf, &[u8]>::new(&serialized, 0).unwrap();
+                assert_equal(hi_set.block_iter(), im.block_iter());
+                assert_equal(hi_set.iter(), im.iter());
             }
 
             // serde_json

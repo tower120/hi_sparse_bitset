@@ -3,9 +3,9 @@ use std::ops::ControlFlow;
 use crate::Primitive;
 
 /// Block ordering undefined. But same as [get_array_bit].
-/// 
+///
 /// # Safety
-/// 
+///
 /// `index` validity is not checked.
 #[inline]
 pub unsafe fn set_array_bit_unchecked<const FLAG: bool, T>(blocks: &mut [T], index: usize) -> bool
@@ -22,11 +22,10 @@ where
     set_bit_unchecked::<FLAG, T>(blocks.get_unchecked_mut(block_index), bit_index)
 }
 
-
 /// In machine endian.
-/// 
+///
 /// # Safety
-/// 
+///
 /// `bit_index` validity is not checked.
 #[inline]
 pub unsafe fn set_bit_unchecked<const FLAG: bool, T>(block: &mut T, bit_index: usize) -> bool
@@ -46,12 +45,12 @@ where
 }
 
 /// Block ordering undefined. But same as [set_array_bit].
-/// 
+///
 /// # Safety
-/// 
+///
 /// `index` validity is not checked.
 #[inline]
-pub unsafe fn get_array_bit_unchecked<T>(blocks: &[T], index: usize) -> bool 
+pub unsafe fn get_array_bit_unchecked<T>(blocks: &[T], index: usize) -> bool
 where
     T: Primitive
 {
@@ -66,15 +65,45 @@ where
 }
 
 /// In machine endian.
-/// 
+///
 /// # Safety
-/// 
+///
 /// `bit_index` validity is not checked.
 #[inline]
 pub unsafe fn get_bit_unchecked<T: Primitive>(block: T, bit_index: usize) -> bool {
+    // This generates `bt` instruction on x86
     let block_mask: T = T::ONE << bit_index;
     let masked_block = block & block_mask;
     !masked_block.is_zero()
+}
+
+/// In machine endian.
+///
+/// # Safety
+///
+/// `bit_index` validity is not checked.
+#[inline]
+pub unsafe fn zero_high_bits_unchecked<T: Primitive>(block: T, bit_index: usize) -> T {
+cfg_select! {
+    target_feature = "bmi2" => {
+        use std::any::TypeId;
+        if TypeId::of::<T>() == TypeId::of::<u64>(){
+            return Primitive::from_u64(
+                std::arch::x86_64::_bzhi_u64(block.as_u64(), bit_index as u32)
+            );
+        } else if TypeId::of::<T>() == TypeId::of::<u32>(){
+            return Primitive::from_u32(
+                std::arch::x86_64::_bzhi_u32(block.as_u32(), bit_index as u32)
+            );
+        } else {
+            todo!();
+        }
+    }
+    _ => {
+        let mask: T = !(T::MAX << bit_index);
+        block & mask
+    }
+}
 }
 
 /// Blocks traversed in the same order as [set_array_bit], [get_array_bit].
@@ -164,4 +193,3 @@ where
         }
     }
 }
-
