@@ -99,8 +99,6 @@ In order to speed up things even more, you can work directly with
 `DataBlock`s. `DataBlock`s - is a bit-blocks (relatively small),
 which you can store and iterate latter.
 
-_In future versions, you can also insert DataBlocks into BitSet._
-
 ## Reduce on iterator of bitsets
 
 In addition to "the usual" bitset-to-bitset(binary) operations,
