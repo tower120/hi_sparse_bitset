@@ -204,6 +204,9 @@ pub use bitset::*;
 mod direct_bitset;
 pub use direct_bitset::*;
 
+mod immutable_bitset;
+pub use immutable_bitset::*;
+
 pub mod config;
 pub mod ops;
 pub mod iter;
