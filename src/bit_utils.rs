@@ -84,8 +84,8 @@ pub unsafe fn get_bit_unchecked<T: Primitive>(block: T, bit_index: usize) -> boo
 /// `bit_index` validity is not checked.
 #[inline]
 pub unsafe fn zero_high_bits_unchecked<T: Primitive>(block: T, bit_index: usize) -> T {
-    #[cfg(target_feature = "bmi2")]
-    {
+cfg_select! {
+    target_feature = "bmi2" => {
         use std::any::TypeId;
         if TypeId::of::<T>() == TypeId::of::<u64>(){
             return Primitive::from_u64(
@@ -99,9 +99,11 @@ pub unsafe fn zero_high_bits_unchecked<T: Primitive>(block: T, bit_index: usize)
             todo!();
         }
     }
-
-    let mask: T = !(T::MAX << bit_index);
-    block & mask
+    _ => {
+        let mask: T = !(T::MAX << bit_index);
+        block & mask
+    }
+}
 }
 
 /// Blocks traversed in the same order as [set_array_bit], [get_array_bit].

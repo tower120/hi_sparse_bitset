@@ -530,24 +530,9 @@ mod unique_ptr{
     use std::ptr::{drop_in_place, NonNull, null_mut};
     use std::{mem, slice};
 
-    #[rustversion::since(1.95)]
     #[inline]
     fn dangling(layout: Layout) -> NonNull<u8>{
         layout.dangling_ptr()
-    }
-
-    #[rustversion::before(1.95)]
-    #[inline]
-    fn dangling(layout: Layout) -> NonNull<u8>{
-        #[cfg(miri)]
-        {
-            const{ panic!("Run MIRI with Rust >= 1.95"); }
-            // layout.dangling()
-        }
-        #[cfg(not(miri))]
-        {
-            unsafe { NonNull::new_unchecked(layout.align() as *mut u8) }
-        }
     }
 
     /// Same as Box<[T]>, but aliasable.

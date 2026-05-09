@@ -4,6 +4,7 @@ authors = ["Andrey Didukh <tower120@gmail.com>"]
 license = "MIT OR Apache-2.0"
 version = "0.7.5"
 edition = "2021"
+rust-version = "1.95"
 repository = "https://github.com/tower120/hi_sparse_bitset"
 keywords = ["hierarchical", "sparse", "bitset", "bitmap", "container"]
 categories = ["data-structures"]
@@ -18,7 +19,6 @@ simd = ["dep:wide"]
 serde = ["dep:serde", "dep:base64", "dep:arrayvec", "wide/serde"]
 
 [dependencies]
-rustversion = "1.0"
 wide = { version = "0.7.28", optional = true }
 serde = { version = "1.0", features = ["serde_derive"], optional = true }
 arrayvec = { version = "0.7", optional = true }

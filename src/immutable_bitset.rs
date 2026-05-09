@@ -88,11 +88,11 @@ impl DataSource for Vec<u8>{
 /// use memmap2::Mmap;
 ///
 /// type MmapBitset<Conf> = ImmutableBitset<Conf, Arc<Mmap>>;
-/// type Config = config::_64bit;
+/// type Conf = config::_64bit;
 ///
 /// // Make serialized data in tempfile.
 /// let mut file = tempfile::tempfile().unwrap();
-/// BitSet::<Config>::from(
+/// BitSet::<Conf>::from(
 ///     [1,2,3,4,66,100,16089]
 /// ).serialize(&mut file).unwrap();
 ///
@@ -100,23 +100,24 @@ impl DataSource for Vec<u8>{
 /// let mmap = unsafe { Mmap::map(&file).unwrap()  };
 ///
 /// // Feed mmaped file to ImmutableBitset.
-/// let bitset: MmapBitset<Config> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
+/// let bitset: MmapBitset<Conf> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
 /// ```
 ///
 /// With aligning:
 ///
 ///```
+/// # use hi_sparse_bitset::{config, config::Config, BitSet, ImmutableBitset};
 /// use aligned_vec::{AVec, ConstAlign};
 ///
-/// type Conf = crate::config::_64bit;
+/// type Conf = config::_64bit;
 /// const ALIGN: usize = <Conf as Config>::MAX_MASK_ALIGN;
 /// type AlignedVec = AVec<u8, ConstAlign<ALIGN>>;
 ///
 /// // Serialize to Vec.
 /// let mut vec = Vec::new();
-/// BitSet::<Config>::from(
+/// BitSet::<Conf>::from(
 ///     [1,2,3,4,66,100,16089]
-/// ).serialize(&mut file).unwrap();
+/// ).serialize(&mut vec).unwrap();
 ///
 /// // We need to make sure, that byte array have aligned base.
 /// // We use AVec for this. Since AVec doesn't implement Write yet,
