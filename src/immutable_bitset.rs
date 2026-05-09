@@ -58,9 +58,11 @@ impl DataSource for Vec<u8>{
 
 /// Immutable bitset that can work directly with any source of [`serialized data`].
 ///
-/// Have very small additional memory overhead.
+/// Have very small additional memory overhead, consisting from lvl0 and lvl1 masks.
+/// Constructing `ImmutableBitset` is MUCH faster then constructing [`BitSet`].
 ///
 /// [`serialized data`]: crate#serialization
+/// [`BitSet`]: crate::BitSet
 ///
 /// # Aligning
 ///
@@ -68,12 +70,14 @@ impl DataSource for Vec<u8>{
 /// Serialized data already perfectly aligned. You need only to provide
 /// correct "base" and set generic argument `ALIGNED` to true.
 ///
-/// Base address must be aligned to [Conf::MAX_MASK_ALIGN]. You can achieve this
+/// Base address must be aligned to [`Conf::MAX_MASK_ALIGN`]. You can achieve this
 /// by using something like `aligned_vec` crate. Memory-mapped file almost for
 /// sure will have greater base align - so it should work as-is.
 ///
 /// N.B. On most desktop platforms unaligned reads have negligible
 /// performance overhead.
+///
+/// [`Conf::MAX_MASK_ALIGN`]: crate::config::Config::MAX_MASK_ALIGN
 ///
 /// # Example
 ///
@@ -101,12 +105,33 @@ impl DataSource for Vec<u8>{
 ///
 /// With aligning:
 ///
-/// TODO
+///```
+/// use aligned_vec::{AVec, ConstAlign};
+///
+/// type Conf = crate::config::_64bit;
+/// const ALIGN: usize = <Conf as Config>::MAX_MASK_ALIGN;
+/// type AlignedVec = AVec<u8, ConstAlign<ALIGN>>;
+///
+/// // Serialize to Vec.
+/// let mut vec = Vec::new();
+/// BitSet::<Config>::from(
+///     [1,2,3,4,66,100,16089]
+/// ).serialize(&mut file).unwrap();
+///
+/// // We need to make sure, that byte array have aligned base.
+/// // We use AVec for this. Since AVec doesn't implement Write yet,
+/// // we just copy byte array in it.
+/// let avec = AlignedVec::from_slice(ALIGN, &vec);
+///
+/// let im = ImmutableBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
+/// ```
 #[derive(Clone)]
 pub struct ImmutableBitset<Conf: Config, Data, const ALIGNED: bool = false>{
     lvl0_mask: Lvl0Mask<Conf>,
     lvl0_u64_index_starts: [Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8],
-    lvl1_masks: Vec<Lvl1Mask<Conf>>,        // TODO: we can read this from data as well
+    // We can't read this directly from data, since we need correct endianess,
+    // because we work with u64 sub-masks.
+    lvl1_masks: Vec<Lvl1Mask<Conf>>,
     lvl1_u64_index_starts: Vec<Lvl1Index<Conf>>,
     data: Data,
     data_offset: usize,
@@ -277,16 +302,21 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, 
     }
 
     #[inline(always)]
-    fn lvl_get_item(
+    fn lvl_get_item<LvlMask:BitBlock>(
         offsets: &[impl Primitive],
         sub_masks: &[u64],
         sub_mask_index_offset: usize,
         index: usize
     ) -> Option<usize> {
-
-        // TODO: optimize for 64bit blocks
-        let u64_index = index / 64;
-        let bit_index = index % 64;
+        let u64_index;
+        let bit_index;
+        if LvlMask::SIZE_POT_EXPONENT > 6{
+            u64_index = index / 64;
+            bit_index = index % 64;
+        } else {
+            u64_index = 0;
+            bit_index = index;
+        }
 
         let u64_index = u64_index + sub_mask_index_offset;
 
@@ -302,7 +332,7 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, 
 
     #[inline]
     fn lvl0_get_item(&self, index: usize) -> Option<usize> {
-        Self::lvl_get_item(
+        Self::lvl_get_item::<Lvl0Mask<Conf>>(
             &self.lvl0_u64_index_starts,
             self.lvl0_mask.as_array(),
             0,
@@ -312,7 +342,7 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, 
 
     #[inline]
     fn lvl1_get_item(&self, lvl1_block_index: usize, level1_index: usize) -> Option<usize> {
-        Self::lvl_get_item(
+        Self::lvl_get_item::<Lvl1Mask<Conf>>(
             &self.lvl1_u64_index_starts,
             Self::lvl1_as_u64(&self.lvl1_masks),
             lvl1_block_index * (size_of::<Lvl1Mask<Conf>>() / 8),
@@ -322,7 +352,6 @@ impl<Conf: Config, Data: DataSource, const ALIGNED: bool> ImmutableBitset<Conf, 
 
     #[inline]
     unsafe fn data_mask(&self, data_index: usize) -> DataMask<Conf> {
-        // Unaligned read for now
         let offset_bytes = self.data_offset + data_index * size_of::<DataMask<Conf>>();
         let ptr = self.data.data_src().as_ptr().add(offset_bytes);
         read_mask::<_, ALIGNED>(ptr)

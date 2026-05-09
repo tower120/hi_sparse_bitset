@@ -68,6 +68,10 @@ It is faster than hashsets and pure bitsets for all inter-bitset operations
 and all cases in orders of magnitude. It is even faster than
 hibitset. See benchmarks.
 
+## Zero-copy support
+
+See `ImmutableBitset`.
+
 ### Against `hibitset`
 
 Despite the fact that `hi_sparse_bitset` have layer of indirection for accessing

@@ -159,6 +159,12 @@
 //!
 //! [serde]: https://crates.io/crates/serde
 //!
+//! # Zero-copy usage
+//!
+//! [ImmutableBitset] works with any byte source that can provide serialized data.
+//! You can use this with serialized data in memory-mapped file.
+//! "Almost" zero-copy.
+//!
 //! # CPU extensions
 //!
 //! Library uses `popcnt`/`count_ones` and `tzcnt`/`trailing_zeros` heavily.
