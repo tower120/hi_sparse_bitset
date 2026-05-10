@@ -76,6 +76,14 @@ where
             self.s2.data_mask(level0_index, level1_index)
         )
     }
+
+    #[inline]
+    fn data_blocks_size_hint(&self) -> SizeHint {
+        Op::data_blocks_size_hint::<Self::Conf>(
+            self.s1.data_blocks_size_hint(),
+            self.s2.data_blocks_size_hint()
+        )
+    }
 }
 
 impl<Op, S1, S2> LevelMasksIterExt for Apply<Op, S1, S2>

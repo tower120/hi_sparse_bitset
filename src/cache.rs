@@ -1,12 +1,5 @@
-//! Cache used by [BlockIter]/[IndexIter] for [reduce] operations.
+//! Cache used during traverse by [reduce] operations.
 //!
-//! # Memory footprint
-//!
-//! Cache for one [BitSet] costs 2 pointers.
-//!
-//! [BitSet]: crate::BitSet
-//! [BlockIter]: crate::iter::BlockIter
-//! [IndexIter]: crate::iter::IndexIter
 //! [reduce]: crate::reduce()
 
 use crate::ops::BitSetOp;
@@ -40,7 +33,7 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// assert_equal(intersection, [1,6]);
 ///
 /// ```
-/// 
+///
 /// # Example 2
 ///
 /// ```
@@ -63,7 +56,7 @@ use crate::reduce::{DynamicCacheImpl, FixedCacheImpl, NonCachedImpl, ReduceCache
 /// assert_equal(intersection, [1,6]);
 ///
 /// ```
-/// 
+///
 /// [reduce]: crate::reduce()
 #[derive(Default, Copy, Clone)]
 pub struct NoCache;
@@ -84,7 +77,7 @@ pub struct FixedCache<const N:usize>;
 /// This can happened, when you work with enormously large number of sets,
 /// and/or work with deep [reduce] operations. Alternatively, you
 /// can use [NoCache].
-/// 
+///
 /// [reduce]: crate::reduce()
 #[derive(Default, Copy, Clone)]
 pub struct DynamicCache;

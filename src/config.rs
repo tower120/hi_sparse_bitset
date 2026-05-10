@@ -3,11 +3,21 @@
 //! Increasing block size will increase max index [BitSet] can hold.
 //! Decreasing block size will lower memory footprint.
 //!
-//! For your task, you can make specialized config. For example, if you're
-//! not limited by MAX index, and know that your indices will be dense,
-//! you can try 64/64/256 bit levels.
+//! For each configuration you can set custom data bitblock[^1]:
+//! ```
+//! # use hi_sparse_bitset::config;
+//! type Conf = config::_64bit<wide::u64x2>;
+//! ```
+//! [^1]: See [BitBlock] implementations for list of supported data types.
+//!
+//! And change default [`reduce cache`] size:
+//! ```
+//! # use hi_sparse_bitset::{config, cache};
+//! type Conf = config::_64bit<wide::u64x2, cache::FixedCache<64>>;
+//! ```
 //!
 //! [BitSet]: crate::BitSet
+//! [`reduce cache`]: crate::cache
 
 use std::marker::PhantomData;
 use crate::bit_block::BitBlock;
@@ -66,7 +76,6 @@ pub trait Config: 'static {
     type DefaultCache: ReduceCache;
 }
 
-#[inline]
 const fn usize_max(left: usize, right: usize) -> usize {
     if left < right{
         right
@@ -75,7 +84,6 @@ const fn usize_max(left: usize, right: usize) -> usize {
     }
 }
 
-#[inline]
 const fn max_mask_align<Conf: Config>() -> usize {
     usize_max(align_of::<Conf::Level0BitBlock>(),
         usize_max(
@@ -85,24 +93,33 @@ const fn max_mask_align<Conf: Config>() -> usize {
     )
 }
 
-#[inline]
 const fn max_capacity<Conf: Config>() -> usize {
     (1 << Conf::Level0BitBlock::SIZE_POT_EXPONENT)
         * (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
         * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT)
 }
 
+const fn block_bit_size<Block: BitBlock>() -> usize{
+    1 << Block::SIZE_POT_EXPONENT
+}
+
 /// MAX = 262_144
 #[derive(Default)]
-pub struct _64bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
-impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
+pub struct _64bit<
+    DataBitBlock: BitBlock = u64,
+    DefaultCache: ReduceCache = self::DefaultCache
+>(PhantomData<(DataBitBlock, DefaultCache)>);
+
+impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
+    _64bit<DataBitBlock, DefaultCache>
+{
     type Level0BitBlock = u64;
     type Level0BlockIndices = [u8; 64];
 
     type Level1BitBlock = u64;
     type Level1BlockIndices = [u16; 64];
 
-    type DataBitBlock = u64;
+    type DataBitBlock = DataBitBlock;
 
     const MAX_CAPACITY: usize = max_capacity::<Self>();
     const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
@@ -114,10 +131,16 @@ impl<DefaultCache: ReduceCache> Config for _64bit<DefaultCache> {
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 #[derive(Default)]
-pub struct _128bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
+pub struct _128bit<
+    DataBitBlock: BitBlock = wide::u64x2,
+    DefaultCache: ReduceCache = self::DefaultCache
+>(PhantomData<(DataBitBlock, DefaultCache)>);
+
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
-impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
+impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
+    _128bit<DataBitBlock, DefaultCache>
+{
     type Level0BitBlock = wide::u64x2;
     type Level0BlockIndices = [u8; 128];
 
@@ -136,19 +159,26 @@ impl<DefaultCache: ReduceCache> Config for _128bit<DefaultCache> {
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 #[derive(Default)]
-pub struct _256bit<DefaultCache: ReduceCache = self::DefaultCache>(PhantomData<DefaultCache>);
+pub struct _256bit<
+    DataBitBlock: BitBlock = wide::u64x2,
+    DefaultCache: ReduceCache = self::DefaultCache
+>(PhantomData<(DataBitBlock, DefaultCache)>);
+
 #[cfg(feature = "simd")]
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
-impl<DefaultCache: ReduceCache> Config for _256bit<DefaultCache> {
+impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
+     _256bit<DataBitBlock, DefaultCache>
+{
     type Level0BitBlock = wide::u64x4;
     type Level0BlockIndices = [u8; 256];
 
     type Level1BitBlock = wide::u64x4;
     type Level1BlockIndices = [u16; 256];
 
-    type DataBitBlock = wide::u64x4;
+    type DataBitBlock = DataBitBlock;
 
-    const MAX_CAPACITY: usize = max_capacity::<Self>() - (256*256);
+    const MAX_CAPACITY: usize = max_capacity::<Self>()
+                              - (1* 256 * block_bit_size::<DataBitBlock>());
     const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
 
     type DefaultCache = DefaultCache;

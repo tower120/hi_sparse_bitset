@@ -87,7 +87,8 @@ impl DirectDataSource for Vec<u8>{
 /// # use hi_sparse_bitset::{config, BitSet, DirectBitset};
 /// use memmap2::Mmap;
 ///
-/// type MmapBitset<Conf> = DirectBitset<Conf, Arc<Mmap>>;
+/// // We can use `ALIGN=true` here since we know that Mmap already aligned.
+/// type MmapBitset<Conf> = DirectBitset<Conf, Arc<Mmap>, true>;
 /// type Conf = config::_64bit;
 ///
 /// // Make serialized data in tempfile.
@@ -136,6 +137,7 @@ pub struct DirectBitset<Conf: Config, Data, const ALIGNED: bool = false>{
     lvl1_u64_index_starts: Vec<Lvl1Index<Conf>>,
     data: Data,
     data_offset: usize,
+    data_blocks_len: usize,
 }
 
 #[inline]
@@ -174,6 +176,7 @@ fn ptr_is_aligned_to<T>(ptr: *const T, align: usize) -> bool {
 }
 
 impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Conf, Data, ALIGNED> {
+    // TODO: use from immutable_bitset
     #[inline]
     fn lvl1_as_u64(slice: &[Lvl1Mask<Conf>]) -> &[u64]{
         unsafe {
@@ -265,6 +268,7 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Con
             len -= lvl1_bytes_len;
         }
 
+        // TODO: use from immutable_bitset
         // Calculate lvl1 index starts
         let mut lvl1_u64_index_starts = Vec::with_capacity(lvl1_blocks_len * (lvl1_mask_size/8));
         let mut data_blocks_len = 0;
@@ -298,7 +302,8 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Con
             lvl1_masks,
             lvl1_u64_index_starts,
             data,
-            data_offset
+            data_offset,
+            data_blocks_len
         })
     }
 
@@ -393,6 +398,12 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> LevelMasks for D
         } else {
             BitBlock::zero()
         }
+    }
+
+    #[inline]
+    fn data_blocks_size_hint(&self) -> crate::ops::SizeHint {
+        let len = self.data_blocks_len;
+        (len, len)
     }
 }
 

@@ -19,7 +19,7 @@ simd = ["dep:wide"]
 serde = ["dep:serde", "dep:base64", "dep:arrayvec", "wide/serde"]
 
 [dependencies]
-wide = { version = "0.7.28", optional = true }
+wide = { version = "1.4", optional = true }
 serde = { version = "1.0", features = ["serde_derive"], optional = true }
 arrayvec = { version = "0.7", optional = true }
 base64 = { version = "0.22", optional = true }

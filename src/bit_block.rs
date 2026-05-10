@@ -39,6 +39,7 @@ pub trait BitBlock
     + MaybeSerialize + for<'de> MaybeDeserialize<'de>
     + Debug
     + Sized + Copy + Clone
+    + 'static
 {
     /// 2^N bits
     const SIZE_POT_EXPONENT: usize;
@@ -208,7 +209,7 @@ impl BitBlock for wide::u64x2{
     fn is_zero(&self) -> bool {
         // this should be faster then loading from memory into simd register,
         // and testz(if supported).
-        let array = self.as_array_ref();
+        let array = self.as_array();
         (array[0] | array[1]) == 0
     }
 
@@ -220,21 +221,20 @@ impl BitBlock for wide::u64x2{
 
     #[inline]
     fn as_array(&self) -> &[u64] {
-        self.as_array_ref()
+        self.as_array()
     }
 
     #[inline]
     fn as_array_mut(&mut self) -> &mut [u64] {
-        self.as_array_mut()
+        self.as_mut_array()
     }
 
     type BytesArray = [u8;16];
     #[inline]
     fn to_ne_bytes(self) -> Self::BytesArray {
-        // From rust doc:
-        // "Because transmute is a by-value operation, alignment of the transmuted values themselves is not a concern".
-        unsafe{ mem::transmute(self) }
+        unsafe{ mem::transmute(self.to_array()) }
     }
+
     #[inline]
     fn to_le_bytes(self) -> Self::BytesArray {
         #[cfg(target_endian = "little")]
@@ -242,10 +242,12 @@ impl BitBlock for wide::u64x2{
         #[cfg(target_endian = "big")]
         { unimplemented!() }
     }
+
     #[inline]
     fn from_ne_bytes(bytes: Self::BytesArray) -> Self {
-        unsafe{ mem::transmute(bytes) }
+        Self::new(unsafe{ mem::transmute(bytes) })
     }
+
     #[inline]
     fn from_le_bytes(bytes: Self::BytesArray) -> Self {
         #[cfg(target_endian = "little")]
@@ -273,21 +275,20 @@ impl BitBlock for wide::u64x4{
 
     #[inline]
     fn as_array(&self) -> &[u64] {
-        self.as_array_ref()
+        self.as_array()
     }
 
     #[inline]
     fn as_array_mut(&mut self) -> &mut [u64] {
-        self.as_array_mut()
+        self.as_mut_array()
     }
 
     type BytesArray = [u8;32];
     #[inline]
     fn to_ne_bytes(self) -> Self::BytesArray {
-        // From rust doc:
-        // "Because transmute is a by-value operation, alignment of the transmuted values themselves is not a concern".
-        unsafe{ mem::transmute(self) }
+        unsafe{ mem::transmute(self.to_array()) }
     }
+
     #[inline]
     fn to_le_bytes(self) -> Self::BytesArray {
         #[cfg(target_endian = "little")]
@@ -295,10 +296,68 @@ impl BitBlock for wide::u64x4{
         #[cfg(target_endian = "big")]
         { unimplemented!() }
     }
+
     #[inline]
     fn from_ne_bytes(bytes: Self::BytesArray) -> Self {
-        unsafe{ mem::transmute(bytes) }
+        Self::new(unsafe{ mem::transmute(bytes) })
     }
+
+    #[inline]
+    fn from_le_bytes(bytes: Self::BytesArray) -> Self {
+        #[cfg(target_endian = "little")]
+        { Self::from_ne_bytes(bytes) }
+        #[cfg(target_endian = "big")]
+        { unimplemented!() }
+    }
+}
+
+#[cfg(feature = "simd")]
+#[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
+impl BitBlock for wide::u64x8{
+    const SIZE_POT_EXPONENT: usize = 9;
+
+    #[inline]
+    fn zero() -> Self {
+        wide::u64x8::ZERO
+    }
+
+    type BitsIter = ArrayBitQueue<u64, 8>;
+
+    #[inline]
+    fn into_bits_iter(self) -> Self::BitsIter {
+        Self::BitsIter::new(self.to_array())
+    }
+
+    #[inline]
+    fn as_array(&self) -> &[u64] {
+        self.as_array()
+    }
+
+    #[inline]
+    fn as_array_mut(&mut self) -> &mut [u64] {
+        self.as_mut_array()
+    }
+
+    type BytesArray = [u8;64];
+
+    #[inline]
+    fn to_ne_bytes(self) -> Self::BytesArray {
+        unsafe{ mem::transmute(self.to_array()) }
+    }
+
+    #[inline]
+    fn to_le_bytes(self) -> Self::BytesArray {
+        #[cfg(target_endian = "little")]
+        { self.to_ne_bytes() }
+        #[cfg(target_endian = "big")]
+        { unimplemented!() }
+    }
+
+    #[inline]
+    fn from_ne_bytes(bytes: Self::BytesArray) -> Self {
+        Self::new(unsafe{ mem::transmute(bytes) })
+    }
+
     #[inline]
     fn from_le_bytes(bytes: Self::BytesArray) -> Self {
         #[cfg(target_endian = "little")]

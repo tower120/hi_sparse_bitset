@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.1
+Immutable bitset with linear data and fast construction.
+For intermediate data gathering and precomputed data storage.
+
+### Optimization
+- All bitsets, including virtual, now have internal "size hint" for data blocks.
+  We use it to reduce allocation count during materialization and in-place union.
+
+### Added
+- `ImmutableBitset`.
+- `config` now have optionally configurable data block type.
+- `wide::u64x8` adopted.
+
 ## 0.8.0
 Bitset with direct data access.
 

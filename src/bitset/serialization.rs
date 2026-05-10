@@ -89,6 +89,7 @@ impl<Conf: Config> BitSet<Conf> {
     /// Where
     /// * `lvl0_padding` - is padding needed to for the first lvl1_mask to be aligned.
     /// * `lvl1_padding` - is padding needed to for the first data to be aligned.
+    ///
     /// If all masks are the same size - there will be no padding.
     pub fn serialize(&self, w: &mut impl Write) -> std::io::Result<()> {
         // lvl0_mask
