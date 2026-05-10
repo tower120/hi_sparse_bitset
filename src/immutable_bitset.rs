@@ -12,6 +12,9 @@ type Lvl1Index<Conf> = <<Conf as Config>::Level1BlockIndices as PrimitiveArray>:
 /// In bytes.
 const ROOT_MASK_MAX_SIZE: usize = 32;
 
+/// Bitset with serialized-like linear data structure.
+///
+/// This is the fastest structure to materialize, deserialize and serialize.
 pub struct ImmutableBitset<Conf: Config>{
     lvl0_mask: Lvl0Mask<Conf>,
     lvl0_u64_index_starts: [Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8],
@@ -22,9 +25,7 @@ pub struct ImmutableBitset<Conf: Config>{
     data: Vec<DataMask<Conf>>
 }
 
-/* /// Blank for [ImmutableBitset] construction.
-///
-/// For [ImmutableBitset] reuse.
+/* /// Reusable blank for [ImmutableBitset] construction.
 pub struct ImmutableBitsetBlank<Conf: Config>(ImmutableBitset<Conf>);
 
 impl ImmutableBitsetBlank<Conf: Config>{

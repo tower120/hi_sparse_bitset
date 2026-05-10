@@ -3,13 +3,16 @@
 //! Increasing block size will increase max index [BitSet] can hold.
 //! Decreasing block size will lower memory footprint.
 //!
-//! For each configuration you can set custom data bitblock:
+//! For each configuration you can set custom data bitblock[^1]:
 //! ```
+//! # use hi_sparse_bitset::config;
 //! type Conf = config::_64bit<wide::u64x2>;
 //! ```
+//! [^1]: See [BitBlock] implementations for list of supported data types.
 //!
 //! And change default [`reduce cache`] size:
 //! ```
+//! # use hi_sparse_bitset::{config, cache};
 //! type Conf = config::_64bit<wide::u64x2, cache::FixedCache<64>>;
 //! ```
 //!
