@@ -24,13 +24,13 @@ cfg_if::cfg_if! {
 
 cfg_if::cfg_if! {
     if #[cfg(hisparsebitset_test_64)] {
-        type Conf = config::_64bit<DefaultCache>;
+        type Conf = config::_64bit<u64, DefaultCache>;
     } else if #[cfg(hisparsebitset_test_128)] {
-        type Conf = config::_128bit<DefaultCache>;
+        type Conf = config::_128bit<wide::u64x2, DefaultCache>;
     } else if #[cfg(hisparsebitset_test_256)] {
-        type Conf = config::_256bit<DefaultCache>;
+        type Conf = config::_256bit<wide::u64x4, DefaultCache>;
     } else {
-        type Conf = config::_128bit<DefaultCache>;
+        type Conf = config::_128bit<wide::u64x2, DefaultCache>;
     }
 }
 

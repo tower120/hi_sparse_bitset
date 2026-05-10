@@ -5,6 +5,10 @@
 - All bitsets, including virtual, now have internal "size hint" for data blocks.
   We use it to reduce allocation count during materialization and in-place union.
 
+### Added
+- `config` now have optionally configurable data block type.
+- `wide::u64x8` adopted.
+
 ## 0.8.0
 Bitset with direct data access.
 

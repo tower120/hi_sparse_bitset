@@ -39,6 +39,7 @@ pub trait BitBlock
     + MaybeSerialize + for<'de> MaybeDeserialize<'de>
     + Debug
     + Sized + Copy + Clone
+    + 'static
 {
     /// 2^N bits
     const SIZE_POT_EXPONENT: usize;
