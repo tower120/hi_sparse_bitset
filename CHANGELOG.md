@@ -12,6 +12,8 @@ For intermediate data gathering and precomputed data storage.
 - `ImmutableBitset`.
 - `config` now have optionally configurable data block type.
 - `wide::u64x8` adopted.
+- All containers now have `Self::union()` and `Self::intersection()` which
+  duplicate correspondent `BitsetInterface` functions.
 
 ## 0.8.0
 Bitset with direct data access.

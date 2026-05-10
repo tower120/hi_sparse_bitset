@@ -16,7 +16,7 @@ use block::Block;
 use crate::bitset::level::{IBlock, Level};
 use crate::{BitBlock, BitSetBase, BitSetInterface, DataBlock, level_indices};
 use crate::bitset_interface::{LevelMasks, LevelMasksIterExt};
-use crate::internals::{impl_bitset, Primitive};
+use crate::impl_bitset::{impl_bitset, Primitive};
 
 type Level0Block<Conf> = Block<
     <Conf as Config>::Level0BitBlock,

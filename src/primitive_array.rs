@@ -1,5 +1,5 @@
 use std::mem::MaybeUninit;
-use crate::internals::Primitive;
+use crate::impl_bitset::Primitive;
 
 pub trait PrimitiveArray: AsRef<[Self::Item]> + AsMut<[Self::Item]> + Copy{
     type Item: Primitive;
