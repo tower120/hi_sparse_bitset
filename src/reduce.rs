@@ -4,7 +4,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::NonNull;
 use crate::{assume, BitSetInterface};
 use crate::internals::impl_bitset;
-use crate::ops::BitSetOp;
+use crate::ops::{BitSetOp, SizeHint};
 use crate::cache::ReduceCache;
 use crate::bitset_interface::{BitSetBase, LevelMasks, LevelMasksIterExt};
 use crate::config::Config;
@@ -76,6 +76,14 @@ where
             .reduce(Op::data_op)
             .unwrap_unchecked()
         }
+    }
+
+    #[inline]
+    fn data_blocks_size_hint(&self) -> SizeHint {
+        let out = self.sets.clone()
+            .map(|set| set.data_blocks_size_hint())
+            .reduce(Op::data_blocks_size_hint::<Self::Conf>);
+        unsafe { out.unwrap_unchecked() }
     }
 }
 

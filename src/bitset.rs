@@ -11,6 +11,7 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
 use std::ptr::NonNull;
 use crate::config::Config;
+use crate::ops::BitSetOp;
 use block::Block;
 use crate::bitset::level::{IBlock, Level};
 use crate::{BitBlock, BitSetBase, BitSetInterface, DataBlock, level_indices};
@@ -306,6 +307,15 @@ impl<Conf: Config> BitSet<Conf> {
             }
         }
 
+        // Reserve data blocks.
+        {
+            let size_hint = crate::ops::Or::data_blocks_size_hint::<Conf>(
+                self.data_blocks_size_hint(),
+                other.data_blocks_size_hint()
+            );
+            self.data.reserve_for(size_hint.0);
+        }
+
         let mut other_iter_state = other.make_iter_state();
 
         // Traverse Lvl0
@@ -337,7 +347,6 @@ impl<Conf: Config> BitSet<Conf> {
                 self.level1.blocks_mut().get_unchecked_mut(this_lvl1_block_index)
             };
 
-            let this_data = &mut self.data;
 
             // Traverse Lvl1
             {
@@ -347,7 +356,7 @@ impl<Conf: Config> BitSet<Conf> {
                 // I. Insert data blocks that `self` does not have as direct copy from `other`.
                 let mask_diff = this_lvl1_mask ^ new_lvl1_mask;
                 if Other::TRUSTED_HIERARCHY{
-                    this_data.reserve_for(new_lvl1_mask.count_ones());
+                    self.data.reserve_for(new_lvl1_mask.count_ones());
                 }
                 mask_diff.for_each_bit(|lvl1_idx|{
                     let other_data = unsafe{
@@ -364,9 +373,9 @@ impl<Conf: Config> BitSet<Conf> {
                                 Block::from_parts(other_data, Default::default())
                             };
                             if SELF_IS_EMPTY{
-                                this_data.push_block(block)
+                                self.data.push_block(block)
                             } else {
-                                this_data.insert_block(block)
+                                self.data.insert_block(block)
                             }
                         };
                         let item = Primitive::from_usize(block_index);
@@ -398,7 +407,7 @@ impl<Conf: Config> BitSet<Conf> {
                         };
                         let this_data = unsafe {
                             let index = this_lvl1_block.get_or_zero(lvl1_idx);
-                            this_data.blocks_mut().get_unchecked_mut(index.as_usize())
+                            self.data.blocks_mut().get_unchecked_mut(index.as_usize())
                         };
                         unsafe {
                             *this_data.mask_mut() |= other_data
@@ -619,6 +628,13 @@ impl<Conf: Config> LevelMasks for BitSet<Conf> {
         let (_, data_block_index) = self.get_block_indices(level0_index, level1_index);
         let data_block = self.data.blocks().get_unchecked(data_block_index);
         *data_block.mask()
+    }
+
+    #[inline]
+    fn data_blocks_size_hint(&self) -> crate::ops::SizeHint {
+        // One empty block always reserved.
+        let len = self.data.len() - 1;
+        (len, len)
     }
 }
 

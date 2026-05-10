@@ -154,6 +154,14 @@ impl<Conf: Config, Other: BitSetInterface<Conf=Conf>> From<Other> for ImmutableB
             lvl1_masks.reserve_exact(lvl0_mask.count_ones());
         }
 
+        let data_size_hint = other.data_blocks_size_hint();
+        if data_size_hint.0 == data_size_hint.1 {
+            // We want ImmutableBitset as lean as possible.
+            data.reserve_exact(data_size_hint.0)
+        } else {
+            data.reserve(data_size_hint.0)
+        }
+
         let mut other_iter_state = other.make_iter_state();
 
         // Traverse Lvl0
@@ -196,12 +204,10 @@ impl<Conf: Config, Other: BitSetInterface<Conf=Conf>> From<Other> for ImmutableB
                 }
             });
 
-            if !Other::TRUSTED_HIERARCHY
+            if !Other::TRUSTED_HIERARCHY    // we already formed and pushed masks.
             && !lvl1_mask.is_zero() {
                 lvl1_masks.push(lvl1_mask);
-                if !Other::TRUSTED_HIERARCHY {
-                    unsafe{ lvl0_mask.set_bit_unchecked::<true>(lvl0_idx); }
-                }
+                unsafe{ lvl0_mask.set_bit_unchecked::<true>(lvl0_idx); }
             }
         });
         unsafe{ other.drop_iter_state(&mut ManuallyDrop::new(other_iter_state)); }
@@ -255,6 +261,12 @@ impl<Conf: Config> LevelMasks for ImmutableBitset<Conf>{
         } else {
             BitBlock::zero()
         }
+    }
+
+    #[inline]
+    fn data_blocks_size_hint(&self) -> crate::ops::SizeHint {
+        let len = self.data.len();
+        (len, len)
     }
 }
 

@@ -1,5 +1,6 @@
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::ControlFlow;
+use crate::ops::SizeHint;
 use crate::{Apply, apply, assume, level_indices, ops};
 use crate::bit_block::BitBlock;
 use crate::config::Config;
@@ -18,6 +19,9 @@ pub trait BitSetBase {
 
 /// Basic interface for accessing block masks. Can work with `SimpleIter`.
 pub trait LevelMasks: BitSetBase{
+    // Data blocks len hint.
+    fn data_blocks_size_hint(&self) -> SizeHint;
+
     fn level0_mask(&self) -> <Self::Conf as Config>::Level0BitBlock;
 
     /// # Safety
@@ -160,6 +164,11 @@ impl<'a, T: LevelMasks> LevelMasks for &'a T {
         -> <Self::Conf as Config>::DataBitBlock
     {
         <T as LevelMasks>::data_mask(self, level0_index, level1_index)
+    }
+
+    #[inline]
+    fn data_blocks_size_hint(&self) -> SizeHint {
+        <T as LevelMasks>::data_blocks_size_hint(self)
     }
 }
 impl<'a, T: LevelMasksIterExt> LevelMasksIterExt for &'a T {

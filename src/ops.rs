@@ -12,7 +12,14 @@
 //! [reduce]: crate::reduce()
 
 use std::ops::{BitAnd, BitOr, BitXor};
-use crate::bit_block::BitBlock;
+
+use crate::{bit_block::BitBlock, config::Config};
+
+pub type SizeHint = (usize, usize);
+
+fn max_data_blocks<Conf: Config>() -> usize {
+    <Conf as Config>::MAX_CAPACITY / Conf::DataBitBlock::size()
+}
 
 // TODO: all operations should accept & instead?
 //       To work with [u64;N] more flawlessly?
@@ -22,45 +29,51 @@ use crate::bit_block::BitBlock;
 /// Pay attention to hierarchical nature of `hi_sparse_bitset` - you
 /// may need to apply "broader" operations to "hierarchical blocks", then
 /// to "data blocks".
-/// 
+///
 /// [BitSetInterface]: crate::BitSetInterface
 pub trait BitSetOp: Default + Copy + 'static{
-    /// Will operation between two [TRUSTED_HIERARCHY] bitsets produce 
+    /// Will operation between two [TRUSTED_HIERARCHY] bitsets produce
     /// [TRUSTED_HIERARCHY] as well?
-    /// 
+    ///
     /// Enables some optimizations. False - is always safe value.
-    /// 
+    ///
     /// [TRUSTED_HIERARCHY]: crate::BitSetBase::TRUSTED_HIERARCHY
     const TRUSTED_HIERARCHY: bool;
-    
+
     /// Does [hierarchy_op] operands contain result?
     /// - left contains all bits from [hierarchy_op] result,
     /// - right contains all bits from [hierarchy_op] result,
-    /// 
+    ///
     /// This is true for [intersection], or narrower.
-    /// 
+    ///
     /// Enables some optimizations. False - is always a safe value.
-    /// 
+    ///
     /// [hierarchy_op]: Self::hierarchy_op
     /// [intersection]: And
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool;
-    
+
     /// Operation applied to indirection/hierarchy level bitblock
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T;
 
     /// Operation applied to data level bitblock
     fn data_op<T: BitBlock>(left: T, right: T) -> T;
+
+    /// Data blocks len size hint (min, max)
+    fn data_blocks_size_hint<Conf: Config>(
+        left_size_hint: SizeHint, right_size_hint: SizeHint
+    ) -> SizeHint;
+
 }
 
 /// Intersection
-/// 
+///
 /// Will traverse only intersected blocks of left and right.
 #[derive(Default, Copy, Clone)]
 pub struct And;
 impl BitSetOp for And {
     const TRUSTED_HIERARCHY: bool = false;
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = true;
-    
+
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitAnd::bitand(left, right)
@@ -70,17 +83,25 @@ impl BitSetOp for And {
     fn data_op<T: BitBlock>(left: T, right: T) -> T {
         BitAnd::bitand(left, right)
     }
+
+    #[inline]
+    fn data_blocks_size_hint<Conf: Config>(
+        left_size_hint: SizeHint, right_size_hint: SizeHint
+    ) -> SizeHint {
+        let max = usize::max(left_size_hint.1, right_size_hint.1);
+        (0, max)
+    }
 }
 
 /// Union
-/// 
+///
 /// Will traverse all blocks of left and right. (Since all of them participate in merge)
 #[derive(Default, Copy, Clone)]
 pub struct Or;
 impl BitSetOp for Or {
     const TRUSTED_HIERARCHY: bool = true;
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = false;
-    
+
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
@@ -90,17 +111,29 @@ impl BitSetOp for Or {
     fn data_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
     }
+
+    #[inline]
+    fn data_blocks_size_hint<Conf: Config>(
+        left_size_hint: SizeHint, right_size_hint: SizeHint
+    ) -> SizeHint {
+        let min = usize::max(left_size_hint.0, right_size_hint.0);
+        let max = usize::min(
+            max_data_blocks::<Conf>(),
+            left_size_hint.1 + right_size_hint.1
+        );
+        (min, max)
+    }
 }
 
 /// Symmetric difference.
-/// 
+///
 /// Have performance of [Or].
 #[derive(Default, Copy, Clone)]
 pub struct Xor;
 impl BitSetOp for Xor {
     const TRUSTED_HIERARCHY: bool = false;
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = false;
-    
+
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, right: T) -> T {
         BitOr::bitor(left, right)
@@ -110,17 +143,28 @@ impl BitSetOp for Xor {
     fn data_op<T: BitBlock>(left: T, right: T) -> T {
         BitXor::bitxor(left, right)
     }
+
+    #[inline]
+    fn data_blocks_size_hint<Conf: Config>(
+        left_size_hint: SizeHint, right_size_hint: SizeHint
+    ) -> SizeHint {
+        let max = usize::min(
+            max_data_blocks::<Conf>(),
+            left_size_hint.1 + right_size_hint.1
+        );
+        (0, max)
+    }
 }
 
 /// Difference (relative complement) left\right.
-/// 
+///
 /// Have performance of traversing left operand.
 #[derive(Default, Copy, Clone)]
 pub struct Sub;
 impl BitSetOp for Sub {
     const TRUSTED_HIERARCHY: bool = false;
     const HIERARCHY_OPERANDS_CONTAIN_RESULT: bool = false;
-    
+
     #[inline]
     fn hierarchy_op<T: BitBlock>(left: T, _right: T) -> T {
         left
@@ -129,5 +173,13 @@ impl BitSetOp for Sub {
     #[inline]
     fn data_op<T: BitBlock>(left: T, right: T) -> T {
         left & (left ^ right)
+    }
+
+    #[inline]
+    fn data_blocks_size_hint<Conf: Config>(
+        left_size_hint: SizeHint, right_size_hint: SizeHint
+    ) -> SizeHint {
+        let min = usize::saturating_sub(left_size_hint.0, right_size_hint.0);
+        (min, left_size_hint.1)
     }
 }
