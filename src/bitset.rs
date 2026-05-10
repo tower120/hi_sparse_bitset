@@ -347,7 +347,6 @@ impl<Conf: Config> BitSet<Conf> {
                 self.level1.blocks_mut().get_unchecked_mut(this_lvl1_block_index)
             };
 
-
             // Traverse Lvl1
             {
                 let this_lvl1_mask = *this_lvl1_block.mask();
