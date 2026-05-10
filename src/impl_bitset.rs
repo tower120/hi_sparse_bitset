@@ -177,8 +177,8 @@ macro_rules! impl_bitset {
             }
 
             #[inline]
-            pub fn union<Other>(self, other: Other) ->
-                $crate::Apply<$crate::ops::Or, Self, Other>
+            pub fn union<Other>(&self, other: Other) ->
+                $crate::Apply<$crate::ops::Or, &Self, Other>
             where
                 Other: $crate::BitSetInterface<Conf=<Self as BitSetBase>::Conf>
             {
@@ -186,8 +186,8 @@ macro_rules! impl_bitset {
             }
 
             #[inline]
-            pub fn intersection<Other>(self, other: Other) ->
-                $crate::Apply<$crate::ops::And, Self, Other>
+            pub fn intersection<Other>(&self, other: Other) ->
+                $crate::Apply<$crate::ops::And, &Self, Other>
             where
                 Other: $crate::BitSetInterface<Conf=<Self as BitSetBase>::Conf>
             {
