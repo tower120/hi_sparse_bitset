@@ -1,7 +1,7 @@
 use core::slice;
 use std::{mem::{ManuallyDrop, MaybeUninit}, ptr::NonNull};
 
-use crate::{BitBlock, BitSetBase, BitSetInterface, config::Config, internals::{LevelMasks, LevelMasksIterExt, impl_bitset}, primitive::Primitive, primitive_array::PrimitiveArray};
+use crate::{BitBlock, BitSetBase, BitSetInterface, config::Config, impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset}, primitive::Primitive, primitive_array::PrimitiveArray};
 
 // TODO: put into one place (config?) and reuse.
 type Lvl0Mask<Conf> = <Conf as Config>::Level0BitBlock;

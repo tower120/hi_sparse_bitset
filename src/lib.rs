@@ -195,7 +195,7 @@ mod bit_utils;
 mod reduce;
 mod bitset_interface;
 mod apply;
-mod internals;
+mod impl_bitset;
 mod data_block;
 
 mod bitset;

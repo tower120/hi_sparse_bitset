@@ -152,20 +152,20 @@ macro_rules! impl_bitset {
             $($where_bounds)*
         {
             #[inline]
-            pub fn block_iter<'a>(&'a self) -> $crate::iter::BlockIter<&'a Self>
+            pub fn block_iter(&self) -> $crate::iter::BlockIter<&'_ Self>
             {
                 $crate::iter::BlockIter::new(self)
             }
 
             #[inline]
-            pub fn iter<'a>(&'a self) -> $crate::iter::IndexIter<&'a Self>
+            pub fn iter(&self) -> $crate::iter::IndexIter<&'_ Self>
             {
                 $crate::iter::IndexIter::new(self)
             }
 
             #[inline]
             pub fn contains(&self, index: usize) -> bool {
-                $crate::internals::contains(self, index)
+                $crate::impl_bitset::contains(self, index)
             }
 
             /// See [BitSetInterface::is_empty()]
@@ -173,7 +173,25 @@ macro_rules! impl_bitset {
             /// [BitSetInterface::is_empty()]: crate::BitSetInterface::is_empty()
             #[inline]
             pub fn is_empty(&self) -> bool {
-                $crate::internals::is_empty(self)
+                $crate::impl_bitset::is_empty(self)
+            }
+
+            #[inline]
+            pub fn union<Other>(&self, other: Other) ->
+                $crate::Apply<$crate::ops::Or, &Self, Other>
+            where
+                Other: $crate::BitSetInterface<Conf=<Self as BitSetBase>::Conf>
+            {
+                $crate::Apply::new($crate::ops::Or, self, other)
+            }
+
+            #[inline]
+            pub fn intersection<Other>(&self, other: Other) ->
+                $crate::Apply<$crate::ops::And, &Self, Other>
+            where
+                Other: $crate::BitSetInterface<Conf=<Self as BitSetBase>::Conf>
+            {
+                $crate::Apply::new($crate::ops::And, self, other)
             }
         }
 
@@ -196,7 +214,7 @@ macro_rules! impl_bitset {
         // Eq
         impl<$($generics),*,Rhs ,$(const $consts_name: $consts_ty),*> PartialEq<Rhs> for $t
         where
-            Rhs: $crate::internals::LevelMasksIterExt<Conf = <Self as $crate::BitSetBase>::Conf>,
+            Rhs: $crate::impl_bitset::LevelMasksIterExt<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*
         {
             /// Works faster with [TRUSTED_HIERARCHY].
@@ -204,7 +222,7 @@ macro_rules! impl_bitset {
             /// [TRUSTED_HIERARCHY]: crate::bitset_interface::BitSetBase::TRUSTED_HIERARCHY
             #[inline]
             fn eq(&self, other: &Rhs) -> bool {
-                $crate::internals::is_eq(self, other)
+                $crate::impl_bitset::is_eq(self, other)
             }
         }
 

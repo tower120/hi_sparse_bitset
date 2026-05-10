@@ -6,7 +6,7 @@ use crate::{
     BitBlock, BitSetBase,
     bit_utils::{get_bit_unchecked, zero_high_bits_unchecked},
     config::Config,
-    internals::{LevelMasks, LevelMasksIterExt, impl_bitset},
+    impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset},
     primitive::Primitive,
     primitive_array::PrimitiveArray,
     serialization::{lvl0_padding, lvl1_padding}

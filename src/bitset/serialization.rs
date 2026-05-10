@@ -6,7 +6,7 @@ use crate::{BitBlock, BitSet};
 use crate::bitset::{Level0Block, Level1Block, LevelDataBlock};
 use crate::bitset::block::Block;
 use crate::config::Config;
-use crate::internals::Primitive;
+use crate::impl_bitset::Primitive;
 use crate::iter::BlockIter;
 use crate::bitset::level::{IBlock, Level};
 use crate::primitive_array::PrimitiveArray;
