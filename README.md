@@ -15,9 +15,9 @@ And like hibitset, it also utilizes hierarchical bitmask acceleration structure 
 algorithmic complexity on operations between bitsets.
 
 <picture>
-  <source srcset="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-dark-50.png" media="(prefers-color-scheme: dark)">
-  <source srcset="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-50.png" media="(prefers-color-scheme: light)">
-  <img src="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/hisparsebitset-bg-white-50.png">
+  <source srcset="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/images/hisparsebitset-dark-50.png" media="(prefers-color-scheme: dark)">
+  <source srcset="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/images/hisparsebitset-50.png" media="(prefers-color-scheme: light)">
+  <img src="https://github.com/tower120/hi_sparse_bitset/raw/main/doc/images/hisparsebitset-bg-white-50.png">
 </picture>
 
 ## Usage
