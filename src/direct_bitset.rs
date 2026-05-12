@@ -9,7 +9,7 @@ use crate::{
     impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset},
     primitive::Primitive,
     primitive_array::PrimitiveArray,
-    serialization::{lvl0_padding, lvl1_padding}
+    bitset::serialization::{lvl0_padding, lvl1_padding},
 };
 
 type Lvl0Mask<Conf> = <Conf as Config>::Level0BitBlock;

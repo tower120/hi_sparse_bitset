@@ -1,12 +1,16 @@
 # Changelog
 
-## 0.8.1
+## 0.9.0
 Immutable bitset with linear data and fast construction.
 For intermediate data gathering and precomputed data storage.
 
 ### Optimization
 - All bitsets, including virtual, now have internal "size hint" for data blocks.
   We use it to reduce allocation count during materialization and in-place union.
+
+### Changed
+- Serialization format changed, to support zero-copy `DirectBitset` work.
+- TODO: DirectBitset changes
 
 ### Added
 - `ImmutableBitset`.

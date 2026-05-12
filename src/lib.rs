@@ -153,6 +153,8 @@
 //! [Deserialization](BitSet::deserialize) is the fastest way to fill BitSet,
 //! since serialized data store **contiguous** hierarchy bitblocks.
 //!
+//! Current and previous serialization formats see in `/doc/serialization_format/`.
+//!
 //! ## Serde
 //!
 //! Enable feature `serde` - for [serde] serialization support.
@@ -197,6 +199,7 @@ mod bitset_interface;
 mod apply;
 mod impl_bitset;
 mod data_block;
+mod serialization;
 
 mod bitset;
 pub use bitset::*;

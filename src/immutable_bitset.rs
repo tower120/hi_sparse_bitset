@@ -1,23 +1,25 @@
+mod serialization;
+
 use core::slice;
-use std::{mem::{ManuallyDrop, MaybeUninit}, ptr::NonNull};
-
-use crate::{BitBlock, BitSetBase, BitSetInterface, config::Config, impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset}, primitive::Primitive, primitive_array::PrimitiveArray};
-
-// TODO: put into one place (config?) and reuse.
-type Lvl0Mask<Conf> = <Conf as Config>::Level0BitBlock;
-type Lvl1Mask<Conf> = <Conf as Config>::Level1BitBlock;
-type DataMask<Conf> = <Conf as Config>::DataBitBlock;
-type Lvl0Index<Conf> = <<Conf as Config>::Level0BlockIndices as PrimitiveArray>::Item;
-type Lvl1Index<Conf> = <<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item;
-/// In bytes.
-const ROOT_MASK_MAX_SIZE: usize = 32;
+use std::{
+    mem::{ManuallyDrop, MaybeUninit},
+    ptr::NonNull
+};
+use crate::{
+    BitBlock,
+    BitSetBase,
+    BitSetInterface,
+    config::*,
+    impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset},
+    primitive::Primitive,
+};
 
 /// Bitset with serialized-like linear data structure.
 ///
 /// This is the fastest structure to materialize, deserialize and serialize.
 pub struct ImmutableBitset<Conf: Config>{
     lvl0_mask: Lvl0Mask<Conf>,
-    lvl0_u64_index_starts: [Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8],
+    lvl0_u64_index_starts: [Lvl0Index<Conf>; 8],
 
     lvl1_masks: Vec<Lvl1Mask<Conf>>,
     lvl1_u64_index_starts: Vec<Lvl1Index<Conf>>,
@@ -29,9 +31,9 @@ pub struct ImmutableBitset<Conf: Config>{
 pub struct ImmutableBitsetBlank<Conf: Config>(ImmutableBitset<Conf>);
 
 impl ImmutableBitsetBlank<Conf: Config>{
-    pub fn from(&mut self, BitSetInterface) -> ImmutableBitset;
-    pub fn deserialize(&mut self) -> ImmutableBitset;
- */
+    pub fn materialize(self, bitset: impl BitSetInterface) -> ImmutableBitset;
+    pub fn deserialize(self) -> ImmutableBitset;
+} */
 
 #[inline(always)]
 unsafe fn push_within_capacity<T>(v: &mut Vec<T>, item: T){
@@ -51,10 +53,10 @@ fn masks_as_u64<Mask: BitBlock>(slice: &[Mask]) -> &[u64]{
 
 #[inline]
 fn make_lvl0_u64_index_starts<Conf: Config>(lvl0_mask: &Lvl0Mask<Conf>)
-    -> ([Lvl0Index<Conf>; ROOT_MASK_MAX_SIZE/8], usize/*total risen bits count*/)
+    -> ([Lvl0Index<Conf>; 8], usize/*total risen bits count*/)
 {
     let mut bits_count = 0;
-    let mut lvl0_u64_index_starts = [Primitive::ZERO; ROOT_MASK_MAX_SIZE/8];
+    let mut lvl0_u64_index_starts = [Primitive::ZERO; 8];
     for (idx, sub_mask) in lvl0_mask.as_array().iter().enumerate(){
         unsafe{
             *lvl0_u64_index_starts.get_unchecked_mut(idx) =
@@ -122,6 +124,17 @@ fn lvl_get_item<LvlMask:BitBlock>(
 }
 
 impl<Conf: Config> ImmutableBitset<Conf>{
+    #[inline]
+    fn new() -> Self{
+        Self{
+            lvl0_mask: BitBlock::zero(),
+            lvl0_u64_index_starts: Default::default(),
+            lvl1_masks: Vec::new(),
+            lvl1_u64_index_starts: Vec::new(),
+            data: Vec::new()
+        }
+    }
+
     #[inline]
     fn lvl0_get_item(&self, index: usize) -> Option<usize> {
         lvl_get_item::<Lvl0Mask<Conf>>(
@@ -322,8 +335,7 @@ impl_bitset!(impl<Conf> for ref ImmutableBitset<Conf> where Conf: Config);
 #[cfg(test)]
 mod tests{
     use itertools::assert_equal;
-
-use crate::{BitSet, config};
+    use crate::{BitSet, config};
     use super::*;
 
     #[test]
