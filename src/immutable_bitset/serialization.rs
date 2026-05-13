@@ -37,7 +37,7 @@ impl<Conf: Config> ImmutableBitset<Conf>{
         Ok(())
     }
 
-    fn deserialize_impl(&mut self, r: &mut impl Read) -> std::io::Result<()> {
+    fn deserialize_impl(&mut self, r: &mut impl Read) -> Result<(), AccessError> {
         let mut r = Reader::new(r);
 
         // version|lvl1_len|data_len||
@@ -74,7 +74,7 @@ impl<Conf: Config> ImmutableBitset<Conf>{
         Ok(())
     }
 
-    pub fn deserialize(r: &mut impl Read) -> std::io::Result<Self> {
+    pub fn deserialize(r: &mut impl Read) -> Result<Self, AccessError> {
         let mut this = Self::new();
         this.deserialize_impl(r)?;
         Ok(this)
@@ -91,7 +91,7 @@ mod tests{
     #[test]
     fn serialization_test(){
         type Conf = config::_128bit<wide::u64x4>;
-        let bitset: BitSet<Conf> = [1,2,3,500, 12836, 123948].into();
+        let bitset: BitSet<Conf> = [1,2,3,4 /* 500, 12836, 123948 */].into();
 
         let im: ImmutableBitset<Conf> = (&bitset).into();
         assert_equal(&bitset,&im);
@@ -100,6 +100,9 @@ mod tests{
         im.serialize(&mut vec).unwrap();
 
         let im = ImmutableBitset::<Conf>::deserialize(&mut Cursor::new(&vec)).unwrap();
+        for i in bitset.iter(){
+            assert!(im.contains(i));
+        }
         assert_equal(&bitset,&im);
     }
 }

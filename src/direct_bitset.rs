@@ -462,8 +462,7 @@ impl_bitset!(
 #[cfg(test)]
 mod tests{
     use itertools::assert_equal;
-
-use super::*;
+    use super::*;
     use crate::BitSet;
 
     // Mmap not supported by miri.

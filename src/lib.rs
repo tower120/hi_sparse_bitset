@@ -199,10 +199,14 @@ mod bitset_interface;
 mod apply;
 mod impl_bitset;
 mod data_block;
+
 mod serialization;
+pub use serialization::*;
 
 mod bitset;
 pub use bitset::*;
+
+pub mod direct_bitset2;
 
 mod direct_bitset;
 pub use direct_bitset::*;

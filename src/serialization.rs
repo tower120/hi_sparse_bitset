@@ -8,36 +8,63 @@ use crate::{
     primitive::Primitive
 };
 
-pub const SERIALIZATION_FORMAT_VER: u16 = 2;
+/// Current serialization format version.
+pub const SERIALIZATION_FORMAT_VER: u16 = 3;
 
 const MAX_PADDING: usize = 64;
 
+#[derive(Debug)]
+pub enum AccessError{
+    /// (requested align)
+    Unaligned(usize),
+
+    /// (version found)
+    FormatMismatch(u16),
+
+    IOError(std::io::Error)
+}
+
+impl From<std::io::Error> for AccessError{
+    #[inline]
+    fn from(value: std::io::Error) -> Self {
+        Self::IOError(value)
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct Offsets<Conf>{
-    lvl1_bitcounts_offset: usize,
-    data_offset: usize,
+    pub lvl1_bitcounts_offset: usize,
+    pub data_offset: usize,
     phantom: PhantomData<Conf>
 }
 impl<Conf: Config> Offsets<Conf> {
-    const LVL0_MASKS_OFFSET: usize = {
+    pub const LVL0_MASK_OFFSET: usize = {
         let mut offset = 8;
         offset += get_padding_for::<Lvl0Mask<Conf>>(offset);
         offset
     };
 
-    const LVL0_BITCOUNTS_OFFSET: usize = {
-        let mut offset = Self::LVL0_MASKS_OFFSET;
+    pub const LVL0_BITCOUNTS_OFFSET: usize = {
+        let mut offset = Self::LVL0_MASK_OFFSET;
+        offset += size_of::<Lvl0Mask<Conf>>();
         offset += get_padding_for::<Lvl0Index<Conf>>(offset);
         offset
     };
 
-    const LVL1_MASKS_OFFSET: usize = {
+    pub const LVL1_MASKS_OFFSET: usize = {
         let mut offset = Self::LVL0_BITCOUNTS_OFFSET;
+        offset += size_of::<Lvl0Index<Conf>>() * 8;
         offset += get_padding_for::<Lvl1Mask<Conf>>(offset);
         offset
     };
 
     #[inline]
-    pub fn new(lvl1_len: usize) -> Self {
+    pub const fn len(&self, data_len: usize) -> usize{
+        self.data_offset + data_len * size_of::<DataMask<Conf>>()
+    }
+
+    #[inline]
+    pub const fn new(lvl1_len: usize) -> Self {
         let lvl1_bitcounts_offset = {
             let mut offset = Self::LVL1_MASKS_OFFSET;
             offset += lvl1_len * size_of::<Lvl1Mask<Conf>>();
@@ -46,7 +73,7 @@ impl<Conf: Config> Offsets<Conf> {
         };
         let data_offset = {
             let mut offset = lvl1_bitcounts_offset;
-            offset += lvl1_len * size_of::<Lvl1Index<Conf>>();
+            offset += lvl1_len * (size_of::<Lvl1Mask<Conf>>() / 8) * size_of::<Lvl1Index<Conf>>();
             offset += get_padding_for::<DataMask<Conf>>(offset);
             offset
         };
@@ -64,7 +91,17 @@ const fn get_padding_for<T>(pos: usize) -> usize {
         assert!(align_of::<T>() <= MAX_PADDING);
         assert!(align_of::<T>().is_power_of_two());
     }
-    pos % align_of::<T>()
+    // From https://en.wikipedia.org/wiki/Data_structure_alignment#Computing_padding
+    let padding = -(pos as isize) & (align_of::<T>() as isize - 1);
+    padding as usize
+}
+
+#[inline]
+pub(crate) fn check_version(version: u16) ->  Result<(), AccessError>{
+    if version != SERIALIZATION_FORMAT_VER{
+        return Err(AccessError::FormatMismatch(version));
+    }
+    Ok(())
 }
 
 pub(crate) struct Writer<W>{
@@ -160,18 +197,9 @@ impl<R: Read> Reader<R>{
     }
 
     #[inline]
-    pub fn read_version(&mut self) -> std::io::Result<u16> {
+    pub fn read_version(&mut self) -> Result<u16, AccessError> {
         let version: u16 = self.read_primitive()?;
-        if version != SERIALIZATION_FORMAT_VER{
-            use std::io::*;
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!(
-                    "Data version format mismatch. Expected {:}, read {:}.",
-                    SERIALIZATION_FORMAT_VER, version
-                ),
-            ));
-        }
+        check_version(version)?;
         Ok(version)
     }
 
@@ -272,5 +300,24 @@ impl<R: Read> Reader<R>{
         unsafe{ masks.set_len(masks.len() + len); }
         Ok(())
     }
+}
 
+#[cfg(test)]
+mod tests{
+    use crate::config;
+    use super::*;
+
+    #[test]
+    fn offsets_test(){
+        type Conf = config::_256bit;
+        type OF = Offsets::<Conf>;
+
+        println!("{:}", OF::LVL0_MASK_OFFSET);
+        println!("{:}", OF::LVL0_BITCOUNTS_OFFSET);
+        println!("{:}", OF::LVL1_MASKS_OFFSET);
+
+        let offsets = OF::new(16);
+        println!("{:}", offsets.lvl1_bitcounts_offset);
+        println!("{:}", offsets.data_offset);
+    }
 }

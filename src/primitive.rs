@@ -51,6 +51,8 @@ pub trait Primitive:
 
     fn from_le_bytes(bytes: Self::BytesArray) -> Self;
 
+    fn swap_bytes(self) -> Self;
+
     fn is_zero(self) -> bool;
 }
 
@@ -123,6 +125,11 @@ macro_rules! impl_primitive {
             #[inline]
             fn from_le_bytes(bytes: Self::BytesArray) -> Self{
                 Self::from_le_bytes(bytes)
+            }
+
+            #[inline]
+            fn swap_bytes(self) -> Self {
+                self.swap_bytes()
             }
 
             #[inline]

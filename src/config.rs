@@ -169,7 +169,7 @@ impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 #[derive(Default)]
 pub struct _256bit<
-    DataBitBlock: BitBlock = wide::u64x2,
+    DataBitBlock: BitBlock = wide::u64x4,
     DefaultCache: ReduceCache = self::DefaultCache
 >(PhantomData<(DataBitBlock, DefaultCache)>);
 
@@ -187,7 +187,7 @@ impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
     type DataBitBlock = DataBitBlock;
 
     const MAX_CAPACITY: usize = max_capacity::<Self>()
-                              - (1* 256 * block_bit_size::<DataBitBlock>());
+                              - (1 * 256 * block_bit_size::<DataBitBlock>());
     const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
 
     type DefaultCache = DefaultCache;
