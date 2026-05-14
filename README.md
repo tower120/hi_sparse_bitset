@@ -62,6 +62,11 @@ second level are always allocated.
 Hierarchy-wise memory overhead, for `config::_128bit`:
 minimal(initial) = 416 bytes, maximum = 35 Kb.
 
+### Linear data representation
+
+`ImmutableBitset` have virtually no memory overhead. Most hierarchy overhead
+consists from pure bitblocks.
+
 ## Performance
 
 It is faster than hashsets and pure bitsets for all inter-bitset operations

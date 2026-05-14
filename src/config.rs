@@ -82,9 +82,6 @@ pub(crate) type DataMask<Conf> = <Conf as Config>::DataBitBlock;
 pub(crate) type Lvl0Index<Conf> = <<Conf as Config>::Level0BlockIndices as PrimitiveArray>::Item;
 pub(crate) type Lvl1Index<Conf> = <<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item;
 
-/* /// In bytes.
-pub(crate) const ROOT_MASK_MAX_SIZE: usize = 32; */
-
 const fn usize_max(left: usize, right: usize) -> usize {
     if left < right{
         right
