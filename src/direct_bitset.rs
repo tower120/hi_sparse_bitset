@@ -394,11 +394,21 @@ mod tests{
     fn aligned_test(){
         use aligned_vec::{AVec, ConstAlign};
 
-        type Conf = crate::config::_256bit;
+        cfg_select! {
+            miri => {
+                type Conf = crate::config::_64bit;
+                const SIZE: usize = 10_000;
+            }
+            _ => {
+                type Conf = crate::config::_256bit;
+                const SIZE: usize = 1_000_000;
+            }
+        }
+
         const ALIGN: usize = <Conf as Config>::MAX_MASK_ALIGN;
         type AlignedVec = AVec<u8, ConstAlign<ALIGN>>;
 
-        let etalon: BitSet<Conf> = (0..1_000_000).into_iter().collect();
+        let etalon: BitSet<Conf> = (0..SIZE).into_iter().collect();
         let etalon: ImmutableBitset<Conf> = (&etalon).into();
 
         let mut vec = Vec::new();
