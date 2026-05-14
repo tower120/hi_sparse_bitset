@@ -67,15 +67,15 @@ minimal(initial) = 416 bytes, maximum = 35 Kb.
 `ImmutableBitset` have virtually no memory overhead. Most hierarchy overhead
 consists from pure bitblocks.
 
+## Zero-copy support
+
+See `DirectBitset`.
+
 ## Performance
 
 It is faster than hashsets and pure bitsets for all inter-bitset operations
 and all cases in orders of magnitude. It is even faster than
 hibitset. See benchmarks.
-
-## Zero-copy support
-
-See `DirectBitset`.
 
 ### Against `hibitset`
 
