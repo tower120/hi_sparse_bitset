@@ -120,6 +120,7 @@ pub(crate) struct Writer<W>{
     pos: usize
 }
 
+#[allow(dead_code)]
 impl<W: Write> Writer<W>{
     #[inline]
     pub fn new(write: W) -> Self{
@@ -209,7 +210,7 @@ impl<'a, W: Write, T: Copy> BufferedWriter<'a, W, T>{
         let slice = unsafe{
             slice::from_raw_parts(
                 self.buf.as_ptr().cast::<u8>(),
-                self.buf.len() * size_of::<T>()
+                self.buf_len * size_of::<T>()
             )
         };
         self.writer.write_buf(slice)?;
@@ -264,6 +265,7 @@ pub(crate) struct Reader<R>{
     pos: usize
 }
 
+#[allow(dead_code)]
 impl<R: Read> Reader<R>{
     #[inline]
     pub fn new(read: R) -> Self{
