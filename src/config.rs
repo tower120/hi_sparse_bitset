@@ -76,6 +76,12 @@ pub trait Config: 'static {
     type DefaultCache: ReduceCache;
 }
 
+pub(crate) type Lvl0Mask<Conf> = <Conf as Config>::Level0BitBlock;
+pub(crate) type Lvl1Mask<Conf> = <Conf as Config>::Level1BitBlock;
+pub(crate) type DataMask<Conf> = <Conf as Config>::DataBitBlock;
+pub(crate) type Lvl0Index<Conf> = <<Conf as Config>::Level0BlockIndices as PrimitiveArray>::Item;
+pub(crate) type Lvl1Index<Conf> = <<Conf as Config>::Level1BlockIndices as PrimitiveArray>::Item;
+
 const fn usize_max(left: usize, right: usize) -> usize {
     if left < right{
         right
@@ -160,7 +166,7 @@ impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
 #[cfg_attr(docsrs, doc(cfg(feature = "simd")))]
 #[derive(Default)]
 pub struct _256bit<
-    DataBitBlock: BitBlock = wide::u64x2,
+    DataBitBlock: BitBlock = wide::u64x4,
     DefaultCache: ReduceCache = self::DefaultCache
 >(PhantomData<(DataBitBlock, DefaultCache)>);
 
@@ -178,7 +184,7 @@ impl<DataBitBlock: BitBlock, DefaultCache: ReduceCache> Config for
     type DataBitBlock = DataBitBlock;
 
     const MAX_CAPACITY: usize = max_capacity::<Self>()
-                              - (1* 256 * block_bit_size::<DataBitBlock>());
+                              - (1 * 256 * block_bit_size::<DataBitBlock>());
     const MAX_MASK_ALIGN: usize  = max_mask_align::<Self>();
 
     type DefaultCache = DefaultCache;

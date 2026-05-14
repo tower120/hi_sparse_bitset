@@ -3,9 +3,9 @@ use std::fmt::Formatter;
 use std::io::Cursor;
 use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
-use crate::{BitBlock, BitSet};
-use crate::bitset::level::IBlock;
+use crate::BitSet;
 use crate::config::Config;
+use crate::serialization::Offsets;
 
 impl<Conf: Config> Serialize for BitSet<Conf>{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -19,19 +19,17 @@ impl<Conf: Config> Serialize for BitSet<Conf>{
         let mut on_stack: ArrayVec<u8, STACK_BUFFER_LEN>;
         let mut on_heap : Vec<u8>;
 
-        // real_len <= approx_len
-        let approx_len =
-            Conf::DataBitBlock::size()                                               // root block
-            + (1 + self.level0.mask().count_ones()) * Conf::Level1BitBlock::size()   // lvl1 blocks
-            + (1 + self.data.blocks().len())        * Conf::DataBitBlock::size();    // approx data blocks
+        let serialized_len = Offsets::<Conf>
+            ::new(self.level1.len()-1)
+            .len(self.data.len()-1);
 
         // There should be no errors at all.
-        let array = if approx_len <= STACK_BUFFER_LEN {
+        let array = if serialized_len <= STACK_BUFFER_LEN {
             on_stack = ArrayVec::new();
             unsafe{ self.serialize(&mut on_stack).unwrap_unchecked(); }
             on_stack.as_slice()
         } else {
-            on_heap = Vec::with_capacity(approx_len);
+            on_heap = Vec::with_capacity(serialized_len);
             unsafe{ self.serialize(&mut on_heap).unwrap_unchecked(); }
             on_heap.as_slice()
         };

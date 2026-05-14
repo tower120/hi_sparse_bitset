@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::ops::*;
 
+use crate::primitive_array::PrimitiveArray;
+
 // num_traits was just **TOO** hard to use with primitives...
 // Cast from/to concrete primitive was a final nail into num_trait's coffin.
 pub trait Primitive:
@@ -42,6 +44,16 @@ pub trait Primitive:
     fn trailing_zeros(self) -> u32;
     fn wrapping_neg(self) -> Self;
     fn wrapping_add(self, rhs: Self) -> Self;
+
+    type BytesArray: PrimitiveArray<Item=u8>;
+    fn to_ne_bytes(self) -> Self::BytesArray;
+    fn to_le_bytes(self) -> Self::BytesArray;
+
+    fn from_le_bytes(bytes: Self::BytesArray) -> Self;
+
+    fn to_le(self) -> Self;
+
+    fn swap_bytes(self) -> Self;
 
     fn is_zero(self) -> bool;
 }
@@ -98,6 +110,33 @@ macro_rules! impl_primitive {
             #[inline]
             fn wrapping_add(self, rhs: Self) -> Self {
                 self.wrapping_add(rhs)
+            }
+
+            type BytesArray = [u8; {(Self::BITS/8) as usize}];
+
+            #[inline]
+            fn to_ne_bytes(self) -> Self::BytesArray{
+                self.to_ne_bytes()
+            }
+
+            #[inline]
+            fn to_le_bytes(self) -> Self::BytesArray{
+                self.to_le_bytes()
+            }
+
+            #[inline]
+            fn from_le_bytes(bytes: Self::BytesArray) -> Self{
+                Self::from_le_bytes(bytes)
+            }
+
+            #[inline]
+            fn to_le(self) -> Self{
+                self.to_le()
+            }
+
+            #[inline]
+            fn swap_bytes(self) -> Self {
+                self.swap_bytes()
             }
 
             #[inline]
