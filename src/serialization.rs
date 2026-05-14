@@ -1,6 +1,11 @@
 //! All read and writes in LE.
 
-use std::{cmp, io::{Read, Write}, marker::PhantomData, primitive, slice};
+use std::{
+    fmt, slice,
+    io::{Read, Write},
+    marker::PhantomData,
+    mem::{self, MaybeUninit},
+};
 
 use crate::{
     BitBlock,
@@ -28,6 +33,12 @@ impl From<std::io::Error> for AccessError{
     #[inline]
     fn from(value: std::io::Error) -> Self {
         Self::IOError(value)
+    }
+}
+
+impl fmt::Display for AccessError{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -148,6 +159,11 @@ impl<W: Write> Writer<W>{
     }
 
     #[inline]
+    pub fn write_mask<T: BitBlock>(&mut self, mask: &T) -> std::io::Result<()> {
+        self.write_masks(std::array::from_ref(mask))
+    }
+
+    #[inline]
     pub fn write_masks<T: BitBlock>(&mut self, buf: &[T]) -> std::io::Result<()> {
         #[cfg(target_endian = "little")]
         {
@@ -169,6 +185,77 @@ impl<W: Write> Writer<W>{
         self.write.write_all(&BUFFER[..padding])?;
         self.pos += padding;
         Ok(())
+    }
+}
+
+pub(crate) struct BufferedWriter<'a, W: Write, T: Copy>{
+    writer: &'a mut Writer<W>,
+    buf: [MaybeUninit<T>; 64],
+    buf_len: usize,
+}
+
+impl<'a, W: Write, T: Copy> BufferedWriter<'a, W, T>{
+    #[inline]
+    pub fn new(writer: &'a mut Writer<W>) -> Self{
+        Self{
+            writer,
+            buf: unsafe{MaybeUninit::uninit().assume_init()},
+            buf_len: 0,
+        }
+    }
+
+    #[inline]
+    fn flush(&mut self) -> std::io::Result<()> {
+        let slice = unsafe{
+            slice::from_raw_parts(
+                self.buf.as_ptr().cast::<u8>(),
+                self.buf.len() * size_of::<T>()
+            )
+        };
+        self.writer.write_buf(slice)?;
+        self.buf_len = 0;
+        Ok(())
+    }
+
+    #[inline]
+    fn write_impl(&mut self, item: T) -> std::io::Result<()> {
+        if self.buf_len == self.buf.len(){
+            self.flush()?;
+        }
+        let element = unsafe{
+            self.buf.get_unchecked_mut(self.buf_len)
+        };
+        element.write(item);
+        self.buf_len += 1;
+        Ok(())
+    }
+
+    #[inline]
+    pub fn write_primitive(&mut self, item: T) -> std::io::Result<()>
+    where
+        T: Primitive
+    {
+        self.write_impl(item.to_le())
+    }
+
+    #[inline]
+    pub fn write_mask(&mut self, item: T) -> std::io::Result<()>
+    where
+        T: BitBlock
+    {
+        self.write_impl(item.to_le())
+    }
+
+    #[inline]
+    pub fn close(mut self) -> std::io::Result<()> {
+        self.flush()
+    }
+}
+
+impl<'a, W: Write, T: Copy> Drop for BufferedWriter<'a, W, T>{
+    #[inline]
+    fn drop(&mut self) {
+        assert_eq!(self.buf_len, 0, "close() not called before destruction!");
     }
 }
 
@@ -269,6 +356,68 @@ impl<R: Read> Reader<R>{
         self.read_primitives(slice)?;
         unsafe{ primitives.set_len(primitives.len() + len); }
         Ok(())
+    }
+
+    #[inline]
+    fn foreach_read_item<T, F>(&mut self, len: usize, mut f: F)
+        -> std::io::Result<()>
+    where
+        F: FnMut(&T)
+    {
+        const BUFFER_SIZE: usize = 64;
+        let mut buf: [MaybeUninit<T>; BUFFER_SIZE] = unsafe{MaybeUninit::uninit().assume_init()};
+
+        #[inline]
+        fn chunked<E, F>(len: usize, chunk_size: usize, mut f: F)
+            -> F::Output
+        where
+            F: FnMut(usize) -> Result<(), E>
+        {
+            for _ in 0..len/chunk_size {
+                f(chunk_size)?;
+            }
+            let rem = len % chunk_size;
+            if rem != 0{
+                f(rem)?;
+            }
+            Ok(())
+        }
+
+        chunked(len, BUFFER_SIZE, |size: usize| -> std::io::Result<()> {
+            let slice: &mut [T] = unsafe{ slice::from_raw_parts_mut(
+                buf.as_mut_ptr().cast(),
+                size
+            ) };
+
+            self.read_buf_le(slice)?;
+
+            // mem::transmute for array_assume_init
+            let slice: &[T] = unsafe{mem::transmute(buf.get_unchecked(..size))};
+            for item in slice{
+                f(item);
+            }
+            Ok(())
+        })
+    }
+
+    #[inline]
+    pub fn foreach_read_mask<T, F>(&mut self, len: usize, mut f: F)
+        -> std::io::Result<()>
+    where
+        F: FnMut(&T)
+    {
+        self.foreach_read_item(len, |item: &T|{
+            #[cfg(target_endian = "little")]
+            f(item);
+
+            #[cfg(target_endian = "big")]
+            unimplemented!();
+        })
+    }
+
+    #[inline]
+    pub fn skip_n<T>(&mut self, n: usize) -> std::io::Result<()> {
+        self.foreach_read_item(n, |_: &T|{})
     }
 
 

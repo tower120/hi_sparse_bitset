@@ -1,13 +1,50 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ptr::{NonNull, copy_nonoverlapping};
+use std::ops::Deref;
+use std::ptr::NonNull;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::bit_utils::{get_bit_unchecked, zero_high_bits_unchecked};
 use crate::impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset};
 use crate::primitive::Primitive;
-use crate::{BitBlock, BitSetBase, DirectDataSource};
+use crate::{BitBlock, BitSetBase};
 use crate::config::*;
 use crate::serialization::*;
+
+/// Data source for [DirectBitset].
+pub trait DirectDataSource{
+    /// This must be no-op or VERY cheap operation.
+    fn data_src(&self) -> &[u8];
+}
+
+impl<T: AsRef<[u8]>> DirectDataSource for Arc<T>{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self.deref().as_ref()
+    }
+}
+
+impl<T: AsRef<[u8]>> DirectDataSource for Rc<T>{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self.deref().as_ref()
+    }
+}
+
+impl DirectDataSource for &[u8]{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self
+    }
+}
+
+impl DirectDataSource for Vec<u8>{
+    #[inline]
+    fn data_src(&self) -> &[u8] {
+        self
+    }
+}
 
 #[derive(Clone)]
 pub struct DirectBitset<Conf: Config, Data, const ALIGNED: bool = false>{

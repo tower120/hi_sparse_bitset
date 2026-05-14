@@ -52,7 +52,7 @@ fn masks_as_u64<Mask: BitBlock>(slice: &[Mask]) -> &[u64]{
 }
 
 #[inline]
-fn make_lvl0_u64_index_starts<Conf: Config>(lvl0_mask: &Lvl0Mask<Conf>)
+pub(crate) fn make_lvl0_u64_index_starts<Conf: Config>(lvl0_mask: &Lvl0Mask<Conf>)
     -> ([Lvl0Index<Conf>; 8], usize/*total risen bits count*/)
 {
     let mut bits_count = 0;

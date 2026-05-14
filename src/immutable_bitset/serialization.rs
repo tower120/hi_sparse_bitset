@@ -16,7 +16,7 @@ impl<Conf: Config> ImmutableBitset<Conf>{
         w.write_padding_for::<Lvl0Mask<Conf>>()?;
 
         // lvl0_mask
-        w.write_buf(self.lvl0_mask.to_le_bytes().as_ref())?;
+        w.write_mask(&self.lvl0_mask)?;
         w.write_padding_for::<Lvl0Index<Conf>>()?;
 
         // [lvl0_bitcount]

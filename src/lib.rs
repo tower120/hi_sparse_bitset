@@ -206,10 +206,10 @@ pub use serialization::*;
 mod bitset;
 pub use bitset::*;
 
-pub mod direct_bitset2;
+// pub mod direct_bitset2;
 
-mod direct_bitset;
-pub use direct_bitset::*;
+mod direct_bitset2;
+pub use direct_bitset2::*;
 
 mod immutable_bitset;
 pub use immutable_bitset::*;
