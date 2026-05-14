@@ -1,5 +1,3 @@
-//! All read and writes in LE.
-
 use std::{
     fmt, slice,
     io::{Read, Write},

@@ -90,8 +90,8 @@
 //!
 //! # Laziness and materialization
 //!
-//! Use `BitSet::from(impl BitSetInterface)` instead of collecting iterator for
-//! faster materialization into BitSet.
+//! You can collect any [`BitSetInterface`] into container with `From::from(impl BitSetInterface)`.
+//! It is faster then collecting iterator.
 //!
 //! # Eager inter-bitset operations
 //!
@@ -135,7 +135,7 @@
 //!
 //! You can check if bitset has TrustedHierarchy with [BitSetBase::TRUSTED_HIERARCHY].
 //!
-//! Bitsets with TrustedHierarchy are faster to compare with [Eq] and
+//! Bitsets with TrustedHierarchy are faster to materialize, compare with [Eq] and
 //! have O(1) [is_empty()].
 //!
 //! [difference]: ops::Sub
@@ -146,6 +146,14 @@
 //!
 //! You can iterate [DataBlock]s instead of individual indices. DataBlocks can be moved, cloned
 //! and iterated for indices.
+//!
+//! # Immutable bitset
+//!
+//! [`ImmutableBitset`] is "linearized" version of [`BitSet`] - with almost no
+//! "meta" memory overhead. If you don't need to change your data - prefer it.
+//! Also, consider using it when you need to materialize - as intermediate or final step
+//! in computation series - since it is often algorithmically faster to build
+//! a new bitset, then to mutate existent (intersection as example).
 //!
 //! # Serialization
 //!
@@ -165,7 +173,6 @@
 //!
 //! [DirectBitset] works with any byte source that can provide serialized data.
 //! You can use this with serialized data in memory-mapped file.
-//! "Almost" zero-copy.
 //!
 //! # CPU extensions
 //!
@@ -173,7 +180,7 @@
 //! Make sure you compile with hardware support of these
 //! (on x86: `target-feature=+popcnt,+bmi1`).
 //!
-//! [DirectBitset] can utilize `bzhi` instructions, when available
+//! [DirectBitset] and [ImmutableBitset] can utilize `bzhi` instructions, when available
 //! (on x86: `target-feature=+bmi2`).
 //!
 //! ## SIMD

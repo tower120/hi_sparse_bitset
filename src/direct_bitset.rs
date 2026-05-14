@@ -46,6 +46,75 @@ impl DirectDataSource for Vec<u8>{
     }
 }
 
+/// Bitset that work directly with any source of [`serialized data`].
+///
+/// Zero-copy. Instant construction.
+///
+/// [`serialized data`]: crate#serialization
+///
+/// # Aligning
+///
+/// `DirectBitset` can benefit from aligned data performance-wise.
+/// Serialized data already perfectly aligned. You need only to provide
+/// correct "base" and set generic argument `ALIGNED` to true.
+///
+/// Base address must be aligned to [`Conf::MAX_MASK_ALIGN`]. You can achieve this
+/// by using something like `aligned_vec` crate. Memory-mapped file almost for
+/// sure will have greater base align - so it should work as-is.
+///
+/// N.B. On most desktop platforms unaligned reads have negligible
+/// performance overhead.
+///
+/// [`Conf::MAX_MASK_ALIGN`]: crate::config::Config::MAX_MASK_ALIGN
+///
+/// # Example
+///
+/// With memory-mapped file:
+/// ```
+/// # use std::sync::Arc;
+/// # use hi_sparse_bitset::{config, BitSet, DirectBitset};
+/// use memmap2::Mmap;
+///
+/// // We can use `ALIGN=true` here since we know that Mmap already aligned.
+/// type MmapBitset<Conf> = DirectBitset<Conf, Arc<Mmap>, true>;
+/// type Conf = config::_64bit;
+///
+/// // Make serialized data in tempfile.
+/// let mut file = tempfile::tempfile().unwrap();
+/// BitSet::<Conf>::from(
+///     [1,2,3,4,66,100,16089]
+/// ).serialize(&mut file).unwrap();
+///
+/// // Mmap file.
+/// let mmap = unsafe { Mmap::map(&file).unwrap()  };
+///
+/// // Feed mmaped file to DirectBitset.
+/// let bitset: MmapBitset<Conf> = MmapBitset::new(Arc::new(mmap), 0).unwrap();
+/// ```
+///
+/// With aligning:
+///
+///```
+/// # use hi_sparse_bitset::{config, config::Config, BitSet, DirectBitset};
+/// use aligned_vec::{AVec, ConstAlign};
+///
+/// type Conf = config::_64bit;
+/// const ALIGN: usize = <Conf as Config>::MAX_MASK_ALIGN;
+/// type AlignedVec = AVec<u8, ConstAlign<ALIGN>>;
+///
+/// // Serialize to Vec.
+/// let mut vec = Vec::new();
+/// BitSet::<Conf>::from(
+///     [1,2,3,4,66,100,16089]
+/// ).serialize(&mut vec).unwrap();
+///
+/// // We need to make sure, that byte array have aligned base.
+/// // We use AVec for this. Since AVec doesn't implement Write yet,
+/// // we just copy byte array in it.
+/// let avec = AlignedVec::from_slice(ALIGN, &vec);
+///
+/// let im = DirectBitset::<Conf, &[u8], true>::new(&avec, 0).unwrap();
+/// ```
 #[derive(Clone)]
 pub struct DirectBitset<Conf: Config, Data, const ALIGNED: bool = false>{
     data_src: Data,

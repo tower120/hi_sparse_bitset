@@ -16,7 +16,32 @@ use crate::{
 
 /// Bitset with serialized-like linear data structure.
 ///
-/// This is the fastest structure to materialize, deserialize and serialize.
+/// This is the fastest structure to materialize, deserialize and serialize - with
+/// minimal memory overhead.
+///
+/// # Memory structure
+///
+/// Each hierarchy level have the following structure:
+/// ```text
+///
+/// masks:      |      128bit     |      128bit     |
+///             |01000100000100000|00110001000111010|    ...
+/// sub-masks:  | 64 bit | 64 bit | 64 bit | 64 bit |
+///
+/// bitcounts:  0        2        3        6        10   ...
+/// ```
+///
+/// We interpret each SIMD mask as N u64 sub-masks.
+/// For each sub-mask we store total count of all bits before it.
+///
+/// Since we store each level masks contiguously, index of mask/block at the next level
+/// is equal to total bitcount before requested index in the current level.
+/// So to get index at the next level we basically just take sub-mask - calculate bitcount
+/// from the left of requested bit index inside sub-mask, and add it to correspondent
+/// `bitcounts` item.
+///
+/// We operate on sub-mask level - since there is no hardware support needed
+/// for bit manipulation at a SIMD level.
 pub struct ImmutableBitset<Conf: Config>{
     lvl0_mask: Lvl0Mask<Conf>,
     lvl0_u64_index_starts: [Lvl0Index<Conf>; 8],
