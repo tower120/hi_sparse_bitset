@@ -1,7 +1,8 @@
-use std::marker::PhantomData;
-use std::{mem, ptr};
-use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::NonNull;
+use alloc::{vec::Vec, boxed::Box};
+use core::marker::PhantomData;
+use core::{mem, ptr};
+use core::mem::{ManuallyDrop, MaybeUninit};
+use core::ptr::NonNull;
 use crate::{assume, BitSetInterface};
 use crate::impl_bitset::impl_bitset;
 use crate::ops::{BitSetOp, SizeHint};
@@ -294,7 +295,7 @@ impl <T, const N: usize> Drop for RawArray<T, N>{
     fn drop(&mut self) {
         if mem::needs_drop::<T>(){
             unsafe{
-                let slice = std::slice::from_raw_parts_mut(self.mem.as_mut_ptr(), self.len);
+                let slice = core::slice::from_raw_parts_mut(self.mem.as_mut_ptr(), self.len);
                 ptr::drop_in_place(slice);
             }
         }
@@ -367,7 +368,7 @@ where
     unsafe fn data_mask_from_block_data(
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
-        let slice = std::slice::from_raw_parts(
+        let slice = core::slice::from_raw_parts(
             level1_blocks.mem.as_ptr() as *const <Self::Set as LevelMasksIterExt>::Level1BlockData,
             level1_blocks.len
         );
@@ -420,7 +421,7 @@ where
             // cast UniqueArrayPtr<MaybeUninit<_>> -> UniqueArrayPtr<ManuallyDrop<_>>
             let storage_ptr = storage.as_mut_ptr() as *mut _;
             Box::from_raw(
-                std::slice::from_raw_parts_mut(storage_ptr, len)
+                core::slice::from_raw_parts_mut(storage_ptr, len)
             )
         };
 
@@ -472,7 +473,7 @@ where
     unsafe fn data_mask_from_block_data(
         level1_blocks: &Self::Level1BlockData, level1_index: usize
     ) -> <Self::Conf as Config>::DataBitBlock {
-        let slice = std::slice::from_raw_parts(
+        let slice = core::slice::from_raw_parts(
             level1_blocks.0.unwrap_unchecked().as_ptr(),
             level1_blocks.1
         );
@@ -533,10 +534,10 @@ impl_bitset!(
 // Some methods not used by library.
 #[allow(dead_code)]
 mod unique_ptr{
-    use std::alloc::{dealloc, Layout};
-    use std::mem::MaybeUninit;
-    use std::ptr::{drop_in_place, NonNull, null_mut};
-    use std::{mem, slice};
+    use alloc::{alloc::{dealloc, Layout}, boxed::Box};
+    use core::mem::MaybeUninit;
+    use core::ptr::{drop_in_place, NonNull, null_mut};
+    use core::{mem, slice};
 
     #[inline]
     fn dangling(layout: Layout) -> NonNull<u8>{
@@ -557,7 +558,7 @@ mod unique_ptr{
                     if layout.size() == 0{
                         dangling(layout).as_ptr()
                     } else {
-                        let mem = std::alloc::alloc(layout);
+                        let mem = alloc::alloc::alloc(layout);
                         assert!(mem != null_mut(), "Memory allocation fault.");
                         mem
                     };

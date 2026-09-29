@@ -41,10 +41,10 @@ pub fn contains<S: LevelMasks>(bitset: S, index: usize) -> bool {
 /// Working only with refs will prevent T from being passed to apply/reduce
 /// as value, and will allow to store `&self` pointer safely inside [Level1BlockData].
 ///
-/// [BitAnd]: std::ops::BitAnd
-/// [BitOr]: std::ops::BitOr
-/// [BitXor]: std::ops::BitXor
-/// [Sub]: std::ops::Sub
+/// [BitAnd]: core::ops::BitAnd
+/// [BitOr]: core::ops::BitOr
+/// [BitXor]: core::ops::BitXor
+/// [Sub]: core::ops::Sub
 /// [BitSetInterface]: crate::BitSetInterface
 /// [BitSet]: crate::BitSet
 /// [Level1BlockData]: LevelMasksIterExt::Level1BlockData
@@ -72,7 +72,7 @@ macro_rules! impl_bitset {
             }
         }
 
-        impl<$($generics),*, Rhs> std::ops::BitAnd<Rhs> for $t
+        impl<$($generics),*, Rhs> core::ops::BitAnd<Rhs> for $t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
             $($where_bounds)*
@@ -86,7 +86,7 @@ macro_rules! impl_bitset {
             }
         }
 
-        impl<$($generics),*, Rhs> std::ops::BitOr<Rhs> for $t
+        impl<$($generics),*, Rhs> core::ops::BitOr<Rhs> for $t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
             $($where_bounds)*
@@ -100,7 +100,7 @@ macro_rules! impl_bitset {
             }
         }
 
-        impl<$($generics),*, Rhs> std::ops::BitXor<Rhs> for $t
+        impl<$($generics),*, Rhs> core::ops::BitXor<Rhs> for $t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
             $($where_bounds)*
@@ -114,7 +114,7 @@ macro_rules! impl_bitset {
             }
         }
 
-        impl<$($generics),*, Rhs> std::ops::Sub<Rhs> for $t
+        impl<$($generics),*, Rhs> core::ops::Sub<Rhs> for $t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as BitSetBase>::Conf>,
             $($where_bounds)*
@@ -234,11 +234,11 @@ macro_rules! impl_bitset {
 
         // --------------------------------
         // Debug
-        impl<$($generics),* ,$(const $consts_name: $consts_ty),*> std::fmt::Debug for $t
+        impl<$($generics),* ,$(const $consts_name: $consts_ty),*> core::fmt::Debug for $t
         where
             $($where_bounds)*
         {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 f.debug_list().entries(self.iter()).finish()
             }
         }
@@ -246,7 +246,7 @@ macro_rules! impl_bitset {
 
         // ---------------------------------
         // And
-        impl<$($generics),* ,Rhs ,$(const $consts_name: $consts_ty),*> std::ops::BitAnd<Rhs> for &$t
+        impl<$($generics),* ,Rhs ,$(const $consts_name: $consts_ty),*> core::ops::BitAnd<Rhs> for &$t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*
@@ -262,7 +262,7 @@ macro_rules! impl_bitset {
 
         // ---------------------------------
         // Or
-        impl<$($generics),* ,Rhs ,$(const $consts_name: $consts_ty),*> std::ops::BitOr<Rhs> for &$t
+        impl<$($generics),* ,Rhs ,$(const $consts_name: $consts_ty),*> core::ops::BitOr<Rhs> for &$t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*
@@ -278,7 +278,7 @@ macro_rules! impl_bitset {
 
         // ---------------------------------
         // Xor
-        impl<$($generics),* ,Rhs ,$(const $consts_name: $consts_ty),*> std::ops::BitXor<Rhs> for &$t
+        impl<$($generics),* ,Rhs ,$(const $consts_name: $consts_ty),*> core::ops::BitXor<Rhs> for &$t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*
@@ -294,7 +294,7 @@ macro_rules! impl_bitset {
 
         // ---------------------------------
         // Sub
-        impl<$($generics),* ,Rhs  ,$(const $consts_name: $consts_ty),*> std::ops::Sub<Rhs> for &$t
+        impl<$($generics),* ,Rhs  ,$(const $consts_name: $consts_ty),*> core::ops::Sub<Rhs> for &$t
         where
             Rhs: $crate::BitSetInterface<Conf = <Self as $crate::BitSetBase>::Conf>,
             $($where_bounds)*

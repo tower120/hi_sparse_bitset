@@ -19,7 +19,7 @@
 //! [BitSet]: crate::BitSet
 //! [`reduce cache`]: crate::cache
 
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 use crate::bit_block::BitBlock;
 use crate::cache;
 use crate::cache::ReduceCache;

@@ -87,7 +87,7 @@ impl<'de, Conf: Config> Deserialize<'de> for BitSet<Conf>{
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use std::io::Seek;
     use itertools::assert_equal;

@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
-use std::mem;
-use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::ControlFlow;
+use core::marker::PhantomData;
+use core::mem;
+use core::mem::{ManuallyDrop, MaybeUninit};
+use core::ops::ControlFlow;
 
 use crate::bit_block::BitBlock;
 use crate::bit_queue::BitQueue;
@@ -46,7 +46,7 @@ use crate::iter::{BlockCursor, IndexCursor};
 /// [reduce]: crate::reduce()
 /// [binary_op]: crate::ops
 /// [traverse]: Self::traverse
-/// [for_each]: std::iter::Iterator::for_each
+/// [for_each]: core::iter::Iterator::for_each
 pub struct BlockIter<T>
 where
     T: LevelMasksIterExt,
@@ -82,7 +82,7 @@ where
         if !have_state {
             // bitwise-copy level1_block_data if have no IterState state.
 
-            this.level1_block_data = unsafe{ std::ptr::read(&self.level1_block_data) };
+            this.level1_block_data = unsafe{ core::ptr::read(&self.level1_block_data) };
         } else {
             // update level1_block_data otherwise.
             // (because level1_block_data may depends on state)
@@ -216,7 +216,7 @@ where
 
     /// Stable [try_for_each] version.
     ///
-    /// [try_for_each]: std::iter::Iterator::try_for_each
+    /// [try_for_each]: core::iter::Iterator::try_for_each
     #[inline]
     pub fn traverse<F, B>(mut self, mut f: F) -> ControlFlow<B>
     where
@@ -232,7 +232,7 @@ where
         if self.level0_index != usize::MAX{
             let level0_index = self.level0_index;
 
-            let level1_iter = unsafe{ std::ptr::read(&self.level1_iter) };
+            let level1_iter = unsafe{ core::ptr::read(&self.level1_iter) };
             let ctrl = level1_iter.traverse(
                 |level1_index| level1_mask_traverse_fn::<T, _, _>(
                     level0_index, level1_index, &self.level1_block_data, |b| f(b)
@@ -243,7 +243,7 @@ where
             }
         }
 
-        let level0_iter = unsafe{ std::ptr::read(&self.level0_iter) };
+        let level0_iter = unsafe{ core::ptr::read(&self.level0_iter) };
         level0_iter.traverse(
             |level0_index| level0_mask_traverse_fn(
                 &self.virtual_set,
@@ -342,7 +342,7 @@ where
 ///
 /// [BitSetInterface]: crate::BitSetInterface
 /// [traverse]: Self::traverse
-/// [for_each]: std::iter::Iterator::for_each
+/// [for_each]: core::iter::Iterator::for_each
 pub struct IndexIter<T>
 where
     T: LevelMasksIterExt,
@@ -441,7 +441,7 @@ where
     /// Return `Break<B>` if `f` returns `Break`.
     /// `Continue<()>` - otherwise.
     ///
-    /// [try_for_each]: std::iter::Iterator::try_for_each
+    /// [try_for_each]: core::iter::Iterator::try_for_each
     #[inline]
     pub fn traverse<F, B>(mut self, mut f: F) -> ControlFlow<B>
     where
@@ -459,7 +459,7 @@ where
             }
 
             // 2. traverse rest of the level1 block
-            let level1_iter = unsafe{ std::ptr::read(&self.block_iter.level1_iter) };
+            let level1_iter = unsafe{ core::ptr::read(&self.block_iter.level1_iter) };
             let ctrl = level1_iter.traverse(
                 |level1_index| level1_mask_traverse_fn::<T, _, _>(
                     level0_index, level1_index, &self.block_iter.level1_block_data,
@@ -471,7 +471,7 @@ where
             }
         }
 
-        let level0_iter = unsafe{ std::ptr::read(&self.block_iter.level0_iter) };
+        let level0_iter = unsafe{ core::ptr::read(&self.block_iter.level0_iter) };
         level0_iter.traverse(
             |level0_index| level0_mask_traverse_fn(
                 &self.block_iter.virtual_set,

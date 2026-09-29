@@ -1,7 +1,9 @@
+use alloc::{vec::Vec};
+#[cfg(feature = "std")]
 mod serialization;
 
 use core::slice;
-use std::{
+use core::{
     mem::{ManuallyDrop, MaybeUninit},
     ptr::NonNull
 };
@@ -150,6 +152,7 @@ fn lvl_get_item<LvlMask:BitBlock>(
 
 impl<Conf: Config> ImmutableBitset<Conf>{
     #[inline]
+    #[cfg(feature = "std")]
     fn new() -> Self{
         Self{
             lvl0_mask: BitBlock::zero(),
@@ -312,7 +315,7 @@ impl<Conf: Config> LevelMasks for ImmutableBitset<Conf>{
 impl<Conf: Config> LevelMasksIterExt for ImmutableBitset<Conf>{
     type IterState = ();
     fn make_iter_state(&self) -> Self::IterState {()}
-    unsafe fn drop_iter_state(&self, _: &mut std::mem::ManuallyDrop<Self::IterState>) {}
+    unsafe fn drop_iter_state(&self, _: &mut core::mem::ManuallyDrop<Self::IterState>) {}
 
     type Level1BlockData = (Option<NonNull<Self>>, usize/*lvl1_block_index*/);
 
@@ -357,7 +360,7 @@ impl<Conf: Config> LevelMasksIterExt for ImmutableBitset<Conf>{
 
 impl_bitset!(impl<Conf> for ref ImmutableBitset<Conf> where Conf: Config);
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests{
     use itertools::assert_equal;
     use crate::{BitSet, config};

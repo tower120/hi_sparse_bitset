@@ -1,5 +1,5 @@
-use std::mem::size_of;
-use std::ops::ControlFlow;
+use core::mem::size_of;
+use core::ops::ControlFlow;
 use crate::Primitive;
 
 /// Block ordering undefined. But same as [get_array_bit].
@@ -86,14 +86,14 @@ pub unsafe fn get_bit_unchecked<T: Primitive>(block: T, bit_index: usize) -> boo
 pub unsafe fn zero_high_bits_unchecked<T: Primitive>(block: T, bit_index: usize) -> T {
 cfg_select! {
     target_feature = "bmi2" => {
-        use std::any::TypeId;
+        use core::any::TypeId;
         if TypeId::of::<T>() == TypeId::of::<u64>(){
             return Primitive::from_u64(
-                std::arch::x86_64::_bzhi_u64(block.as_u64(), bit_index as u32)
+                core::arch::x86_64::_bzhi_u64(block.as_u64(), bit_index as u32)
             );
         } else if TypeId::of::<T>() == TypeId::of::<u32>(){
             return Primitive::from_u32(
-                std::arch::x86_64::_bzhi_u32(block.as_u32(), bit_index as u32)
+                core::arch::x86_64::_bzhi_u32(block.as_u32(), bit_index as u32)
             );
         } else {
             todo!();

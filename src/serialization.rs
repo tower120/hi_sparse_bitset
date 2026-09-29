@@ -1,15 +1,10 @@
-use std::{
-    fmt, slice,
-    io::{Read, Write},
-    marker::PhantomData,
-    mem::{self, MaybeUninit},
-};
+use core::{fmt, marker::PhantomData};
+#[cfg(feature = "std")]
+use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
 
-use crate::{
-    BitBlock,
-    config::*,
-    primitive::Primitive
-};
+use crate::config::*;
+#[cfg(feature = "std")]
+use crate::{BitBlock, primitive::Primitive};
 
 /// Current serialization format version.
 pub const SERIALIZATION_FORMAT_VER: u16 = 3;
@@ -24,9 +19,14 @@ pub enum AccessError{
     /// (version found)
     FormatMismatch(u16),
 
+    /// The serialized byte slice is shorter than its declared data.
+    UnexpectedEof,
+
+    #[cfg(feature = "std")]
     IOError(std::io::Error)
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for AccessError{
     #[inline]
     fn from(value: std::io::Error) -> Self {
@@ -112,6 +112,10 @@ pub(crate) fn check_version(version: u16) ->  Result<(), AccessError>{
     }
     Ok(())
 }
+
+#[cfg(feature = "std")]
+mod io {
+use super::*;
 
 pub(crate) struct Writer<W>{
     write: W,
@@ -451,7 +455,11 @@ impl<R: Read> Reader<R>{
     }
 }
 
-#[cfg(test)]
+}
+#[cfg(feature = "std")]
+pub(crate) use io::*;
+
+#[cfg(all(test, feature = "std"))]
 mod tests{
     use crate::config;
     use super::*;

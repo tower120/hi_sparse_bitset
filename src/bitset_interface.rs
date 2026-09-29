@@ -1,5 +1,5 @@
-use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::ControlFlow;
+use core::mem::{ManuallyDrop, MaybeUninit};
+use core::ops::ControlFlow;
 use crate::ops::SizeHint;
 use crate::{Apply, apply, assume, level_indices, ops};
 use crate::bit_block::BitBlock;

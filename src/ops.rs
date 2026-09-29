@@ -11,7 +11,7 @@
 //! [apply]: crate::apply()
 //! [reduce]: crate::reduce()
 
-use std::ops::{BitAnd, BitOr, BitXor};
+use core::ops::{BitAnd, BitOr, BitXor};
 
 use crate::{bit_block::BitBlock, config::Config};
 

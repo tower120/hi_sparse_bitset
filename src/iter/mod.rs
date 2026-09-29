@@ -2,7 +2,7 @@
 
 //! Iteration always return ordered (or sorted) index sequences.
 
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use crate::level_indices;
 use crate::data_block::DataBlock;
@@ -57,7 +57,7 @@ impl<Conf: Config> BlockCursor<Conf>{
     /// Constructs cursor that points to the start of bitset.
     #[inline]
     pub fn start() -> Self{
-        unsafe{ std::mem::zeroed() }
+        unsafe{ core::mem::zeroed() }
     }
     
     /// Constructs cursor that points to the end of bitset.
@@ -78,7 +78,7 @@ impl<Conf: Config> BlockCursor<Conf>{
 impl<Conf: Config> Clone for BlockCursor<Conf>{
     #[inline]
     fn clone(&self) -> Self {
-        unsafe{ std::ptr::read(self) }
+        unsafe{ core::ptr::read(self) }
     }
 }
 impl<Conf: Config> Copy for BlockCursor<Conf>{}
@@ -89,7 +89,7 @@ impl<Conf: Config> From<usize> for BlockCursor<Conf>{
     fn from(mut index: usize) -> Self {
         // It is ok to use max_addressable_index instead of max_value,
         // because we point past the actual bitset data anyway.
-        index = std::cmp::min(index, Conf::MAX_CAPACITY);
+        index = core::cmp::min(index, Conf::MAX_CAPACITY);
 
         let (level0, level1, _) = level_indices::<Conf>(index);
         Self{
@@ -133,7 +133,7 @@ impl<Conf: Config> IndexCursor<Conf>{
     /// Constructs cursor that points to the start of the bitset.
     #[inline]
     pub fn start() -> Self{
-        unsafe{ std::mem::zeroed() }
+        unsafe{ core::mem::zeroed() }
     }
     
     /// Constructs cursor that points to the end of the bitset.
@@ -153,7 +153,7 @@ impl<Conf: Config> IndexCursor<Conf>{
 impl<Conf: Config> Clone for IndexCursor<Conf>{
     #[inline]
     fn clone(&self) -> Self {
-        unsafe{ std::ptr::read(self) }
+        unsafe{ core::ptr::read(self) }
     }
 }
 impl<Conf: Config> Copy for IndexCursor<Conf>{}
@@ -164,7 +164,7 @@ impl<Conf: Config> From<usize> for IndexCursor<Conf>{
     fn from(mut index: usize) -> Self {
         // It is ok to use max_addressable_index instead of max_value,
         // because we point past the actual bitset data anyway.
-        index = std::cmp::min(index, Conf::MAX_CAPACITY);
+        index = core::cmp::min(index, Conf::MAX_CAPACITY);
 
         let (level0, level1, data) = level_indices::<Conf>(index);
         Self{

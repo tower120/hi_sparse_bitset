@@ -1,4 +1,4 @@
-use std::mem::{MaybeUninit, size_of};
+use core::mem::{MaybeUninit, size_of};
 use crate::bit_block::BitBlock;
 use crate::{Primitive, PrimitiveArray};
 use crate::bitset::level::IBlock;

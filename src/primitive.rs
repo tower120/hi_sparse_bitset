@@ -1,5 +1,5 @@
-use std::fmt::Debug;
-use std::ops::*;
+use core::fmt::Debug;
+use core::ops::*;
 
 use crate::primitive_array::PrimitiveArray;
 

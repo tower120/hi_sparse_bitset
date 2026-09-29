@@ -1,4 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(not(feature = "std"), no_std)]
 //! Hierarchical sparse bitset.
 //!
 //! Memory consumption does not depend on max index inserted.
@@ -83,10 +84,10 @@
 //!
 //! You can define your own inter-bitset operation by implementing [BitSetOp].
 //!
-//! [&]: std::ops::BitAnd
-//! [|]: std::ops::BitOr
-//! [`^`]: std::ops::BitXor
-//! [-]: std::ops::Sub
+//! [&]: core::ops::BitAnd
+//! [|]: core::ops::BitOr
+//! [`^`]: core::ops::BitXor
+//! [-]: core::ops::Sub
 //!
 //! # Laziness and materialization
 //!
@@ -123,8 +124,8 @@
 //! [BitSetInterface] iterators have [for_each] specialization and stable [try_for_each] version - [traverse].
 //! For tight loops, traversing is observably faster than iterating.
 //!
-//! [for_each]: std::iter::Iterator::for_each
-//! [try_for_each]: std::iter::Iterator::try_for_each
+//! [for_each]: core::iter::Iterator::for_each
+//! [try_for_each]: core::iter::Iterator::try_for_each
 //! [traverse]: crate::iter::IndexIter::traverse
 //!
 //! # TrustedHierarchy
@@ -193,7 +194,13 @@
 //!
 //! [wide]: https://crates.io/crates/wide
 
+extern crate alloc;
 #[cfg(test)]
+mod alloc_tests;
+#[cfg(all(test, not(feature = "std")))]
+extern crate std;
+
+#[cfg(all(test, feature = "std"))]
 mod test;
 
 mod primitive;
@@ -239,7 +246,7 @@ use cache::ReduceCache;
 macro_rules! assume {
     ($e: expr) => {
         if !($e){
-            std::hint::unreachable_unchecked();
+            core::hint::unreachable_unchecked();
         }
     };
 }
