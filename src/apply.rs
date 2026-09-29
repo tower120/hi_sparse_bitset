@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
-use std::mem;
-use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ptr::addr_of_mut;
+use core::marker::PhantomData;
+use core::mem;
+use core::mem::{ManuallyDrop, MaybeUninit};
+use core::ptr::addr_of_mut;
 use crate::ops::*;
 use crate::BitSetInterface;
 use crate::impl_bitset::impl_bitset;
@@ -13,10 +13,10 @@ use crate::config::Config;
 /// Created by [apply], or by applying [BitOr], [BitAnd], [BitXor],
 /// [Sub] operations on [BitSetInterface]s.
 ///
-/// [BitOr]: std::ops::BitOr
-/// [BitAnd]: std::ops::BitAnd
-/// [BitXor]: std::ops::BitXor
-/// [Sub]: std::ops::Sub
+/// [BitOr]: core::ops::BitOr
+/// [BitAnd]: core::ops::BitAnd
+/// [BitXor]: core::ops::BitXor
+/// [Sub]: core::ops::Sub
 /// [apply]: crate::apply()
 /// [BitSetInterface]: crate::BitSetInterface
 #[derive(Clone)]
@@ -160,7 +160,7 @@ impl_bitset!(
         S2: BitSetInterface<Conf = S1::Conf>
 );
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod test{
     use std::collections::HashSet;
     use itertools::assert_equal;

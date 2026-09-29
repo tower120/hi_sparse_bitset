@@ -1,9 +1,10 @@
-use std::marker::PhantomData;
-use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::ptr::NonNull;
-use std::rc::Rc;
-use std::sync::Arc;
+use alloc::{vec::Vec};
+use core::marker::PhantomData;
+use core::mem::MaybeUninit;
+use core::ops::Deref;
+use core::ptr::NonNull;
+use alloc::rc::Rc;
+use alloc::sync::Arc;
 
 use crate::bit_utils::{get_bit_unchecked, zero_high_bits_unchecked};
 use crate::impl_bitset::{LevelMasks, LevelMasksIterExt, impl_bitset};
@@ -163,7 +164,9 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Con
     /// For `ALIGNED`, DirectBitset `data` + `offset` must be aligned to MAX_MASK_ALIGN,
     /// otherwise error will be returned.
     pub fn new(data: Data, offset: usize) -> Result<Self, AccessError> {
-        let slice = &data.data_src()[offset..];
+        let slice = data.data_src().get(offset..).ok_or(AccessError::UnexpectedEof)?;
+        // Check before read_header's unchecked pointer reads.
+        if slice.len() < 8 { return Err(AccessError::UnexpectedEof); }
         let ptr = slice.as_ptr();
         let len = slice.len();
 
@@ -181,12 +184,7 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Con
 
         let offsets = Offsets::<Conf>::new(lvl1_len);
         if len < offsets.len(data_len){
-            use std::io::*;
-            return Err(
-                AccessError::IOError(
-                    Error::from(ErrorKind::UnexpectedEof)
-                )
-            );
+            return Err(AccessError::UnexpectedEof);
         }
 
         let data_offset = offsets.data_offset + offset;
@@ -403,7 +401,7 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> LevelMasksIterEx
     fn make_iter_state(&self) -> Self::IterState {()}
 
     #[inline]
-    unsafe fn drop_iter_state(&self, _: &mut std::mem::ManuallyDrop<Self::IterState>) {}
+    unsafe fn drop_iter_state(&self, _: &mut core::mem::ManuallyDrop<Self::IterState>) {}
 
     #[inline]
     unsafe fn init_level1_block_data(
@@ -453,7 +451,7 @@ impl_bitset!(
         Conf: Config, Data: DirectDataSource
 );
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests{
     use itertools::assert_equal;
     use super::*;

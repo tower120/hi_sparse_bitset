@@ -1,6 +1,6 @@
-use std::fmt::Debug;
-use std::mem;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, ControlFlow};
+use core::fmt::Debug;
+use core::mem;
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, ControlFlow};
 use crate::bit_utils;
 use crate::bit_queue::*;
 use crate::primitive_array::PrimitiveArray;

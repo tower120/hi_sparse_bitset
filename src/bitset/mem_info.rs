@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use crate::{BitSet, bitset::{Level0Block, Level1Block, LevelDataBlock}, config::Config};
 
@@ -51,7 +51,7 @@ impl<'a, Conf: Config> MemInfo<'a, Conf>{
 }
 
 impl<'a, Conf: Config> Debug for MemInfo<'a, Conf>{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("MemInfo")
         .field("hi_blocks_cap", &self.hi_blocks_cap())
         .field("hi_blocks_len", &self.hi_blocks_len())
@@ -62,7 +62,7 @@ impl<'a, Conf: Config> Debug for MemInfo<'a, Conf>{
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod test{
     use crate::config;
     use super::*;

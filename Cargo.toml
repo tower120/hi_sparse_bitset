@@ -12,17 +12,19 @@ description = "Hierarchical sparse bitset. Incredibly high performance. Compact 
 exclude = ["/doc/images", "/.github"]
 
 [features]
-default = ["simd"]
+default = ["std", "simd"]
+# Stream serialization and serde use std::io; core bitsets require only alloc.
+std = ["wide?/std", "serde?/std", "base64?/std", "arrayvec?/std"]
 # simd bitblocks support (128,256 bit configs)
 simd = ["dep:wide"]
 # serde support.
-serde = ["dep:serde", "dep:base64", "dep:arrayvec", "wide/serde"]
+serde = ["std", "dep:serde", "dep:base64", "dep:arrayvec", "wide?/serde"]
 
 [dependencies]
-wide = { version = "1.4", optional = true }
-serde = { version = "1.0", features = ["serde_derive"], optional = true }
-arrayvec = { version = "0.7", optional = true }
-base64 = { version = "0.22", optional = true }
+wide = { version = "1.4", default-features = false, optional = true }
+serde = { version = "1.0", default-features = false, features = ["alloc", "serde_derive"], optional = true }
+arrayvec = { version = "0.7", default-features = false, optional = true }
+base64 = { version = "0.22", default-features = false, features = ["alloc"], optional = true }
 
 [dev-dependencies]
 anyhow = "1"

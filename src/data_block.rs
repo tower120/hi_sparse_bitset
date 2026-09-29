@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use core::ops::ControlFlow;
 use crate::bit_queue::BitQueue;
 use crate::BitBlock;
 use crate::config::Config;
@@ -113,7 +113,7 @@ impl<Block: BitBlock> DataBlockIter<Block>{
     /// 
     /// traverse approx. 15% faster then iterator
     /// 
-    /// [try_for_each]: std::iter::Iterator::try_for_each
+    /// [try_for_each]: core::iter::Iterator::try_for_each
     #[inline]
     pub fn traverse<F, B>(self, mut f: F) -> ControlFlow<B>
     where
@@ -144,7 +144,7 @@ impl<Block: BitBlock> Iterator for DataBlockIter<Block>{
 }
 
 #[cfg(feature = "serde")]
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod serde_test{
     use super::*;
 

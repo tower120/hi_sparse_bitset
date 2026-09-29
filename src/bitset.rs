@@ -1,5 +1,6 @@
 mod block;
 mod level;
+#[cfg(feature = "std")]
 pub(crate) mod serialization;
 #[cfg(feature="serde")]
 mod serde;
@@ -7,9 +8,9 @@ mod serde;
 mod mem_info;
 pub use mem_info::*;
 
-use std::mem::{ManuallyDrop, MaybeUninit};
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
-use std::ptr::NonNull;
+use core::mem::{ManuallyDrop, MaybeUninit};
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
+use core::ptr::NonNull;
 use crate::config::Config;
 use crate::ops::BitSetOp;
 use block::Block;

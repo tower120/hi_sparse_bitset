@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use core::mem::MaybeUninit;
 use crate::impl_bitset::Primitive;
 
 pub trait PrimitiveArray: AsRef<[Self::Item]> + AsMut<[Self::Item]> + Copy{
@@ -36,7 +36,7 @@ pub trait UninitPrimitiveArray
 
     #[inline]
     unsafe fn assume_init(self) -> Self::InitArray {
-        std::mem::transmute_copy(&self)
+        core::mem::transmute_copy(&self)
     }
 }
 impl<T, const N: usize> UninitPrimitiveArray for [MaybeUninit<T>; N]

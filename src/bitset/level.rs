@@ -1,3 +1,4 @@
+use alloc::{vec::Vec, vec};
 use crate::BitBlock;
 use crate::primitive::Primitive;
 

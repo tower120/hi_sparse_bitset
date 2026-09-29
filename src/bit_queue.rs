@@ -1,6 +1,6 @@
-use std::mem;
-use std::mem::{ManuallyDrop, size_of};
-use std::ops::ControlFlow;
+use core::mem;
+use core::mem::{ManuallyDrop, size_of};
+use core::ops::ControlFlow;
 
 use crate::bit_utils::{one_bits_iter, OneBitsIter, self};
 use crate::Primitive;
@@ -275,7 +275,7 @@ where
             // compiler should optimize away this for newly constructed BitQueue.
             *self.bit_block_iters.get_unchecked_mut(self.bit_block_index) = self.bit_block_iters[0];
             
-            let slice: &[P] = std::slice::from_raw_parts(
+            let slice: &[P] = core::slice::from_raw_parts(
                 // cast is safe because OneBitsIter<P> transmutable to P.
                 self.bit_block_iters.as_ptr().add(self.bit_block_index).cast(),
                 N - self.bit_block_index
