@@ -165,10 +165,11 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Con
     /// otherwise error will be returned.
     pub fn new(data: Data, offset: usize) -> Result<Self, AccessError> {
         let slice = data.data_src().get(offset..).ok_or(AccessError::UnexpectedEof)?;
-        // Check before read_header's unchecked pointer reads.
-        if slice.len() < 8 { return Err(AccessError::UnexpectedEof); }
         let ptr = slice.as_ptr();
-        let len = slice.len();
+        let len: usize = slice.len();
+
+        // Check before read_header's unchecked pointer reads.
+        if len < Offsets::<Conf>::HEADER_SIZE { return Err(AccessError::UnexpectedEof); }
 
         if ALIGNED {
             let aligned = ptr_is_aligned_to(ptr, Conf::MAX_MASK_ALIGN);

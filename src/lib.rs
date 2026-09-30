@@ -175,6 +175,12 @@
 //! [DirectBitset] works with any byte source that can provide serialized data.
 //! You can use this with serialized data in memory-mapped file.
 //!
+//! # `no_std` support
+//!
+//! Disable default `std` feature, to become `no_std` compatible. Allocator required.
+//! Serialization features currently require `std::io`, so serialization incompatible
+//! with `no_std`.
+//!
 //! # CPU extensions
 //!
 //! Library uses `popcnt`/`count_ones` and `tzcnt`/`trailing_zeros` heavily.
@@ -195,12 +201,8 @@
 //! [wide]: https://crates.io/crates/wide
 
 extern crate alloc;
-#[cfg(test)]
-mod alloc_tests;
-#[cfg(all(test, not(feature = "std")))]
-extern crate std;
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(test)]
 mod test;
 
 mod primitive;

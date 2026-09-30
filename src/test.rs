@@ -1,51 +1,52 @@
-use std::collections::HashSet;
-use std::io::Cursor;
-use std::iter::zip;
-use std::ops::ControlFlow;
+use alloc::vec;
+use alloc::vec::Vec;
+use alloc::collections::BTreeSet;
+use core::iter::zip;
+use core::ops::ControlFlow;
 use itertools::assert_equal;
 use crate::ops::{And, BitSetOp, Or, Sub, Xor};
-use crate::{Apply, BitBlock, BitSetInterface, DataBlock, DirectBitset, level_indices, reduce, reduce_w_cache};
+use crate::{Apply, BitBlock, BitSetInterface, DataBlock, reduce, reduce_w_cache};
 use crate::config;
 use crate::cache;
 use crate::iter::{BlockCursor, IndexCursor};
 
-cfg_if::cfg_if! {
-    if #[cfg(hisparsebitset_test_NoCache)] {
+cfg_select!{
+    hisparsebitset_test_NoCache => {
         type DefaultCache = cache::NoCache;
-    } else if #[cfg(hisparsebitset_test_FixedCache)] {
+    }
+    hisparsebitset_test_FixedCache => {
         type DefaultCache = cache::FixedCache<32>;
-    } else if #[cfg(hisparsebitset_test_DynamicCache)] {
+    }
+    hisparsebitset_test_DynamicCache => {
         type DefaultCache = cache::DynamicCache;
-    } else {
-        //type DefaultCache = cache::FixedCache<32>;
+    }
+    _ => {
         type DefaultCache = cache::DynamicCache;
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(hisparsebitset_test_64)] {
+cfg_select!{
+    hisparsebitset_test_64 => {
         type Conf = config::_64bit<u64, DefaultCache>;
-    } else if #[cfg(hisparsebitset_test_128)] {
+    }
+    hisparsebitset_test_128 => {
         type Conf = config::_128bit<wide::u64x2, DefaultCache>;
-    } else if #[cfg(hisparsebitset_test_256)] {
+    }
+    hisparsebitset_test_256 => {
         type Conf = config::_256bit<wide::u64x4, DefaultCache>;
-    } else {
-        type Conf = config::_128bit<wide::u64x2, DefaultCache>;
+    }
+    _ => {
+        type Conf = config::_64bit<u64, DefaultCache>;
     }
 }
 
-
-cfg_if::cfg_if! {
-    if #[cfg(hisparsebitset_test_bitset)] {
-        type BitSet<Conf> = super::BitSet<Conf>;
-    } else {
-        type BitSet<Conf> = super::BitSet<Conf>;
-    }
-}
-type HiSparseBitset = BitSet<Conf>;
+type BitSet<Conf> = super::BitSet<Conf>;
+type HiSparseBitset = super::BitSet<Conf>;
 
 #[test]
+#[cfg(feature = "simd")]
 fn level_indices_test(){
+    use crate::level_indices;
     type Conf = config::_128bit;
 
     let levels = level_indices::<Conf>(0);
@@ -108,29 +109,30 @@ fn insert_block_test(){
 
 #[test]
 fn fuzzy_test(){
-    cfg_if::cfg_if! {
-    if #[cfg(miri)] {
-        const MAX_SIZE : usize = 1000;
-        const MAX_RANGE: usize = 1000;
-        const CONTAINS_PROBES: usize = 100;
-        const REPEATS: usize = 2;
-        const INNER_REPEATS: usize = 3;
-        const INDEX_MUL: usize = 10;
-    } else {
-        const MAX_SIZE : usize = 10000;
-        const MAX_RANGE: usize = 10000;
-        const CONTAINS_PROBES: usize = 1000;
-        const REPEATS: usize = 100;
-        const INNER_REPEATS: usize = 10;
-        const INDEX_MUL: usize = 10;
-    }
+    cfg_select!{
+        miri => {
+            const MAX_SIZE : usize = 1000;
+            const MAX_RANGE: usize = 1000;
+            const CONTAINS_PROBES: usize = 100;
+            const REPEATS: usize = 2;
+            const INNER_REPEATS: usize = 3;
+            const INDEX_MUL: usize = 10;
+        }
+        _ => {
+            const MAX_SIZE : usize = 10000;
+            const MAX_RANGE: usize = 10000;
+            const CONTAINS_PROBES: usize = 1000;
+            const REPEATS: usize = 100;
+            const INNER_REPEATS: usize = 10;
+            const INDEX_MUL: usize = 10;
+        }
     }
     const MAX_CURSOR_READ_SESSION: usize = MAX_SIZE;
 
     use rand::prelude::*;
     let mut rng = rand::rng();
     for _ in 0..REPEATS{
-        let mut hash_set = HashSet::new();
+        let mut hash_set = BTreeSet::new();
         let mut hi_set = HiSparseBitset::default();
 
         let mut inserted = Vec::new();
@@ -204,7 +206,11 @@ fn fuzzy_test(){
             }
 
             // serialization
+            #[cfg(feature = "std")]
             {
+                use std::io::Cursor;
+                use crate::DirectBitset;
+
                 let mut serialized: Vec<u8> = Vec::new();
                 hi_set.serialize(&mut serialized).unwrap();
 
@@ -303,42 +309,43 @@ fn fuzzy_test(){
 
 fn fuzzy_reduce_test<Op: BitSetOp, H>(hiset_op: Op, hashset_op: H)
 where
-    H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>,
+    H: Fn(&BTreeSet<usize>, &BTreeSet<usize>) -> BTreeSet<usize>,
     H: Copy
 {
-    cfg_if::cfg_if! {
-    if #[cfg(miri)] {
-        const MAX_SETS : usize = 4;
-        const MAX_INSERTS: usize = 100;
-        const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
-        const MAX_REMOVES : usize = 100;
-        const MAX_RANGE: usize = 1000;
-        const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 5;
-        const MAX_RESUMED_INTERSECTION_INDICES_CONSUME: usize = 30;
-        const REPEATS: usize = 2;
-        const INNER_REPEATS: usize = 3;
-        const INDEX_MUL: usize = 20;
-    } else {
-        const MAX_SETS : usize = 10;
-        const MAX_INSERTS: usize = 10000;
-        const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
-        const MAX_REMOVES : usize = 10000;
-        const MAX_RANGE: usize = 10000;
-        const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 100;
-        const MAX_RESUMED_INTERSECTION_INDICES_CONSUME: usize = 300;
-        const REPEATS: usize = 100;
-        const INNER_REPEATS: usize = 10;
-        const INDEX_MUL: usize = 10;
-    }
+    cfg_select!{
+        miri => {
+            const MAX_SETS : usize = 4;
+            const MAX_INSERTS: usize = 100;
+            const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
+            const MAX_REMOVES : usize = 100;
+            const MAX_RANGE: usize = 1000;
+            const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 5;
+            const MAX_RESUMED_INTERSECTION_INDICES_CONSUME: usize = 30;
+            const REPEATS: usize = 2;
+            const INNER_REPEATS: usize = 3;
+            const INDEX_MUL: usize = 20;
+        }
+        _ => {
+            const MAX_SETS : usize = 10;
+            const MAX_INSERTS: usize = 10000;
+            const MAX_GUARANTEED_INTERSECTIONS: usize = 10;
+            const MAX_REMOVES : usize = 10000;
+            const MAX_RANGE: usize = 10000;
+            const MAX_RESUMED_INTERSECTION_BLOCKS_CONSUME: usize = 100;
+            const MAX_RESUMED_INTERSECTION_INDICES_CONSUME: usize = 300;
+            const REPEATS: usize = 100;
+            const INNER_REPEATS: usize = 10;
+            const INDEX_MUL: usize = 10;
+        }
     }
 
     #[inline]
     fn hashset_multi_op<'a, H>(
-        hash_sets: impl IntoIterator<Item = &'a HashSet<usize>>,
+        hash_sets: impl IntoIterator<Item = &'a BTreeSet<usize>>,
         hashset_op: H
-    ) -> HashSet<usize>
+    ) -> BTreeSet<usize>
     where
-        H: Fn(&HashSet<usize>, &HashSet<usize>) -> HashSet<usize>
+        H: Fn(&BTreeSet<usize>, &BTreeSet<usize>) -> BTreeSet<usize>
     {
         let mut hash_sets_iter = hash_sets.into_iter();
         let mut acc = hash_sets_iter.next().unwrap().clone();
@@ -353,7 +360,7 @@ where
     let mut rng = rand::rng();
     for _ in 0..REPEATS{
         let sets_count = rng.random_range(2..MAX_SETS);
-        let mut hash_sets: Vec<HashSet<usize>> = vec![Default::default(); sets_count];
+        let mut hash_sets: Vec<BTreeSet<usize>> = vec![Default::default(); sets_count];
         let mut hi_sets  : Vec<HiSparseBitset> = vec![Default::default(); sets_count];
 
         // Resumable intersection guarantee that we'll traverse at least
@@ -653,7 +660,7 @@ fn fuzzy_sub_test(){
 
 #[test]
 fn empty_intersection_test(){
-    let reduced = reduce(And, std::iter::empty::<&HiSparseBitset>());
+    let reduced = reduce(And, core::iter::empty::<&HiSparseBitset>());
     assert!(reduced.is_none());
 }
 
@@ -695,7 +702,7 @@ fn regression_test1() {
         ],
     ];
 
-    let hash_sets: Vec<HashSet<usize>> =
+    let hash_sets: Vec<BTreeSet<usize>> =
         sets_data.clone().into_iter()
         .map(|data| data.into_iter().collect())
         .collect();
@@ -705,7 +712,7 @@ fn regression_test1() {
         .collect();
 
     let etalon_intersection = hash_sets[0].intersection(&hash_sets[1]);
-    println!("etalon: {:?}", etalon_intersection);
+    // println!("etalon: {:?}", etalon_intersection);
 
     {
         let mut indices2 = Vec::new();
@@ -718,7 +725,7 @@ fn regression_test1() {
                 |index| indices2.push(index)
             );
         }
-        println!("indices: {:?}", indices2);
+        // println!("indices: {:?}", indices2);
         assert_equal(etalon_intersection, &indices2);
     }
 }
@@ -797,7 +804,6 @@ fn reduce_or_test(){
         for block in union.block_iter(){
             for i in block.iter(){
                 out.push(i);
-                println!("{:}", i);
             }
         }
         out.sort();
@@ -856,7 +862,6 @@ fn reduce_xor_test(){
         for block in reduce.block_iter(){
             for i in block.iter(){
                 out.push(i);
-                println!("{:}", i);
             }
         }
         out.sort();
@@ -1083,7 +1088,7 @@ fn is_empty_non_trusted_test(){
     bm1.insert(800);
 
     let intersection = &bm0 & &bm1;
-    dbg!(&intersection);
+    // dbg!(&intersection);
     assert!(!intersection.is_empty());
 }
 
@@ -1138,16 +1143,17 @@ fn inplace_union_untrusted_test(){
 
 #[test]
 fn fuzzy_inplace_union_test(){
-    cfg_if::cfg_if! {
-    if #[cfg(miri)] {
-        const REPEATS: usize = 10;
-        const MAX_SIZE: usize = 1000;
-        const MAX_RANGE: usize = 1000;
-    } else {
-        const REPEATS: usize = 10000;
-        const MAX_SIZE: usize = 10000;
-        const MAX_RANGE: usize = 10000;
-    }
+    cfg_select!{
+        miri => {
+            const REPEATS: usize = 10;
+            const MAX_SIZE: usize = 1000;
+            const MAX_RANGE: usize = 1000;
+        }
+        _ => {
+            const REPEATS: usize = 10000;
+            const MAX_SIZE: usize = 10000;
+            const MAX_RANGE: usize = 10000;
+        }
     }
     const INDEX_MUL: usize = 2;
 
@@ -1222,16 +1228,17 @@ fn inplace_intersection_test(){
 
 #[test]
 fn fuzzy_inplace_intersection_test(){
-    cfg_if::cfg_if! {
-    if #[cfg(miri)] {
-        const REPEATS: usize = 10;
-        const MAX_SIZE: usize = 1000;
-        const MAX_RANGE: usize = 1000;
-    } else {
-        const REPEATS: usize = 10000;
-        const MAX_SIZE: usize = 10000;
-        const MAX_RANGE: usize = 10000;
-    }
+    cfg_select!{
+        miri => {
+            const REPEATS: usize = 10;
+            const MAX_SIZE: usize = 1000;
+            const MAX_RANGE: usize = 1000;
+        }
+        _ => {
+            const REPEATS: usize = 10000;
+            const MAX_SIZE: usize = 10000;
+            const MAX_RANGE: usize = 10000;
+        }
     }
     const INDEX_MUL: usize = 2;
 
