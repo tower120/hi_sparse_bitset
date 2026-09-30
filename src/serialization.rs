@@ -461,7 +461,7 @@ impl<R: Read> Reader<R>{
 #[cfg(feature = "std")]
 pub(crate) use io::*;
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "std", feature = "simd"))]
 mod tests{
     use crate::config;
     use super::*;

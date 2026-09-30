@@ -1,7 +1,7 @@
 /// For issue https://github.com/tower120/hi_sparse_bitset/pull/47
 #[test]
 #[cfg_attr(miri, ignore)]
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "simd"))]
 fn regression_deserialization_256bit_arithmetic_overflow() {
     type BitSet = hi_sparse_bitset::BitSet<hi_sparse_bitset::config::_256bit>;
 

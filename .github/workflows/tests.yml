@@ -2,11 +2,11 @@ name: tests
 
 on:
   workflow_dispatch:
-  workflow_call: 
+  workflow_call:
     inputs:
         rustflags:
           required: false
-          type: string    
+          type: string
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,15 +22,41 @@ jobs:
         ]
         config_type_flag: [
           hisparsebitset_test_64,
-          hisparsebitset_test_128,
-          hisparsebitset_test_256
         ]
-        bitset: [
-          hisparsebitset_test_bitset                                 
-        ]    
+        features: [
+          "std",
+          "serde",
+          "std,serde",
+        ]
     uses: ./.github/workflows/tests_impl.yml
     with:
       rustflags: ${{ inputs.rustflags }}
       cache_type_flag: ${{ matrix.cache_type_flag }}
       config_type_flag: ${{ matrix.config_type_flag }}
-      bitset: ${{ matrix.bitset }}
+      features: ${{ matrix.features }}
+
+  tests_simd:
+    strategy:
+      matrix:
+        cache_type_flag: [
+          hisparsebitset_test_NoCache,
+          hisparsebitset_test_FixedCache,
+          hisparsebitset_test_DynamicCache
+        ]
+        config_type_flag: [
+          hisparsebitset_test_64,
+          hisparsebitset_test_128,
+          hisparsebitset_test_256
+        ]
+        features: [
+          "simd",
+          "simd,std",
+          "simd,serde",
+          "simd,std,serde",
+        ]
+    uses: ./.github/workflows/tests_impl.yml
+    with:
+      rustflags: ${{ inputs.rustflags }}
+      cache_type_flag: ${{ matrix.cache_type_flag }}
+      config_type_flag: ${{ matrix.config_type_flag }}
+      features: ${{ matrix.features }}

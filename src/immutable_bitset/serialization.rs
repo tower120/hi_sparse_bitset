@@ -82,6 +82,7 @@ impl<Conf: Config> ImmutableBitset<Conf>{
 }
 
 #[cfg(test)]
+#[cfg(feature = "simd")]
 mod tests{
     use std::io::Cursor;
     use itertools::assert_equal;

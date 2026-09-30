@@ -56,6 +56,14 @@ check-cfg = [
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[[example]]
+name = "usage"
+required-features = ["simd"]
+
+[[example]]
+name = "traverse_w_cursor"
+required-features = ["simd"]
+
 [[bench]]
 name = "iteration_bench"
 path = "benches/iteration.rs"

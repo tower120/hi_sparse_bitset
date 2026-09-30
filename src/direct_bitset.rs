@@ -467,9 +467,13 @@ mod tests{
                 type Conf = crate::config::_64bit;
                 const SIZE: usize = 10_000;
             }
-            _ => {
+            feature = "simd" => {
                 type Conf = crate::config::_256bit;
                 const SIZE: usize = 1_000_000;
+            }
+            _ => {
+                type Conf = crate::config::_64bit;
+                const SIZE: usize = 100_000;
             }
         }
 
