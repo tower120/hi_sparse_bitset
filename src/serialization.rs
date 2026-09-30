@@ -1,10 +1,5 @@
 use core::{fmt, marker::PhantomData};
-#[cfg(feature = "std")]
-use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
-
 use crate::config::*;
-#[cfg(feature = "std")]
-use crate::{BitBlock, primitive::Primitive};
 
 /// Current serialization format version.
 pub const SERIALIZATION_FORMAT_VER: u16 = 3;
@@ -19,9 +14,12 @@ pub enum AccessError{
     /// (version found)
     FormatMismatch(u16),
 
-    /// The serialized byte slice is shorter than its declared data.
+    /// Unexpected end of data.
+    ///
+    /// An example of this - serialized byte slice that is shorter than its declared data.
     UnexpectedEof,
 
+    // TODO: This should be core::io::Error - but it is unstable now.
     #[cfg(feature = "std")]
     IOError(std::io::Error)
 }
@@ -47,8 +45,10 @@ pub(crate) struct Offsets<Conf>{
     phantom: PhantomData<Conf>
 }
 impl<Conf: Config> Offsets<Conf> {
+    pub const HEADER_SIZE: usize = 8;
+
     pub const LVL0_MASK_OFFSET: usize = {
-        let mut offset = 8;
+        let mut offset = Self::HEADER_SIZE;
         offset += get_padding_for::<Lvl0Mask<Conf>>(offset);
         offset
     };
@@ -116,6 +116,8 @@ pub(crate) fn check_version(version: u16) ->  Result<(), AccessError>{
 #[cfg(feature = "std")]
 mod io {
 use super::*;
+use crate::{BitBlock, primitive::Primitive};
+use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
 
 pub(crate) struct Writer<W>{
     write: W,

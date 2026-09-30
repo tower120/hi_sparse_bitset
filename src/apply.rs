@@ -164,6 +164,7 @@ impl_bitset!(
 mod test{
     use std::collections::HashSet;
     use itertools::assert_equal;
+    use alloc::vec::Vec;
     use crate::reduce;
     use super::*;
 
@@ -171,16 +172,17 @@ mod test{
 
     #[test]
     fn ops_test(){
-        cfg_if::cfg_if! {
-        if #[cfg(miri)] {
-            const MAX_RANGE: usize = 10_000;
-            const AMOUNT   : usize = 100;
-            const INDEX_MUL: usize = 5;
-        } else {
-            const MAX_RANGE: usize = 10_000;
-            const AMOUNT   : usize = 1000;
-            const INDEX_MUL: usize = 5;
-        }
+        cfg_select!{
+            miri => {
+                const MAX_RANGE: usize = 10_000;
+                const AMOUNT   : usize = 100;
+                const INDEX_MUL: usize = 5;
+            }
+            _ => {
+                const MAX_RANGE: usize = 10_000;
+                const AMOUNT   : usize = 1000;
+                const INDEX_MUL: usize = 5;
+            }
         }
 
         use rand::prelude::*;

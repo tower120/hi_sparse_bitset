@@ -7,24 +7,24 @@ edition = "2021"
 rust-version = "1.95"
 repository = "https://github.com/tower120/hi_sparse_bitset"
 keywords = ["hierarchical", "sparse", "bitset", "container", "zero-copy"]
-categories = ["data-structures"]
+categories = ["data-structures", "no-std"]
 description = "Hierarchical sparse bitset. Incredibly high performance. Compact memory usage."
 exclude = ["/doc/images", "/.github"]
 
 [features]
 default = ["std", "simd"]
-# Stream serialization and serde use std::io; core bitsets require only alloc.
-std = ["wide?/std", "serde?/std", "base64?/std", "arrayvec?/std"]
+# Stream serialization and `serde` use std::io; core bitsets require only alloc.
+std = []
 # simd bitblocks support (128,256 bit configs)
 simd = ["dep:wide"]
-# serde support.
+# `serde` support. Currently requires `std`.
 serde = ["std", "dep:serde", "dep:base64", "dep:arrayvec", "wide?/serde"]
 
 [dependencies]
 wide = { version = "1.4", default-features = false, optional = true }
-serde = { version = "1.0", default-features = false, features = ["alloc", "serde_derive"], optional = true }
-arrayvec = { version = "0.7", default-features = false, optional = true }
-base64 = { version = "0.22", default-features = false, features = ["alloc"], optional = true }
+serde = { version = "1.0", features = ["serde_derive"], optional = true }
+arrayvec = { version = "0.7", optional = true }
+base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 anyhow = "1"
@@ -32,9 +32,8 @@ tempfile = "3.27"
 serde_json = "1.0"
 bincode = { version = "2.0", features = ["serde"] }
 rand = "0.10.1"
-itertools = "0.11"
+itertools = {version="0.15", default-features = false}
 criterion = "0.5.1"
-cfg-if = "1"
 memmap2 = "0.9.10"
 aligned-vec = "0.6.4"
 # for benchmarks
@@ -51,8 +50,6 @@ check-cfg = [
     'cfg(hisparsebitset_test_64)',
     'cfg(hisparsebitset_test_128)',
     'cfg(hisparsebitset_test_256)',
-
-    'cfg(hisparsebitset_test_bitset)',
 ]
 
 [package.metadata.docs.rs]

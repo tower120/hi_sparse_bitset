@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0 (unreleased)
+`no_std` support.
+
+### Changed
+- `AccessError::IOError` now conditional.
+
+### Fixed
+- Fixed potential `DirectBitset` construction error, with data size less then
+  header size.
+
+### Added
+- Default `std` feature. Disable - to go `no_std`.
+- `ImmutableBitset` implements `Default` now.
+
 ## 0.9.0
 Immutable bitset with linear data and fast construction -
 for intermediate data gathering and precomputed data storage.

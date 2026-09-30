@@ -1,7 +1,7 @@
-use alloc::{vec::Vec};
 #[cfg(feature = "std")]
 mod serialization;
 
+use alloc::{vec::Vec};
 use core::slice;
 use core::{
     mem::{ManuallyDrop, MaybeUninit},
@@ -150,9 +150,15 @@ fn lvl_get_item<LvlMask:BitBlock>(
     })
 }
 
+impl<Conf: Config> Default for ImmutableBitset<Conf>{
+    /// Constructs empty `ImmutableBitset`.
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Conf: Config> ImmutableBitset<Conf>{
     #[inline]
-    #[cfg(feature = "std")]
     fn new() -> Self{
         Self{
             lvl0_mask: BitBlock::zero(),
@@ -360,7 +366,7 @@ impl<Conf: Config> LevelMasksIterExt for ImmutableBitset<Conf>{
 
 impl_bitset!(impl<Conf> for ref ImmutableBitset<Conf> where Conf: Config);
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(test)]
 mod tests{
     use itertools::assert_equal;
     use crate::{BitSet, config};
@@ -376,4 +382,12 @@ mod tests{
         assert_equal(&bitset,&im);
     }
 
+    #[test]
+    fn default_test(){
+        type Conf = config::_64bit;
+        let im: ImmutableBitset<Conf> = ImmutableBitset::default();
+        assert!(!im.contains(12));
+        let empty: [usize;0] = [];
+        assert_equal(im.iter(), empty);
+    }
 }
