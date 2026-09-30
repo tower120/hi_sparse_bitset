@@ -100,9 +100,9 @@ const fn max_mask_align<Conf: Config>() -> usize {
 }
 
 const fn max_capacity<Conf: Config>() -> usize {
-    (1 << Conf::Level0BitBlock::SIZE_POT_EXPONENT)
-        * (1 << Conf::Level1BitBlock::SIZE_POT_EXPONENT)
-        * (1 << Conf::DataBitBlock::SIZE_POT_EXPONENT)
+    block_bit_size::<Conf::Level0BitBlock>()
+    * block_bit_size::<Conf::Level1BitBlock>()
+    * block_bit_size::<Conf::DataBitBlock>()
 }
 
 const fn block_bit_size<Block: BitBlock>() -> usize{

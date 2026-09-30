@@ -12,7 +12,7 @@ on:
         config_type_flag:
           required: true
           type: string
-        bitset:
+        features:
           required: true
           type: string
 
@@ -30,7 +30,6 @@ jobs:
              ${{ inputs.rustflags }}
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}
-             --cfg ${{ inputs.bitset }}
            " cargo build --tests
 
   tests:
@@ -46,8 +45,7 @@ jobs:
              ${{ inputs.rustflags }}
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}
-             --cfg ${{ inputs.bitset }}
-           " cargo +nightly careful test --all-features
+           " cargo +nightly careful test --lib --examples --tests --no-default-features --features ${{ inputs.features }}
 
   miri:
     name: miri tests
@@ -67,5 +65,4 @@ jobs:
              ${{ inputs.rustflags }}
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}
-             --cfg ${{ inputs.bitset }}
-           " cargo +nightly miri nextest run -j6 --all-features
+           " cargo +nightly miri nextest run -j6 --no-default-features --features ${{ inputs.features }}
