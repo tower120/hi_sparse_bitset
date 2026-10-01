@@ -41,9 +41,11 @@ pub trait Primitive:
     fn as_u64(self) -> u64;
     fn as_u32(self) -> u32;
 
+    fn count_ones(self) -> u32;
     fn trailing_zeros(self) -> u32;
     fn wrapping_neg(self) -> Self;
     fn wrapping_add(self, rhs: Self) -> Self;
+    fn wrapping_sub(self, rhs: Self) -> Self;
 
     type BytesArray: PrimitiveArray<Item=u8>;
     fn to_ne_bytes(self) -> Self::BytesArray;
@@ -98,6 +100,11 @@ macro_rules! impl_primitive {
             }
 
             #[inline]
+            fn count_ones(self) -> u32 {
+                self.count_ones()
+            }
+
+            #[inline]
             fn trailing_zeros(self) -> u32 {
                 self.trailing_zeros()
             }
@@ -110,6 +117,11 @@ macro_rules! impl_primitive {
             #[inline]
             fn wrapping_add(self, rhs: Self) -> Self {
                 self.wrapping_add(rhs)
+            }
+
+            #[inline]
+            fn wrapping_sub(self, rhs: Self) -> Self {
+                self.wrapping_sub(rhs)
             }
 
             type BytesArray = [u8; {(Self::BITS/8) as usize}];

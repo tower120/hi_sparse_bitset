@@ -106,6 +106,30 @@ cfg_select! {
 }
 }
 
+#[inline]
+pub fn pop_front<P>(block: &mut P) -> Option<u32>
+where
+    P: Primitive
+{
+    if block.is_zero(){
+        return None;
+    }
+    Some(unsafe{pop_front_unchecked(block)})
+}
+
+/// # Safety
+///
+/// block must be non empty.
+#[inline]
+pub unsafe fn pop_front_unchecked<P>(block: &mut P) -> u32
+where
+    P: Primitive
+{
+    let index = block.trailing_zeros();
+    *block &= block.wrapping_sub(P::ONE);
+    index
+}
+
 /// Blocks traversed in the same order as [set_array_bit], [get_array_bit].
 #[inline]
 pub fn traverse_array_one_bits<P, F, B>(array: &[P], mut f: F) -> ControlFlow<B>
@@ -136,7 +160,14 @@ where
     P: Primitive,
     F: FnMut(usize) -> ControlFlow<B>
 {
-    // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
+    while let Some(index) = pop_front(&mut element){
+        let control = f(index as usize);
+        if let Some(e) = control.break_value() {
+            return ControlFlow::Break(e);
+        }
+    }
+
+/*     // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
     // https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2018/03/07/simdbitmapdecode.c#L45
     while !element.is_zero() {
         let index = element.trailing_zeros() as usize;
@@ -151,7 +182,8 @@ where
         let t: P = element & element.wrapping_neg();
 
         element ^= t;
-    }
+    } */
+
     ControlFlow::Continue(())
 }
 
@@ -177,7 +209,9 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
+        pop_front(&mut self.element).map(|i| i as usize)
+
+        /* // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
         // https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2018/03/07/simdbitmapdecode.c#L45
         if !self.element.is_zero() {
             let index = self.element.trailing_zeros() as usize;
@@ -190,6 +224,22 @@ where
             Some(index)
         } else {
             None
-        }
+        } */
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+impl<P> ExactSizeIterator for OneBitsIter<P>
+where
+    P: Primitive
+{
+    #[inline]
+    fn len(&self) -> usize {
+        self.element.count_ones() as usize
     }
 }
