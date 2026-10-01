@@ -21,10 +21,10 @@ simd = ["dep:wide"]
 serde = ["std", "dep:serde", "dep:base64", "dep:arrayvec", "wide?/serde"]
 
 [dependencies]
-wide = { version = "1.4", default-features = false, optional = true }
+wide = { version = "1.7", default-features = false, optional = true }
 serde = { version = "1.0", features = ["serde_derive"], optional = true }
 arrayvec = { version = "0.7", optional = true }
-base64 = { version = "0.22", optional = true }
+base64 = { version = "0.23", optional = true }
 
 [dev-dependencies]
 anyhow = "1"

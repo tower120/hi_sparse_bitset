@@ -71,6 +71,10 @@ consists from pure bitblocks.
 
 See `DirectBitset`.
 
+## no_std support
+
+Library is `no_std` compatible, but requires allocator.
+
 ## Performance
 
 It is faster than hashsets and pure bitsets for all inter-bitset operations
