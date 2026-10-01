@@ -166,24 +166,6 @@ where
             return ControlFlow::Break(e);
         }
     }
-
-/*     // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
-    // https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2018/03/07/simdbitmapdecode.c#L45
-    while !element.is_zero() {
-        let index = element.trailing_zeros() as usize;
-
-        let control = f(index);
-        if let Some(e) = control.break_value() {
-            return ControlFlow::Break(e);
-        }
-
-        // Returns an integer having just the least significant bit of
-        // bitset turned on, all other bits are off.
-        let t: P = element & element.wrapping_neg();
-
-        element ^= t;
-    } */
-
     ControlFlow::Continue(())
 }
 
@@ -210,21 +192,6 @@ where
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         pop_front(&mut self.element).map(|i| i as usize)
-
-        /* // from https://lemire.me/blog/2018/03/08/iterating-over-set-bits-quickly-simd-edition/
-        // https://github.com/lemire/Code-used-on-Daniel-Lemire-s-blog/blob/master/2018/03/07/simdbitmapdecode.c#L45
-        if !self.element.is_zero() {
-            let index = self.element.trailing_zeros() as usize;
-
-            // Returns an integer having just the least significant bit of
-            // bitset turned on, all other bits are off.
-            let t: P = self.element & self.element.wrapping_neg();
-            self.element ^= t;
-
-            Some(index)
-        } else {
-            None
-        } */
     }
 
     #[inline]
