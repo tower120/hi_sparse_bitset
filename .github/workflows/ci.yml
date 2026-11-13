@@ -21,6 +21,18 @@ jobs:
       - run: RUSTFLAGS="--deny warnings" cargo build
       - run: RUSTFLAGS="--deny warnings" cargo build --all-features
 
+  build_big_endian:
+    name: build big-endian
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: s390x-unknown-linux-gnu
+      - uses: actions/checkout@v6
+      - run: cargo build --target s390x-unknown-linux-gnu --no-default-features
+      - run: RUSTFLAGS="--deny warnings" cargo build --target s390x-unknown-linux-gnu
+      - run: RUSTFLAGS="--deny warnings" cargo build --target s390x-unknown-linux-gnu --all-features
+
   tests:
     uses: ./.github/workflows/tests.yml
     with:
