@@ -66,3 +66,26 @@ jobs:
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}
            " cargo +nightly miri nextest run -j6 --no-default-features --features ${{ inputs.features }}
+
+  # GitHub has no big-endian runners. Miri interprets the tests for a
+  # big-endian target instead, so the `target_endian = "big"` code is
+  # compiled and executed.
+  miri_big_endian:
+    name: miri tests big-endian
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: miri
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
+    - uses: actions/checkout@v6
+    - run:
+        MIRIFLAGS="-Zmiri-disable-isolation"
+        RUSTFLAGS="
+             ${{ inputs.rustflags }}
+             --cfg ${{ inputs.cache_type_flag }}
+             --cfg ${{ inputs.config_type_flag }}
+           " cargo +nightly miri nextest run -j6 --no-default-features --features ${{ inputs.features }} --target s390x-unknown-linux-gnu
