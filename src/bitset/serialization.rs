@@ -178,9 +178,8 @@ impl<Conf: Config> BitSet<Conf> {
             unsafe{ blocks.spare_capacity_mut().get_unchecked_mut(0).write(Default::default()); }
             let mut blocks_len = 1;
 
-            #[cfg(target_endian = "little")]
+            // This will copy as is directly for little endian in one go.
             {
-                // Copy as is directly for little endian in one go.
                 let slice = unsafe{std::slice::from_raw_parts_mut(
                     blocks.as_mut_ptr().add(1).cast::<DataMask<Conf>>(),
                     data_len
@@ -188,13 +187,6 @@ impl<Conf: Config> BitSet<Conf> {
                 r.read_masks(slice)?;
                 blocks_len += data_len;
             }
-
-            #[cfg(target_endian = "big")]
-            r.foreach_read_mask(data_len, |&mask: &Conf::DataBitBlock| {
-                let block: LevelDataBlock<Conf> = unsafe{Block::from_parts(mask, [])};
-                unsafe{ blocks.spare_capacity_mut().get_unchecked_mut(blocks_len).write(block); }
-                blocks_len +=1;
-            })?;
             unsafe{ blocks.set_len(blocks_len); }
 
             unsafe{ Level::from_blocks_unchecked(blocks) }

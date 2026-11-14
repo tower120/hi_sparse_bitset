@@ -113,6 +113,12 @@ pub(crate) fn check_version(version: u16) ->  Result<(), AccessError>{
     Ok(())
 }
 
+#[cfg(feature = "std")]
+mod io {
+use super::*;
+use crate::{BitBlock, primitive::Primitive};
+use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
+
 #[inline]
 fn chunked<E, F, const CHUNK_SIZE: usize>(len: usize, mut f: F)
     -> F::Output
@@ -132,12 +138,6 @@ where
     }
     Ok(())
 }
-
-#[cfg(feature = "std")]
-mod io {
-use super::*;
-use crate::{BitBlock, primitive::Primitive};
-use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
 
 pub(crate) struct Writer<W>{
     write: W,
@@ -393,6 +393,30 @@ impl<R: Read> Reader<R>{
         Ok(())
     }
 
+    /// Read to LE `buf` in chunks of `BUFFER_SIZE` size.
+    /// After each chunk read, calls `f` with read portion of `buf` as param.
+    #[inline]
+    fn read_buf_le_chunked<T, F, const BUFFER_SIZE: usize>(
+        &mut self, buf: &mut [T], mut f: F
+    ) -> std::io::Result<()>
+    where
+        F: FnMut(&mut [T])
+    {
+        chunked::<_, _, BUFFER_SIZE>(
+            buf.len(),
+            |chunk_idx: usize, chunk_size: usize| -> std::io::Result<()> {
+                let slice: &mut [T] = unsafe{ slice::from_raw_parts_mut(
+                    buf.as_mut_ptr().add(chunk_idx * BUFFER_SIZE),
+                    chunk_size
+                ) };
+
+                self.read_buf_le(slice)?;
+                f(slice);
+                Ok(())
+            }
+        )
+    }
+
     #[inline]
     pub fn read_primitives<T: Primitive>(&mut self, primitives: &mut[T])
         -> std::io::Result<()>
@@ -428,31 +452,6 @@ impl<R: Read> Reader<R>{
         Ok(())
     }
 
-    /// Read to LE `buf` in chunks of `BUFFER_SIZE` size.
-    /// After each chunk read, calls `f` with read portion of `buf` as param.
-    #[inline]
-    fn read_buf_le_chunked<T, F, const BUFFER_SIZE: usize>(
-        &mut self, buf: &mut [T], mut f: F
-    ) -> std::io::Result<()>
-    where
-        F: FnMut(&mut [T])
-    {
-        chunked::<_, _, BUFFER_SIZE>(
-            buf.len(),
-            |chunk_idx: usize, chunk_size: usize| -> std::io::Result<()> {
-                let slice: &mut [T] = unsafe{ slice::from_raw_parts_mut(
-                    buf.as_mut_ptr().add(chunk_idx * BUFFER_SIZE),
-                    chunk_size
-                ) };
-
-                self.read_buf_le(slice)?;
-                f(slice);
-                Ok(())
-            }
-        )
-    }
-
-    // TODO: try remove in favor of `read_buf_le_chunked`.
     #[inline]
     fn foreach_read_item<T, F>(&mut self, len: usize, mut f: F)
         -> std::io::Result<()>
@@ -462,23 +461,7 @@ impl<R: Read> Reader<R>{
         const BUFFER_SIZE: usize = 64;
         let mut buf: [MaybeUninit<T>; BUFFER_SIZE] = unsafe{MaybeUninit::uninit().assume_init()};
 
-        #[inline]
-        fn chunked<E, F>(len: usize, chunk_size: usize, mut f: F)
-            -> F::Output
-        where
-            F: FnMut(usize) -> Result<(), E>
-        {
-            for _ in 0..len/chunk_size {
-                f(chunk_size)?;
-            }
-            let rem = len % chunk_size;
-            if rem != 0{
-                f(rem)?;
-            }
-            Ok(())
-        }
-
-        chunked(len, BUFFER_SIZE, |size: usize| -> std::io::Result<()> {
+        chunked::<_, _, BUFFER_SIZE>(len, |_, size: usize| -> std::io::Result<()> {
             let slice: &mut [T] = unsafe{ slice::from_raw_parts_mut(
                 buf.as_mut_ptr().cast(),
                 size
@@ -515,7 +498,6 @@ impl<R: Read> Reader<R>{
     pub fn skip_n<T>(&mut self, n: usize) -> std::io::Result<()> {
         self.foreach_read_item(n, |_: &T|{})
     }
-
 
     #[inline]
     pub fn read_masks<T: BitBlock>(&mut self, masks: &mut[T])
