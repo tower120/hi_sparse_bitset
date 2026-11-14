@@ -1,8 +1,6 @@
 use std::io::{Read, Write};
 use std::mem::MaybeUninit;
 use std::ops::{ControlFlow, Sub};
-#[cfg(target_endian = "little")]
-use std::slice;
 use crate::{BitBlock, BitSet, make_lvl0_u64_index_starts};
 use crate::bitset::{Level0Block, Level1Block, LevelDataBlock};
 use crate::bitset::block::Block;
@@ -183,7 +181,7 @@ impl<Conf: Config> BitSet<Conf> {
             #[cfg(target_endian = "little")]
             {
                 // Copy as is directly for little endian in one go.
-                let slice = unsafe{slice::from_raw_parts_mut(
+                let slice = unsafe{std::slice::from_raw_parts_mut(
                     blocks.as_mut_ptr().add(1).cast::<DataMask<Conf>>(),
                     data_len
                 )};

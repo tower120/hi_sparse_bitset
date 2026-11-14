@@ -116,7 +116,26 @@ pub trait BitBlock
 
     #[inline]
     fn to_le(self) -> Self {
-        Self::from_ne_bytes(self.to_le_bytes())
+        #[cfg(target_endian = "little")]
+        { self }
+        #[cfg(target_endian = "big")]
+        {
+            // We hope that compiler will replace this with hardware
+            // byte_swap intrinsic.
+            Self::from_ne_bytes(self.to_le_bytes())
+        }
+    }
+
+    #[inline]
+    fn from_le(this: Self) -> Self {
+        #[cfg(target_endian = "little")]
+        { this }
+        #[cfg(target_endian = "big")]
+        {
+            // We hope that compiler will replace this with hardware
+            // byte_swap intrinsic.
+            Self::from_le_bytes(this.to_ne_bytes())
+        }
     }
 
     #[inline]

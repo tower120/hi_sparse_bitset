@@ -256,20 +256,12 @@ impl<Conf: Config, Data: DirectDataSource, const ALIGNED: bool> DirectBitset<Con
 
     #[inline]
     unsafe fn read_mask<Mask: BitBlock>(ptr: *const Mask) -> Mask {
-        #[cfg(target_endian = "little")]
-        {
-            if ALIGNED{
-                ptr.read()
-            } else {
-                ptr.read_unaligned()
-            }
-        }
-
-        #[cfg(target_endian = "big")]
-        {
-            let bytes = ptr.cast::<Mask::BytesArray>().read_unaligned();
-            Mask::from_le_bytes(bytes)
-        }
+        let le_mask = if ALIGNED {
+            ptr.read()
+        } else {
+            ptr.read_unaligned()
+        };
+        Mask::from_le(le_mask)
     }
 
     #[inline(always)]
