@@ -125,7 +125,11 @@ fn chunked<E, F, const CHUNK_SIZE: usize>(len: usize, mut f: F)
 where
     F: FnMut(usize/*chunk idx*/, usize/*size*/) -> Result<(), E>
 {
-    const { assert!(CHUNK_SIZE % 2 == 0); }
+    const { assert!(
+        CHUNK_SIZE != 0     // We can't tolerate zero sized chunks.
+        &&
+        CHUNK_SIZE % 2 == 0 // We want log2 only sizes (for fast div)
+    ); }
 
     let full_chunks = len / CHUNK_SIZE;
     for i in 0..full_chunks {
@@ -157,14 +161,17 @@ impl<W: Write> Writer<W>{
     }
 
     #[inline]
-    pub fn write_buf(&mut self, buf: &[u8]) -> std::io::Result<()>{
+    pub fn write_buf(&mut self, buf: &[u8]) -> std::io::Result<()> {
         self.write.write_all(buf)?;
         self.pos += buf.len();
         Ok(())
     }
 
+    /// # Safety
+    ///
+    /// `items` MUST be "truly" `ExactSizeIterator`.
     #[inline]
-    pub fn write_buffered<T, const BUFFER_SIZE: usize>(
+    pub unsafe fn write_buffered<T, const BUFFER_SIZE: usize>(
         &mut self,
         mut items: impl Iterator<Item = T> + ExactSizeIterator
     ) -> std::io::Result<()> {
@@ -175,7 +182,7 @@ impl<W: Write> Writer<W>{
 
         chunked::<_, _, BUFFER_SIZE> (
             items.len(),
-         |_, chunk_size: usize| -> std::io::Result<()> {
+            |_, chunk_size: usize| -> std::io::Result<()> {
                 for i in 0..chunk_size {
                     unsafe{
                         let item = items.next().unwrap_unchecked();
@@ -210,7 +217,7 @@ impl<W: Write> Writer<W>{
         }
 
         #[cfg(target_endian = "big")]
-        {
+        unsafe {
             self.write_buffered::<T, 512>(
                 buf.iter().map(|primitive| primitive.to_le())
             )
@@ -234,7 +241,7 @@ impl<W: Write> Writer<W>{
         }
 
         #[cfg(target_endian = "big")]
-        {
+        unsafe {
             self.write_buffered::<T, 64>(
                 buf.iter().map(|mask| mask.to_le())
             )
