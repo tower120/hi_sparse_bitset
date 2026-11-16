@@ -125,11 +125,11 @@ fn chunked<E, F, const CHUNK_SIZE: usize>(len: usize, mut f: F)
 where
     F: FnMut(usize/*chunk idx*/, usize/*size*/) -> Result<(), E>
 {
-    const { assert!(
-        CHUNK_SIZE != 0     // We can't tolerate zero sized chunks.
-        &&
-        CHUNK_SIZE % 2 == 0 // We want log2 only sizes (for fast div)
-    ); }
+    const {
+        // We want log2 only sizes (for fast div).
+        // This also checks for non-zero.
+        assert!(CHUNK_SIZE.is_power_of_two());
+    }
 
     let full_chunks = len / CHUNK_SIZE;
     for i in 0..full_chunks {
