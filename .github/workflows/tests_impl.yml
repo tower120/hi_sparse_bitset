@@ -89,3 +89,28 @@ jobs:
              --cfg ${{ inputs.cache_type_flag }}
              --cfg ${{ inputs.config_type_flag }}
            " cargo +nightly miri nextest run -j6 --no-default-features --features ${{ inputs.features }} --target s390x-unknown-linux-gnu
+
+  # Miri runs the fuzzy tests with reduced sizes. QEMU user-mode runs the
+  # regular test suite on a big-endian target. powerpc64-unknown-linux-musl
+  # links statically with the rust-lld shipped with rustup, so no cross C
+  # toolchain is needed. opt-level 2 keeps debug assertions and overflow
+  # checks, and is about 10 times faster than debug under QEMU.
+  qemu_big_endian:
+    name: tests big-endian (qemu)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: powerpc64-unknown-linux-musl
+    - run: sudo apt-get update && sudo apt-get install -y qemu-user
+    - uses: actions/checkout@v6
+    - run: echo "CARGO_TARGET_POWERPC64_UNKNOWN_LINUX_MUSL_LINKER=$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld" >> "$GITHUB_ENV"
+    - run:
+        CARGO_TARGET_POWERPC64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-ppc64
+        CARGO_PROFILE_DEV_OPT_LEVEL=2
+        RUSTFLAGS="
+             ${{ inputs.rustflags }}
+             -C target-feature=+crt-static
+             --cfg ${{ inputs.cache_type_flag }}
+             --cfg ${{ inputs.config_type_flag }}
+           " cargo test --target powerpc64-unknown-linux-musl --lib --examples --tests --no-default-features --features ${{ inputs.features }}
