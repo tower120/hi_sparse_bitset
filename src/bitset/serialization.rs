@@ -202,7 +202,7 @@ impl<Conf: Config> BitSet<Conf> {
 mod tests {
     use std::io::Cursor;
     use itertools::assert_equal;
-    use crate::{ImmutableBitset, config};
+    use crate::{DirectBitset, ImmutableBitset, config};
     use super::*;
 
     #[test]
@@ -228,5 +228,80 @@ mod tests {
 
         assert_eq!(bitset, deserialized_bitset);
         assert_equal(bitset.iter(), deserialized_bitset.iter());    // check by iter too.
+    }
+
+    /// Fills all but 3 level1 blocks, with 1 to 4 data blocks each, so that
+    /// the level1 and data sections span several 64-item chunks of the
+    /// big-endian reader/writer plus a remainder, and for `_256bit` the
+    /// level1 bitcounts span the 512-item chunks too. Small enough for Miri.
+    fn chunked_serialize_test<Conf: Config>(){
+        let lvl0_bits = Lvl0Mask::<Conf>::size();
+        let lvl1_bits = Lvl1Mask::<Conf>::size();
+        let data_bits = DataMask::<Conf>::size();
+
+        let mut bitset: BitSet<Conf> = Default::default();
+        for lvl1 in 0..lvl0_bits - 3 {
+            for data in 0..lvl1 % 4 + 1 {
+                let start = (lvl1 * lvl1_bits + data * 3) * data_bits;
+                for bit in [0, 1 + (lvl1 + data) % (data_bits - 2), data_bits - 1] {
+                    bitset.insert(start + bit);
+                }
+            }
+        }
+
+        let mut vec: Vec<u8> = Vec::new();
+        bitset.serialize(&mut vec).unwrap();
+
+        // BitSet and ImmutableBitset go through different writers.
+        let im = ImmutableBitset::<Conf>::from(&bitset);
+        let mut im_vec: Vec<u8> = Vec::new();
+        im.serialize(&mut im_vec).unwrap();
+        assert_eq!(vec, im_vec);
+
+        // The data section ends the stream: every u64 lane little-endian,
+        // lanes in order. This is built without the code under test, so a
+        // byte order mistake made the same way on write and read is caught.
+        let data_le: Vec<u8> = bitset.block_iter()
+            .flat_map(|block| block.bit_block.as_array().to_vec())
+            .flat_map(u64::to_le_bytes)
+            .collect();
+        assert!(vec.ends_with(&data_le));
+
+        let deserialized: BitSet<Conf> = BitSet::deserialize(&mut vec.as_slice()).unwrap();
+        assert_eq!(bitset, deserialized);
+        assert_equal(bitset.iter(), deserialized.iter());
+        let mut re_vec: Vec<u8> = Vec::new();
+        deserialized.serialize(&mut re_vec).unwrap();
+        assert_eq!(vec, re_vec);
+
+        let im = ImmutableBitset::<Conf>::deserialize(&mut vec.as_slice()).unwrap();
+        assert_equal(bitset.iter(), im.iter());
+        let mut re_vec: Vec<u8> = Vec::new();
+        im.serialize(&mut re_vec).unwrap();
+        assert_eq!(vec, re_vec);
+
+        let direct = DirectBitset::<Conf, &[u8]>::new(vec.as_slice(), 0).unwrap();
+        assert_equal(bitset.iter(), direct.iter());
+        for i in bitset.iter(){
+            assert!(im.contains(i));
+            assert!(direct.contains(i));
+        }
+    }
+
+    #[test]
+    fn chunked_serialize_64_test(){
+        chunked_serialize_test::<config::_64bit>();
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
+    fn chunked_serialize_128_test(){
+        chunked_serialize_test::<config::_128bit>();
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
+    fn chunked_serialize_256_test(){
+        chunked_serialize_test::<config::_256bit>();
     }
 }
