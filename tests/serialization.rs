@@ -1,75 +1,63 @@
-//! Serialization tests for all containers:
-//! `BitSet`, `ImmutableBitset` and `DirectBitset`.
+// Serialization currently requires `std` feature.
 #![cfg(feature = "std")]
 
 use hi_sparse_bitset::{config, config::Config, BitSet, DirectBitset, ImmutableBitset};
 use itertools::assert_equal;
 use rand::prelude::*;
 
-/// Serializes `bitset` with `BitSet` and with `ImmutableBitset`, which have
-/// separate serialization implementations, and checks that both give the
-/// same bytes. Then reads the bytes back with `BitSet`, `ImmutableBitset`
-/// and `DirectBitset`, and checks that each one has the items of `bitset`.
+/// Check serialization/deserialization of `bitset` across all containers.
+///
+/// Return serialized bytes.
 fn check_serialization<Conf: Config>(bitset: &BitSet<Conf>) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bitset.serialize(&mut bytes).unwrap();
+    let mut bitset_serialized = Vec::new();
+    bitset.serialize(&mut bitset_serialized).unwrap();
 
-    let mut immutable_bytes = Vec::new();
-    ImmutableBitset::<Conf>::from(bitset).serialize(&mut immutable_bytes).unwrap();
-    assert_eq!(bytes, immutable_bytes);
+    let mut immutable_serialized = Vec::new();
+    ImmutableBitset::<Conf>::from(bitset).serialize(&mut immutable_serialized).unwrap();
+    assert_eq!(bitset_serialized, immutable_serialized);
 
-    let deserialized = BitSet::<Conf>::deserialize(&mut bytes.as_slice()).unwrap();
-    assert_eq!(*bitset, deserialized);
+    let bitset_deserialized = BitSet::<Conf>::deserialize(&mut bitset_serialized.as_slice()).unwrap();
+    assert_eq!(*bitset, bitset_deserialized);
 
-    let immutable = ImmutableBitset::<Conf>::deserialize(&mut bytes.as_slice()).unwrap();
-    assert_equal(bitset.iter(), immutable.iter());
+    let immutable_deserialized = ImmutableBitset::<Conf>::deserialize(&mut bitset_serialized.as_slice()).unwrap();
+    assert_equal(bitset.iter(), immutable_deserialized.iter());
 
-    let direct = DirectBitset::<Conf, &[u8]>::new(bytes.as_slice(), 0).unwrap();
+    let direct = DirectBitset::<Conf, &[u8]>::new(bitset_serialized.as_slice(), 0).unwrap();
     assert_equal(bitset.iter(), direct.iter());
 
-    bytes
+    bitset_serialized
 }
 
-/// Serialization writes and reads masks through a buffer of 64 masks, and
-/// on big-endian targets level1 bitcounts through a buffer of 512 (see
-/// `BufferedWriter`, `write_buffered()` and `read_buf_le_chunked()` in
-/// src/serialization.rs). This bitset fills these buffers several times,
-/// with a partly filled buffer at the end. It is small enough for Miri.
-fn round_trip_many_blocks<Conf: Config>() {
-    // 600 items give about 600 data blocks. Only the first 3/4 of the range
-    // is used, so that the number of level1 blocks is not a multiple of 64:
-    // up to 48, 96 and 192 level1 blocks with the 64, 128 and 256 bit
-    // configs. With 256 bits each level1 block has 4 bitcounts, so only
-    // that config has more than 512 of them.
-    //
-    // The items are random, so that the blocks differ from each other:
-    // a buffer written or read at the wrong place gives a wrong result.
-    let mut rng = StdRng::seed_from_u64(0);
-    let range = BitSet::<Conf>::max_capacity() / 4 * 3;
-    let bitset: BitSet<Conf> = (0..600).map(|_| rng.random_range(0..range)).collect();
-    check_serialization(&bitset);
+/// Designed for miri run.
+fn serialization_fuzzy_test<Conf: Config>() {
+    let mut rng = rand::rng();
+    for _ in 0..4 {
+        let max = BitSet::<Conf>::max_capacity();
+        let range = rng.random_range(max/4..max);
+        let bitset: BitSet<Conf> = (0..600).map(|_| rng.random_range(0..range)).collect();
+        check_serialization(&bitset);
+    }
 }
 
 #[test]
-fn round_trip_many_blocks_64bit() {
-    round_trip_many_blocks::<config::_64bit>();
+fn serialization_fuzzy_test_64bit() {
+    serialization_fuzzy_test::<config::_64bit>();
 }
 
 #[cfg(feature = "simd")]
 #[test]
-fn round_trip_many_blocks_128bit() {
-    round_trip_many_blocks::<config::_128bit>();
+fn serialization_fuzzy_test_128bit() {
+    serialization_fuzzy_test::<config::_128bit>();
 }
 
 #[cfg(feature = "simd")]
 #[test]
-fn round_trip_many_blocks_256bit() {
-    round_trip_many_blocks::<config::_256bit>();
+fn serialization_fuzzy_test_256bit() {
+    serialization_fuzzy_test::<config::_256bit>();
 }
 
 /// The serialized bytes are little-endian on every target, so that they can
-/// be read on a target with the other byte order. A round trip alone can't
-/// show that.
+/// be read on a target with the other byte order. Fuzzy testing may omit that.
 #[test]
 fn serialized_bytes_are_little_endian() {
     // With the 64 bit config, a level1 block has 64 data blocks of 64 items.
