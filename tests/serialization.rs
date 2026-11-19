@@ -29,6 +29,7 @@ fn check_serialization<Conf: Config>(bitset: &BitSet<Conf>) -> Vec<u8> {
 }
 
 /// Designed for miri run.
+/// Bitset len is longer then in "general" `fuzzy_test()` miri run.
 fn serialization_fuzzy_test<Conf: Config>() {
     let mut rng = rand::rng();
     for _ in 0..4 {
