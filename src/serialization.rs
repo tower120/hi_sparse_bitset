@@ -542,6 +542,36 @@ impl<R: Read> Reader<R>{
     }
 }
 
+#[cfg(test)]
+mod tests{
+    use super::chunked;
+
+    /// Returns (chunk idx, size) of each call that `chunked()` makes
+    /// for `len` items, with chunks of 4 items.
+    fn chunks(len: usize) -> Vec<(usize, usize)> {
+        let mut chunks = Vec::new();
+        chunked::<(), _, 4>(len, |chunk_idx, size| {
+            chunks.push((chunk_idx, size));
+            Ok(())
+        }).unwrap();
+        chunks
+    }
+
+    #[test]
+    fn chunked_test(){
+        // No items - no calls.
+        assert!(chunks(0).is_empty());
+        // Less than one chunk - leftover only.
+        assert_eq!(chunks(3), [(0, 3)]);
+        // Full chunks, no leftover.
+        assert_eq!(chunks(4), [(0, 4)]);
+        assert_eq!(chunks(8), [(0, 4), (1, 4)]);
+        // Full chunks, then leftover.
+        assert_eq!(chunks(5), [(0, 4), (1, 1)]);
+        assert_eq!(chunks(11), [(0, 4), (1, 4), (2, 3)]);
+    }
+}
+
 }
 #[cfg(feature = "std")]
 pub(crate) use io::*;
