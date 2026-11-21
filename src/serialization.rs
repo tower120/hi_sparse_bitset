@@ -114,10 +114,34 @@ pub(crate) fn check_version(version: u16) ->  Result<(), AccessError>{
 }
 
 #[cfg(feature = "std")]
-mod io {
+pub(crate) mod io {
 use super::*;
 use crate::{BitBlock, primitive::Primitive};
 use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
+
+#[inline]
+fn chunked<E, F, const CHUNK_SIZE: usize>(len: usize, mut f: F)
+    -> F::Output
+where
+    F: FnMut(usize/*chunk idx*/, usize/*size*/) -> Result<(), E>
+{
+    const {
+        // We want log2 only sizes (for fast div).
+        // This also checks for non-zero.
+        assert!(CHUNK_SIZE.is_power_of_two());
+    }
+
+    let full_chunks = len / CHUNK_SIZE;
+    for i in 0..full_chunks {
+        f(i, CHUNK_SIZE)?;
+    }
+
+    let rem = len % CHUNK_SIZE;
+    if rem != 0{
+        f(full_chunks, rem)?;
+    }
+    Ok(())
+}
 
 pub(crate) struct Writer<W>{
     write: W,
@@ -137,10 +161,43 @@ impl<W: Write> Writer<W>{
     }
 
     #[inline]
-    pub fn write_buf(&mut self, buf: &[u8]) -> std::io::Result<()>{
+    pub fn write_buf(&mut self, buf: &[u8]) -> std::io::Result<()> {
         self.write.write_all(buf)?;
         self.pos += buf.len();
         Ok(())
+    }
+
+    /// # Safety
+    ///
+    /// `items` MUST be "truly" `ExactSizeIterator`.
+    #[inline]
+    pub unsafe fn write_buffered<T, const BUFFER_SIZE: usize>(
+        &mut self,
+        mut items: impl Iterator<Item = T> + ExactSizeIterator
+    ) -> std::io::Result<()> {
+        const{ assert!(!mem::needs_drop::<T>()); }
+        let mut chunk: [MaybeUninit<T>; BUFFER_SIZE] = unsafe{
+            MaybeUninit::uninit().assume_init()
+        };
+
+        chunked::<_, _, BUFFER_SIZE> (
+            items.len(),
+            |_, chunk_size: usize| -> std::io::Result<()> {
+                for i in 0..chunk_size {
+                    unsafe{
+                        let item = items.next().unwrap_unchecked();
+                        chunk.get_unchecked_mut(i).write(item);
+                    }
+                }
+
+                let bytes = unsafe{std::slice::from_raw_parts(
+                    chunk.as_ptr().cast::<u8>(),
+                    chunk_size * size_of::<T>()
+                )};
+                self.write_buf(bytes)?;
+                Ok(())
+            }
+        )
     }
 
     #[inline]
@@ -160,7 +217,11 @@ impl<W: Write> Writer<W>{
         }
 
         #[cfg(target_endian = "big")]
-        unimplemented!("TODO: convert to chunks and write_all that chunks");
+        unsafe {
+            self.write_buffered::<T, 512>(
+                buf.iter().map(|primitive| primitive.to_le())
+            )
+        }
     }
 
     #[inline]
@@ -180,7 +241,11 @@ impl<W: Write> Writer<W>{
         }
 
         #[cfg(target_endian = "big")]
-        unimplemented!("TODO: convert to chunks and write_all that chunks");
+        unsafe {
+            self.write_buffered::<T, 64>(
+                buf.iter().map(|mask| mask.to_le())
+            )
+        }
     }
 
     #[inline]
@@ -335,6 +400,30 @@ impl<R: Read> Reader<R>{
         Ok(())
     }
 
+    /// Read to LE `buf` in chunks of `BUFFER_SIZE` size.
+    /// After each chunk read, calls `f` with read portion of `buf` as param.
+    #[inline]
+    fn read_buf_le_chunked<T, F, const BUFFER_SIZE: usize>(
+        &mut self, buf: &mut [T], mut f: F
+    ) -> std::io::Result<()>
+    where
+        F: FnMut(&mut [T])
+    {
+        chunked::<_, _, BUFFER_SIZE>(
+            buf.len(),
+            |chunk_idx: usize, chunk_size: usize| -> std::io::Result<()> {
+                let slice: &mut [T] = unsafe{ slice::from_raw_parts_mut(
+                    buf.as_mut_ptr().add(chunk_idx * BUFFER_SIZE),
+                    chunk_size
+                ) };
+
+                self.read_buf_le(slice)?;
+                f(slice);
+                Ok(())
+            }
+        )
+    }
+
     #[inline]
     pub fn read_primitives<T: Primitive>(&mut self, primitives: &mut[T])
         -> std::io::Result<()>
@@ -345,7 +434,13 @@ impl<R: Read> Reader<R>{
         }
 
         #[cfg(target_endian = "big")]
-        unimplemented!();
+        {
+            self.read_buf_le_chunked::<_, _, 512>(primitives, |primitives_chunk| {
+                for primitive in primitives_chunk.iter_mut() {
+                    *primitive = primitive.swap_bytes();
+                }
+            })
+        }
     }
 
     #[inline]
@@ -373,23 +468,7 @@ impl<R: Read> Reader<R>{
         const BUFFER_SIZE: usize = 64;
         let mut buf: [MaybeUninit<T>; BUFFER_SIZE] = unsafe{MaybeUninit::uninit().assume_init()};
 
-        #[inline]
-        fn chunked<E, F>(len: usize, chunk_size: usize, mut f: F)
-            -> F::Output
-        where
-            F: FnMut(usize) -> Result<(), E>
-        {
-            for _ in 0..len/chunk_size {
-                f(chunk_size)?;
-            }
-            let rem = len % chunk_size;
-            if rem != 0{
-                f(rem)?;
-            }
-            Ok(())
-        }
-
-        chunked(len, BUFFER_SIZE, |size: usize| -> std::io::Result<()> {
+        chunked::<_, _, BUFFER_SIZE>(len, |_, size: usize| -> std::io::Result<()> {
             let slice: &mut [T] = unsafe{ slice::from_raw_parts_mut(
                 buf.as_mut_ptr().cast(),
                 size
@@ -410,6 +489,7 @@ impl<R: Read> Reader<R>{
     pub fn foreach_read_mask<T, F>(&mut self, len: usize, mut f: F)
         -> std::io::Result<()>
     where
+        T: BitBlock,
         F: FnMut(&T)
     {
         self.foreach_read_item(len, |item: &T|{
@@ -417,7 +497,7 @@ impl<R: Read> Reader<R>{
             f(item);
 
             #[cfg(target_endian = "big")]
-            unimplemented!();
+            f(&T::from_le(*item));
         })
     }
 
@@ -425,7 +505,6 @@ impl<R: Read> Reader<R>{
     pub fn skip_n<T>(&mut self, n: usize) -> std::io::Result<()> {
         self.foreach_read_item(n, |_: &T|{})
     }
-
 
     #[inline]
     pub fn read_masks<T: BitBlock>(&mut self, masks: &mut[T])
@@ -437,7 +516,13 @@ impl<R: Read> Reader<R>{
         }
 
         #[cfg(target_endian = "big")]
-        unimplemented!();
+        {
+            self.read_buf_le_chunked::<_, _, 64>(masks, |masks_chunk|{
+                for mask in masks_chunk.iter_mut() {
+                    *mask = T::from_le(*mask);
+                }
+            })
+        }
     }
 
     #[inline]
@@ -457,18 +542,39 @@ impl<R: Read> Reader<R>{
     }
 }
 
-}
-#[cfg(feature = "std")]
-pub(crate) use io::*;
-
-#[cfg(all(test, feature = "std", feature = "simd"))]
+#[cfg(test)]
 mod tests{
-    use crate::config;
     use super::*;
 
     #[test]
+    fn chunked_test(){
+        /// Returns (chunk idx, size) of each call that `chunked()` makes
+        /// for `len` items, with chunks of 4 items.
+        fn chunks(len: usize) -> Vec<(usize, usize)> {
+            let mut chunks = Vec::new();
+            chunked::<(), _, 4>(len, |chunk_idx, size| {
+                chunks.push((chunk_idx, size));
+                Ok(())
+            }).unwrap();
+            chunks
+        }
+
+        // No items - no calls.
+        assert!(chunks(0).is_empty());
+        // Less than one chunk - leftover only.
+        assert_eq!(chunks(3), [(0, 3)]);
+        // Full chunks, no leftover.
+        assert_eq!(chunks(4), [(0, 4)]);
+        assert_eq!(chunks(8), [(0, 4), (1, 4)]);
+        // Full chunks, then leftover.
+        assert_eq!(chunks(5), [(0, 4), (1, 1)]);
+        assert_eq!(chunks(11), [(0, 4), (1, 4), (2, 3)]);
+    }
+
+    #[cfg(feature = "simd")]
+    #[test]
     fn offsets_test(){
-        type Conf = config::_256bit;
+        type Conf = crate::config::_256bit;
         type OF = Offsets::<Conf>;
 
         println!("{:}", OF::LVL0_MASK_OFFSET);
@@ -479,4 +585,5 @@ mod tests{
         println!("{:}", offsets.lvl1_bitcounts_offset);
         println!("{:}", offsets.data_offset);
     }
+}
 }

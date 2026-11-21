@@ -116,7 +116,26 @@ pub trait BitBlock
 
     #[inline]
     fn to_le(self) -> Self {
-        Self::from_le_bytes(self.to_le_bytes())
+        #[cfg(target_endian = "little")]
+        { self }
+        #[cfg(target_endian = "big")]
+        {
+            // We hope that compiler will replace this with hardware
+            // byte_swap intrinsic.
+            Self::from_ne_bytes(self.to_le_bytes())
+        }
+    }
+
+    #[inline]
+    fn from_le(this: Self) -> Self {
+        #[cfg(target_endian = "little")]
+        { this }
+        #[cfg(target_endian = "big")]
+        {
+            // We hope that compiler will replace this with hardware
+            // byte_swap intrinsic.
+            Self::from_le_bytes(this.to_ne_bytes())
+        }
     }
 
     #[inline]
@@ -240,7 +259,7 @@ impl BitBlock for wide::u64x2{
         #[cfg(target_endian = "little")]
         { self.to_ne_bytes() }
         #[cfg(target_endian = "big")]
-        { unimplemented!() }
+        { unsafe{ mem::transmute(self.to_array().map(u64::to_le)) } }
     }
 
     #[inline]
@@ -253,7 +272,7 @@ impl BitBlock for wide::u64x2{
         #[cfg(target_endian = "little")]
         { Self::from_ne_bytes(bytes) }
         #[cfg(target_endian = "big")]
-        { unimplemented!() }
+        { Self::new(unsafe{ mem::transmute::<_, [u64; 2]>(bytes) }.map(u64::from_le)) }
     }
 }
 
@@ -294,7 +313,7 @@ impl BitBlock for wide::u64x4{
         #[cfg(target_endian = "little")]
         { self.to_ne_bytes() }
         #[cfg(target_endian = "big")]
-        { unimplemented!() }
+        { unsafe{ mem::transmute(self.to_array().map(u64::to_le)) } }
     }
 
     #[inline]
@@ -307,7 +326,7 @@ impl BitBlock for wide::u64x4{
         #[cfg(target_endian = "little")]
         { Self::from_ne_bytes(bytes) }
         #[cfg(target_endian = "big")]
-        { unimplemented!() }
+        { Self::new(unsafe{ mem::transmute::<_, [u64; 4]>(bytes) }.map(u64::from_le)) }
     }
 }
 
@@ -350,7 +369,7 @@ impl BitBlock for wide::u64x8{
         #[cfg(target_endian = "little")]
         { self.to_ne_bytes() }
         #[cfg(target_endian = "big")]
-        { unimplemented!() }
+        { unsafe{ mem::transmute(self.to_array().map(u64::to_le)) } }
     }
 
     #[inline]
@@ -363,6 +382,6 @@ impl BitBlock for wide::u64x8{
         #[cfg(target_endian = "little")]
         { Self::from_ne_bytes(bytes) }
         #[cfg(target_endian = "big")]
-        { unimplemented!() }
+        { Self::new(unsafe{ mem::transmute::<_, [u64; 8]>(bytes) }.map(u64::from_le)) }
     }
 }

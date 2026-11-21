@@ -1,7 +1,6 @@
 use std::io::{Read, Write};
 use std::mem::MaybeUninit;
 use std::ops::{ControlFlow, Sub};
-use std::slice;
 use crate::{BitBlock, BitSet, make_lvl0_u64_index_starts};
 use crate::bitset::{Level0Block, Level1Block, LevelDataBlock};
 use crate::bitset::block::Block;
@@ -10,7 +9,7 @@ use crate::impl_bitset::Primitive;
 use crate::iter::BlockIter;
 use crate::bitset::level::{IBlock, Level};
 use crate::primitive_array::PrimitiveArray;
-use crate::serialization::*;
+use crate::serialization::{io::*, *};
 use crate::config::*;
 
 #[inline]
@@ -179,28 +178,15 @@ impl<Conf: Config> BitSet<Conf> {
             unsafe{ blocks.spare_capacity_mut().get_unchecked_mut(0).write(Default::default()); }
             let mut blocks_len = 1;
 
-            #[cfg(target_endian = "little")]
+            // This will copy as is directly for little endian in one go.
             {
-                // Copy as is directly for little endian in one go.
-                let slice = unsafe{slice::from_raw_parts_mut(
+                let slice = unsafe{std::slice::from_raw_parts_mut(
                     blocks.as_mut_ptr().add(1).cast::<DataMask<Conf>>(),
                     data_len
                 )};
                 r.read_masks(slice)?;
                 blocks_len += data_len;
             }
-
-            #[cfg(target_endian = "big")]
-            chunked_read(r, data_blocks_len, |masks: &[Conf::DataBitBlock]| {
-                 for &mask in masks {
-                     let block: LevelDataBlock<Conf> = unsafe{Block::from_parts(
-                         mask, []
-                     )};
-
-                    unsafe{ blocks.spare_capacity_mut().get_unchecked_mut(blocks_len).write(block); }
-                    blocks_len +=1;
-                 }
-            })?;
             unsafe{ blocks.set_len(blocks_len); }
 
             unsafe{ Level::from_blocks_unchecked(blocks) }

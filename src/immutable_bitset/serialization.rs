@@ -1,7 +1,5 @@
 use std::io::{Read, Write};
-
-use crate::serialization::*;
-
+use crate::serialization::{io::*, *};
 use super::*;
 
 impl<Conf: Config> ImmutableBitset<Conf>{
