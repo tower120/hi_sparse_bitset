@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.1
+Big Endian support.
+
+### Added
+- Big Endian support.
+- CI testing for BE with QEMU in user-mode.
+- CI MIRI testing for BE.
+
 ## 0.10.0
 `no_std` support.
 
