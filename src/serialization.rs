@@ -544,21 +544,21 @@ impl<R: Read> Reader<R>{
 
 #[cfg(test)]
 mod tests{
-    use super::chunked;
-
-    /// Returns (chunk idx, size) of each call that `chunked()` makes
-    /// for `len` items, with chunks of 4 items.
-    fn chunks(len: usize) -> Vec<(usize, usize)> {
-        let mut chunks = Vec::new();
-        chunked::<(), _, 4>(len, |chunk_idx, size| {
-            chunks.push((chunk_idx, size));
-            Ok(())
-        }).unwrap();
-        chunks
-    }
+    use super::*;
 
     #[test]
     fn chunked_test(){
+        /// Returns (chunk idx, size) of each call that `chunked()` makes
+        /// for `len` items, with chunks of 4 items.
+        fn chunks(len: usize) -> Vec<(usize, usize)> {
+            let mut chunks = Vec::new();
+            chunked::<(), _, 4>(len, |chunk_idx, size| {
+                chunks.push((chunk_idx, size));
+                Ok(())
+            }).unwrap();
+            chunks
+        }
+
         // No items - no calls.
         assert!(chunks(0).is_empty());
         // Less than one chunk - leftover only.
@@ -570,20 +570,11 @@ mod tests{
         assert_eq!(chunks(5), [(0, 4), (1, 1)]);
         assert_eq!(chunks(11), [(0, 4), (1, 4), (2, 3)]);
     }
-}
 
-}
-#[cfg(feature = "std")]
-pub(crate) use io::*;
-
-#[cfg(all(test, feature = "std", feature = "simd"))]
-mod tests{
-    use crate::config;
-    use super::*;
-
+    #[cfg(feature = "simd")]
     #[test]
     fn offsets_test(){
-        type Conf = config::_256bit;
+        type Conf = crate::config::_256bit;
         type OF = Offsets::<Conf>;
 
         println!("{:}", OF::LVL0_MASK_OFFSET);
@@ -595,3 +586,7 @@ mod tests{
         println!("{:}", offsets.data_offset);
     }
 }
+}
+
+#[cfg(feature = "std")]
+pub(crate) use io::*;
