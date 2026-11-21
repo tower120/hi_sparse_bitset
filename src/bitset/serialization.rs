@@ -9,7 +9,7 @@ use crate::impl_bitset::Primitive;
 use crate::iter::BlockIter;
 use crate::bitset::level::{IBlock, Level};
 use crate::primitive_array::PrimitiveArray;
-use crate::serialization::*;
+use crate::serialization::{io::*, *};
 use crate::config::*;
 
 #[inline]

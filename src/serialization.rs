@@ -114,7 +114,7 @@ pub(crate) fn check_version(version: u16) ->  Result<(), AccessError>{
 }
 
 #[cfg(feature = "std")]
-mod io {
+pub(crate) mod io {
 use super::*;
 use crate::{BitBlock, primitive::Primitive};
 use std::{slice, io::{Read, Write}, mem::{self, MaybeUninit}};
@@ -587,6 +587,3 @@ mod tests{
     }
 }
 }
-
-#[cfg(feature = "std")]
-pub(crate) use io::*;
